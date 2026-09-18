@@ -11,6 +11,8 @@ import {ThemeContext, THEMES, THEME_NAMES, type ThemeName} from './theme.js';
 import {ConfigModal, configHeight} from './components/ConfigModal.js';
 import {SETTINGS, type Actions} from './settings.js';
 import {DEFAULTS, saveConfig} from './config.js';
+import {AgentsModal} from './components/AgentsModal.js';
+import {listAgents, type Agent} from './agents/index.js';
 import {footer} from './keys.js';
 import {DiffView, toRows, toSplit, changeStarts} from './components/DiffView.js';
 
@@ -57,6 +59,19 @@ export default function App({
 	const [full, setFull] = useState(full0);
 	const keep = useRef<string | undefined>(undefined);
 	const [sel, setSel] = useState(0);
+	const [amodal, setAmodal] = useState(false);
+	const [agents, setAgents] = useState<Agent[] | null>(null);
+	const [asel, setAsel] = useState(0);
+	const agentsLoad = () => {
+		setAgents(null);
+		listAgents().then(
+			(l) => {
+				setAgents(l);
+				setAsel((s) => Math.min(s, Math.max(0, l.length - 1)));
+			},
+			() => setAgents([]),
+		);
+	};
 	const height = Math.max(3, (stdout.rows || 24) - 3);
 	const half = Math.max(1, Math.floor(height / 2));
 	const mvSel = (n: number) => setSel((s) => Math.min((files?.length ?? 1) - 1, Math.max(0, s + n)));
@@ -222,6 +237,13 @@ export default function App({
 				if (key.escape || input === 'q' || input === '?') setHelp(false);
 				return;
 			}
+			if (amodal) {
+				if (key.escape || input === 'q' || input === 'A') setAmodal(false);
+				else if (input === 'r') agentsLoad();
+				else if (input === 'j' || key.downArrow) setAsel((s) => Math.min((agents?.length ?? 1) - 1, s + 1));
+				else if (input === 'k' || key.upArrow) setAsel((s) => Math.max(0, s - 1));
+				return;
+			}
 			if (cmodal) {
 				if (key.escape || input === 'q' || input === 'C') cfgClose();
 				else if (input === 'j' || key.downArrow) setCsel((s) => Math.min(SETTINGS.length - 1, s + 1));
@@ -246,6 +268,11 @@ export default function App({
 			}
 			if (key.ctrl) return;
 			if (input === 'F') return srchOpen();
+			if (input === 'A') {
+				setAsel(0);
+				setAmodal(true);
+				return agentsLoad();
+			}
 			if (browsePath !== undefined) {
 				if (key.escape) {
 					setBrowsePath(undefined);
@@ -352,6 +379,16 @@ export default function App({
 				{cmodal && (
 					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
 						<ConfigModal sel={csel} cur={ccur} state={{theme: tCommit, mode, split, full}} width={Math.min(cols, 56)} />
+					</Box>
+				)}
+				{amodal && (
+					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
+						<AgentsModal
+							agents={agents}
+							sel={asel}
+							height={Math.min(rowsT, Math.max(8, Math.floor(rowsT * 0.6)))}
+							width={mw}
+						/>
 					</Box>
 				)}
 				{srch && (
