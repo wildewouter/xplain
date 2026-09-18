@@ -7,6 +7,7 @@ export const KEYS: {g: string; k: string; d: string; foot?: string}[] = [
 	{g: 'Navigate', k: ']/[', d: 'next / prev change', foot: ']/[ change'},
 	{g: 'Files', k: 'n/p/tab', d: 'next / prev file', foot: 'n/p/tab file'},
 	{g: 'Files', k: 'f', d: 'file picker', foot: 'f files'},
+	{g: 'Files', k: 'F', d: 'search files / browse', foot: 'F search'},
 	{g: 'View', k: 's', d: 'split / unified', foot: 's split'},
 	{g: 'View', k: 'c', d: 'full file / changes only', foot: 'c full/changes'},
 	{g: 'View', k: 'm', d: 'mode all/staged/unstaged', foot: 'm mode'},

@@ -64,3 +64,15 @@ export function loadDiff(mode: Mode, args: string[], cwd?: string, full = true):
 		),
 	);
 }
+
+export function listFiles(cwd?: string): Promise<string[]> {
+	return new Promise((resolve, reject) =>
+		execFile(
+			'git',
+			['ls-files', '--cached', '--others', '--exclude-standard'],
+			{cwd, maxBuffer: 256 * 1024 * 1024},
+			(err, out, stderr) =>
+				err ? reject(new Error(stderr || err.message)) : resolve([...new Set(out.split('\n').filter(Boolean))].sort()),
+		),
+	);
+}

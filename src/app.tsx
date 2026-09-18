@@ -1,7 +1,11 @@
 import {useEffect, useRef, useMemo, useState} from 'react';
 import {Box, Text, useApp, useInput, useStdin, useStdout} from 'ink';
-import {loadDiff, MODES, type DiffFile, type Mode} from './diff/load.js';
+import {readFile} from 'node:fs/promises';
+import {join} from 'node:path';
+import fuzzysort from 'fuzzysort';
+import {loadDiff, listFiles, MODES, type DiffFile, type Mode} from './diff/load.js';
 import {FileModal} from './components/FileModal.js';
+import {SearchModal, type Hit} from './components/SearchModal.js';
 import {HelpModal, helpHeight} from './components/HelpModal.js';
 import {ThemeContext, THEMES, THEME_NAMES, type ThemeName} from './theme.js';
 import {ConfigModal, configHeight} from './components/ConfigModal.js';
@@ -9,6 +13,9 @@ import {SETTINGS, type Actions} from './settings.js';
 import {DEFAULTS, saveConfig} from './config.js';
 import {footer} from './keys.js';
 import {DiffView, toRows, toSplit, changeStarts} from './components/DiffView.js';
+
+const BINARY_MSG = 'binary file, not shown';
+const EMPTY: DiffFile = {path: '', adds: 0, dels: 0, binary: false, hunks: []} as DiffFile;
 
 export default function App({
 	args,
@@ -78,8 +85,55 @@ export default function App({
 		};
 	}, [mode, full]);
 
-	const file = files?.[idx];
-	const rows = useMemo(() => (file ? (eff ? toSplit(toRows(file)) : toRows(file)) : []), [file, eff]);
+	const [browsePath, setBrowsePath] = useState<string>();
+	const [browseText, setBrowseText] = useState('');
+	const [srch, setSrch] = useState(false);
+	const [query, setQuery] = useState('');
+	const [ssel, setSsel] = useState(0);
+	const [all, setAll] = useState<string[]>([]);
+	const hits: Hit[] = useMemo(
+		() =>
+			query
+				? fuzzysort.go(query, all).map((r) => ({path: r.target, idx: r.indexes}))
+				: all.map((p) => ({path: p, idx: []})),
+		[query, all],
+	);
+	const srchOpen = () => {
+		setQuery('');
+		setSsel(0);
+		setAll([]);
+		setSrch(true);
+		listFiles(cwd).then(setAll, () => {});
+	};
+	const openBrowse = (p: string) => {
+		readFile(join(cwd ?? '.', p)).then(
+			(buf) => {
+				const t = buf.subarray(0, 8000).includes(0) ? BINARY_MSG : buf.toString('utf8');
+				setBrowseText(t);
+				setBrowsePath(p);
+				setOff(0);
+			},
+			(e) => setNote(String(e.message ?? e)),
+		);
+	};
+	const dfile = files?.[idx];
+	const noChanges = !!files && !dfile;
+	const file: DiffFile | undefined = useMemo(() => {
+		if (browsePath === undefined) return dfile ?? EMPTY;
+		const lines = browseText.replace(/\n$/, '').split('\n');
+		return {
+			path: browsePath,
+			adds: 0,
+			dels: 0,
+			binary: false,
+			hunks: [{header: '', lines: lines.map((text, i) => ({type: 'normal', oldNo: i + 1, newNo: i + 1, text}))}],
+		} as DiffFile;
+	}, [dfile, browsePath, browseText]);
+	const rows = useMemo(() => {
+		if (!file) return [];
+		if (browsePath !== undefined) return toRows(file).slice(1); // drop empty hunk header
+		return eff ? toSplit(toRows(file)) : toRows(file);
+	}, [file, eff, browsePath]);
 	const max = Math.max(0, rows.length - height);
 	const starts = useMemo(() => changeStarts(rows), [rows]);
 	const CTX = 3;
@@ -145,6 +199,25 @@ export default function App({
 
 	useInput(
 		(input, key) => {
+			if (srch) {
+				if (key.escape) setSrch(false);
+				else if (key.return) {
+					const h = hits[ssel];
+					if (h) {
+						setSrch(false);
+						openBrowse(h.path);
+					}
+				} else if (key.downArrow || (key.ctrl && input === 'n')) setSsel((s) => Math.min(hits.length - 1, s + 1));
+				else if (key.upArrow || (key.ctrl && input === 'p')) setSsel((s) => Math.max(0, s - 1));
+				else if (key.backspace || key.delete) {
+					setQuery((q) => q.slice(0, -1));
+					setSsel(0);
+				} else if (input && !key.ctrl && !key.meta && !key.tab) {
+					setQuery((q) => q + input);
+					setSsel(0);
+				}
+				return;
+			}
 			if (help) {
 				if (key.escape || input === 'q' || input === '?') setHelp(false);
 				return;
@@ -172,6 +245,16 @@ export default function App({
 				return;
 			}
 			if (key.ctrl) return;
+			if (input === 'F') return srchOpen();
+			if (browsePath !== undefined) {
+				if (key.escape) {
+					setBrowsePath(undefined);
+					setOff(0);
+					return;
+				}
+				if ('nfpcsm[]'.includes(input) && input) return;
+				if (key.tab || key.leftArrow || key.rightArrow) return;
+			}
 			if (input === 'd') scroll(half);
 			else if (input === 'u') scroll(-half);
 			else if (input === '?') setHelp(true);
@@ -208,7 +291,6 @@ export default function App({
 
 	if (err) return <Text color="red">{err}</Text>;
 	if (!files) return <Text dimColor>Loading...</Text>;
-	if (!file) return <Text>No changes [{mode}] (m cycles mode, q quits)</Text>;
 
 	const rowsT = height + 3;
 	const mw = Math.min(cols, Math.max(20, Math.floor(cols * 0.7)));
@@ -218,22 +300,45 @@ export default function App({
 		<ThemeContext value={th}>
 			<Box flexDirection="column" width={cols} height={rowsT}>
 				<Text wrap="truncate">
-					<Text color={th.mode}>[{mode}] </Text>
-					<Text color={th.mode}>[{full ? 'full' : 'changes'}] </Text>
-					<Text color={th.view}>[{split ? 'split' : 'unified'}] </Text>
-					<Text color={th.view}>[{theme}] </Text>
-					<Text bold>
-						[{idx + 1}/{files.length}]{' '}
-					</Text>
-					<Text color={th.file}>
-						{file.from ? `${file.from} -> ` : ''}
-						{file.path}
-					</Text>
-					<Text color={th.adds}> +{file.adds}</Text>
-					<Text color={th.dels}> -{file.dels}</Text>
+					{noChanges && browsePath === undefined ? (
+						<>
+							<Text color={th.mode}>[{mode}] </Text>
+							<Text>No changes (m cycles mode, F search, q quits)</Text>
+						</>
+					) : browsePath !== undefined ? (
+						<>
+							<Text color={th.mode}>[browse] </Text>
+							<Text color={th.view}>[{theme}] </Text>
+							<Text color={th.file}>{file.path}</Text>
+						</>
+					) : (
+						<>
+							<Text color={th.mode}>[{mode}] </Text>
+							<Text color={th.mode}>[{full ? 'full' : 'changes'}] </Text>
+							<Text color={th.view}>[{split ? 'split' : 'unified'}] </Text>
+							<Text color={th.view}>[{theme}] </Text>
+							<Text bold>
+								[{idx + 1}/{files.length}]{' '}
+							</Text>
+							<Text color={th.file}>
+								{file.from ? `${file.from} -> ` : ''}
+								{file.path}
+							</Text>
+							<Text color={th.adds}> +{file.adds}</Text>
+							<Text color={th.dels}> -{file.dels}</Text>
+						</>
+					)}
 				</Text>
 				<Text color={th.dim}>{'─'.repeat(Math.max(1, (stdout.columns || 80) - 1))}</Text>
-				<DiffView file={file} rows={rows} offset={off} height={height} cols={cols} name={theme} />
+				<DiffView
+					file={file}
+					rows={rows}
+					offset={off}
+					height={height}
+					cols={cols}
+					name={theme}
+					single={browsePath !== undefined}
+				/>
 				<Text color={th.dim} wrap="truncate">
 					{note ? `${note} | ` : ''}
 					{split && !eff ? 'too narrow for split | ' : ''}({Math.min(rows.length, off + 1)}-
@@ -247,6 +352,17 @@ export default function App({
 				{cmodal && (
 					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
 						<ConfigModal sel={csel} cur={ccur} state={{theme: tCommit, mode, split, full}} width={Math.min(cols, 56)} />
+					</Box>
+				)}
+				{srch && (
+					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
+						<SearchModal
+							query={query}
+							hits={hits}
+							sel={ssel}
+							height={Math.min(rowsT, Math.max(8, Math.floor(rowsT * 0.7)))}
+							width={mw}
+						/>
 					</Box>
 				)}
 				{modal && (

@@ -78,6 +78,7 @@ export function DiffView({
 	height,
 	cols,
 	name,
+	single,
 }: {
 	file: DiffFile;
 	rows: (Row | SRow)[];
@@ -85,6 +86,7 @@ export function DiffView({
 	height: number;
 	cols: number;
 	name: ThemeName;
+	single?: boolean;
 }) {
 	const t = useTheme();
 	const w = Math.floor((cols - 1) / 2);
@@ -115,7 +117,7 @@ export function DiffView({
 				return (
 					<Text key={i} wrap="truncate">
 						<Text backgroundColor={bg} color={t.gutter}>
-							{pad(r.oldNo)} {pad(r.newNo)}{' '}
+							{single ? pad(r.newNo) : `${pad(r.oldNo)} ${pad(r.newNo)}`}{' '}
 						</Text>
 						<Text backgroundColor={bg} color={fg} bold>
 							{mark}{' '}
