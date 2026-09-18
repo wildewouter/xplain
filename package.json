@@ -1,29 +1,33 @@
 {
-  "name": "xplain",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "tsx src/cli.tsx",
-    "build": "tsc",
-    "start": "node dist/cli.js"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "module",
-  "dependencies": {
-    "cli-highlight": "^2.1.11",
-    "ink": "^7.1.1",
-    "parse-diff": "^0.12.0",
-    "react": "^19.3.0"
-  },
-  "devDependencies": {
-    "@types/node": "^26.6.1",
-    "@types/react": "^19.3.0",
-    "ink-testing-library": "^4.0.0",
-    "tsx": "^4.23.13",
-    "typescript": "^7.0.2"
-  }
+	"name": "xplain",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"dev": "tsx src/cli.tsx",
+		"build": "tsc -p tsconfig.build.json",
+		"start": "node dist/cli.js",
+		"format": "prettier --write .",
+		"format:check": "prettier --check ."
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"type": "module",
+	"dependencies": {
+		"chalk": "^5.6.2",
+		"cli-highlight": "^2.1.11",
+		"ink": "^7.1.1",
+		"parse-diff": "^0.12.0",
+		"react": "^19.3.0"
+	},
+	"devDependencies": {
+		"@types/node": "^26.6.1",
+		"@types/react": "^19.3.0",
+		"ink-testing-library": "^4.0.0",
+		"prettier": "^3.9.8",
+		"tsx": "^4.23.13",
+		"typescript": "^7.0.2"
+	}
 }
