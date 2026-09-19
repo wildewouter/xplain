@@ -16,7 +16,7 @@ const tick = (ms = 20) => new Promise((r) => setTimeout(r, ms));
 const TOKEN = 'tok-secret-0123456789abcdef';
 const dirs: string[] = [];
 const tmp = () => {
-	const d = mkdtempSync(join(process.env.CLAUDE_JOB_DIR ?? tmpdir(), 'xplain-bridge-'));
+	const d = mkdtempSync(join(tmpdir(), 'xplain-bridge-'));
 	dirs.push(d);
 	return d;
 };
@@ -187,6 +187,17 @@ const addQ = (f: Fx, message = 'why?') =>
 	const c = f.controller.answer(id2);
 	ok('stop cancels live', c?.status === 'cancelled' && c.text === 'MCP stopped');
 	ok('stop keeps done', f.controller.answer(id)?.status === 'done');
+	f.bridge.dispose();
+}
+
+// files_changed
+{
+	const f = mk();
+	await f.bridge.start();
+	let got: string[] | undefined;
+	f.bridge.onFilesChanged((p) => (got = p));
+	f.hub().filesChanged(['x.ts']);
+	ok('files_changed notifies', got?.join() === 'x.ts');
 	f.bridge.dispose();
 }
 

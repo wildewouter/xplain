@@ -67,6 +67,18 @@ export const TOOLS: ToolDef[] = [
 			additionalProperties: false,
 		},
 	},
+	{
+		name: 'files_changed',
+		description:
+			'Tell xplain that you changed files on disk, so the diff view reloads. Call after editing files. Then continue the next_question loop.',
+		inputSchema: {
+			type: 'object',
+			properties: {
+				paths: {type: 'array', items: {type: 'string'}, description: 'Optional changed file paths.'},
+			},
+			additionalProperties: false,
+		},
+	},
 ];
 
 const text = (o: unknown, isError = false): ToolResult => ({
@@ -129,6 +141,11 @@ export async function callTool(name: string, args: unknown, ctx: ToolContext): P
 			}
 			const side = a.side === 'old' || a.side === 'new' ? a.side : undefined;
 			ctx.hub.annotate({file: a.file, line: a.line, text: a.text, ...(side ? {side} : {})});
+			return text({ok: true});
+		}
+		case 'files_changed': {
+			const paths = Array.isArray(a.paths) ? a.paths.filter((p): p is string => typeof p === 'string') : [];
+			ctx.hub.filesChanged(paths);
 			return text({ok: true});
 		}
 		default:

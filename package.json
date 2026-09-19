@@ -8,6 +8,8 @@
 		"dev": "tsx src/cli.tsx",
 		"build": "tsc -p tsconfig.build.json",
 		"start": "node dist/cli.js",
+		"build:bin": "bun scripts/build-bin.ts",
+		"build:bin:all": "for t in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do bun scripts/build-bin.ts bun-$t dist/bin/xplain-$t || exit 1; done",
 		"format": "prettier --write .",
 		"format:check": "prettier --check ."
 	},

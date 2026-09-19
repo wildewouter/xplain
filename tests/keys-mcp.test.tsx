@@ -527,7 +527,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 	};
 	{
 		// autostart + config modal
-		const cp = join(process.env.CLAUDE_JOB_DIR ?? '.', 'tmp', `mcpa${Date.now()}.json`);
+		const cp = join(process.env.TMPDIR ?? '.', 'tmp', `mcpa${Date.now()}.json`);
 		const {r, g, w, cnt} = mkb({configPath: cp, confirmQuit: false});
 		await tick();
 		await w('C');

@@ -47,6 +47,7 @@ Usage: `xplain [--cwd dir] [--config file] [--mode all|staged|unstaged | --stage
 | `t`                      | cycle theme                               |
 | `C`                      | config modal                              |
 | `M`                      | MCP modal                                 |
+| `E`                      | export comments to markdown               |
 | `?`                      | help                                      |
 | `q`                      | quit (confirm modal if `app.confirmQuit`) |
 
@@ -80,7 +81,7 @@ Picker: `j/k` up/down move, `d/u` half page, Enter open, Esc/`q`/`f` close. Sear
 | Enter, `a`               | comment on the line or selection                              |
 | `J` `K`                  | focus next / previous comment                                 |
 
-Global view keys (`s c m t f F C M ? q`, Tab) still work in cursor mode.
+Global view keys (`s c m t f F C M E ? q`, Tab) still work in cursor mode.
 
 ### Comments
 
@@ -127,6 +128,12 @@ Follow-up input (`a` on an answered comment): header `follow-up`, Enter sends (e
 - Threads: a comment is a list of turns (message + answer). An answered human comment takes follow-ups (`a`); each is a new turn, answered by the same agent thread. A thread shows all turns in order (`follow-up: ...`, then its `answer · agent · status`). Unfocused threads are capped (`… +N more`); a focused thread uses the viewport and scrolls (`↕ from-to/total` shown only on overflow). While the latest turn is pending or streaming and the user has not scrolled up, the focused thread shows its tail. Scroll offsets are per comment. Threads cannot be edited after a follow-up; delete removes the whole thread.
 - Send mode: `save` (MCP off, or chosen with Tab) or `ask` (default while MCP runs). Comments can be edited, deleted, and asked later with `a` / `A`.
 - Comments live in memory only; they are lost on exit.
+
+## Export
+
+`E` (main view, cursor mode and browse; not while typing or in a modal) writes all comments and full threads to `xplain-review-<YYYYMMDD-HHMMSS>.md` in the `--cwd` dir (else the process cwd) and notes `exported N comments -> path` or `export failed: ...`. With no comments it writes nothing and notes `no comments to export`.
+
+Content: title, repo, diff mode and args, date, comment count; then comments grouped by file (sorted by path, then line). Each comment: side and line or selection range (with columns), origin (human/agent), state (saved, answered, pending, streaming, error, cancelled), selected text and context as fenced code (fence longer than any backtick run inside), then every turn in order: comment, its answer (`Answer (agent) - status`), then `Follow-up n` and its answer.
 
 ## MCP (optional, off by default)
 
@@ -176,10 +183,10 @@ Path: `--config`, else `$XPLAIN_CONFIG`, else `$XDG_CONFIG_HOME/xplain/config.js
 
 - `src/cli.tsx` flags and render; `src/app.tsx` state and all key handling; `src/keys.ts` help table and footer; `src/settings.ts` config-modal rows; `src/config.ts`, `src/defaults.ts`, `src/theme.ts`.
 - `src/diff/` git diff loading and parsing, file listing; `src/components/` Ink views and modals.
-- `src/ask/` headless comment/answer store (`createAskController`); no react/ink imports (enforced by test).
+- `src/ask/` headless comment/answer store (`createAskController`); no react/ink imports (enforced by test). `src/ask/export.ts` renders the review markdown (`renderReviewMarkdown`); `app.tsx` writes the file.
 - `src/mcp/` hub (queue, long-poll), server (HTTP/JSON-RPC), token, tools, bridge (connects hub to the ask controller); `src/useAsk.ts`, `src/useMcp.ts` are the UI hooks.
 - `src/integrations/` all agent-specific code, behind the `AgentIntegration` interface (`id`, `label`, `pollSeconds`, `needsRestart`, `canRegister`, `registerCommand`, `watchPrompt`, `register`/`unregister`/`isRegistered`). Agent names must not appear outside it (enforced by `tests/architecture.test.ts`).
-- `tests/`: `*.test.ts(x)` (config, ask, controller, bridge, mcp, integrations, key handling via ink-testing-library, architecture); `fixture/base` and `fixture/work` seed the temp git repo.
+- `tests/`: `*.test.ts(x)` (config, ask, controller, export, bridge, mcp, integrations, key handling via ink-testing-library, architecture); `fixture/base` and `fixture/work` seed the temp git repo.
 
 ## Non-goals and known gaps
 

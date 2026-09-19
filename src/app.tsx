@@ -1,7 +1,7 @@
 import {useEffect, useRef, useMemo, useState} from 'react';
 import {Box, Text, useApp, useInput, useStdin, useStdout} from 'ink';
-import {readFile} from 'node:fs/promises';
-import {join} from 'node:path';
+import {readFile, writeFile} from 'node:fs/promises';
+import {join, resolve} from 'node:path';
 import fuzzysort from 'fuzzysort';
 import {loadDiff, listFiles, MODES, type DiffFile, type Mode} from './diff/load.js';
 import {FileModal} from './components/FileModal.js';
@@ -19,7 +19,7 @@ import {McpModal, type McpConfirm, type McpPreview} from './components/McpModal.
 import {useMcp} from './useMcp.js';
 import type {McpBridge} from './mcp/bridge.js';
 import {useAsk} from './useAsk.js';
-import {type AskController, type Question} from './ask/index.js';
+import {exportName, renderReviewMarkdown, type AskController, type Question} from './ask/index.js';
 import {footerFor} from './keys.js';
 import {
 	DiffView,
@@ -236,6 +236,38 @@ export default function App({
 		setSrch(true);
 		listFiles(cwd).then(setAll, () => {});
 	};
+	// Reload diff + browsed file from disk. Silent: no state change if nothing differs.
+	const filesRef = useRef(files);
+	filesRef.current = files;
+	const reload = (manual: boolean) => {
+		const bp = browsePath;
+		loadDiff(mode, args, cwd, full).then(
+			(f) => {
+				const cur = filesRef.current;
+				if (cur && JSON.stringify(cur) === JSON.stringify(f)) return;
+				const path = cur?.[idx]?.path;
+				setFiles(f);
+				setErr(undefined);
+				if (path !== undefined)
+					setIdx(
+						Math.max(
+							0,
+							f.findIndex((x) => x.path === path),
+						),
+					);
+			},
+			(e) => manual && setNote(String(e.message ?? e)),
+		);
+		if (bp !== undefined)
+			readFile(join(cwd ?? '.', bp)).then(
+				(buf) => setBrowseText(buf.subarray(0, 8000).includes(0) ? BINARY_MSG : buf.toString('utf8')),
+				() => {},
+			);
+		if (manual) setNote('reloaded');
+	};
+	const reloadRef = useRef(reload);
+	reloadRef.current = reload;
+	useEffect(() => mcp.onFilesChanged(() => reloadRef.current(false)), [mcp]);
 	const openBrowse = (p: string) => {
 		readFile(join(cwd ?? '.', p)).then(
 			(buf) => {
@@ -517,6 +549,7 @@ export default function App({
 		if (!curOn) return;
 		const ex = ask ? askH(askSel) : 0; // input box under the cursor row
 		const so = ask ? 0 : Math.min(2, Math.floor((height - 1) / 2));
+		setLskip((v) => (v.n ? {row: 0, n: 0} : v)); // cursor follow shows whole row blocks
 		setOff((o) => {
 			if (curI < o + so) o = Math.max(0, curI - so);
 			const end = Math.min(last, curI + so);
@@ -547,7 +580,28 @@ export default function App({
 		const t = d > 0 ? starts.find((s) => s - CTX > off) : [...starts].reverse().find((s) => s - CTX < off);
 		if (t !== undefined) setOff(Math.min(max, Math.max(0, t - CTX)));
 	};
-	const scroll = (n: number) => setOff((o) => Math.min(max, Math.max(0, o + n)));
+	// line-level scroll: a row block (row + comment boxes) may be cut at the top; `skip` belongs to row `row`
+	const [lskip, setLskip] = useState({row: 0, n: 0});
+	const skip = lskip.row === off ? lskip.n : 0;
+	const scroll = (n: number) => {
+		let o = off;
+		let k = skip;
+		for (let i = 0; i < Math.abs(n); i++) {
+			if (n > 0) {
+				if (o >= max) break;
+				if (k + 1 < rowH(o)) k++;
+				else {
+					o++;
+					k = 0;
+				}
+			} else if (k > 0) k--;
+			else if (o > 0) k = rowH(--o) - 1;
+			else break;
+		}
+		if (o >= max) k = 0;
+		setOff(o);
+		setLskip({row: o, n: k});
+	};
 	const sw = (d: number) => {
 		if (!files?.length) return;
 		setIdx((i) => (i + d + files.length) % files.length);
@@ -600,6 +654,18 @@ export default function App({
 		const v = s.choices[ccur[csel] ?? 0]!;
 		s.set(v, actions);
 		if (configPath) setNote(saveConfig(configPath, s.patch(v)));
+	};
+
+	const exportReview = () => {
+		const qs = ctl.getState().questions;
+		if (!qs.length) return setNote('no comments to export');
+		const now = new Date();
+		const path = join(resolve(cwd ?? '.'), exportName(now));
+		const md = renderReviewMarkdown(qs, {cwd: resolve(cwd ?? '.'), mode, args, date: now});
+		writeFile(path, md).then(
+			() => setNote(`exported ${qs.length} comment${qs.length === 1 ? '' : 's'} -> ${path}`),
+			(e) => setNote(`export failed: ${e.message ?? e}`),
+		);
 	};
 
 	useInput(
@@ -828,6 +894,8 @@ export default function App({
 			}
 			if (key.ctrl) return;
 			if (input === 'F') return srchOpen();
+			if (input === 'r') return reload(true);
+			if (input === 'E') return exportReview();
 			if (input === 'M') {
 				setMsel(0);
 				setMnote(undefined);
@@ -1060,6 +1128,7 @@ export default function App({
 					col={ccol}
 					sel={vsel}
 					hoff={hoff}
+					skip={skip}
 					sent={sentAt}
 					side={side}
 				/>

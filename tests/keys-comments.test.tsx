@@ -473,4 +473,44 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 	}
 }
 
+{
+	// export (E): temp git repo so the fixture stays clean
+	const {execSync} = await import('node:child_process');
+	const {writeFileSync, readdirSync} = await import('node:fs');
+	const dir = tmpDir('keys-export');
+	const sh = (c: string) => execSync(c, {cwd: dir, stdio: 'ignore'});
+	sh('git init -q');
+	writeFileSync(join(dir, 'hello.txt'), 'hello world\nsecond line\n');
+	sh('git add -A');
+	sh('git -c user.email=a@b -c user.name=n commit -qm init');
+	const r = render(<App args={[]} cwd={dir} />);
+	const g = () => r.lastFrame() ?? '';
+	const w = keyPress(r);
+	await new Promise((x) => setTimeout(x, 400));
+	const files = () => readdirSync(dir).filter((f) => f.startsWith('xplain-review-'));
+	await w('E');
+	ok('export: no comments noted, no file', g().includes('no comments to export') && files().length === 0);
+	await w('F');
+	await w('hello');
+	await w('\r');
+	await tick();
+	await w('i');
+	await w('\r');
+	await w('my `note`');
+	await w('\r');
+	await w('E');
+	await waitFor(() => files().length === 1);
+	const f = files()[0]!;
+	await tick();
+	ok('export: file name', /^xplain-review-\d{8}-\d{6}\.md$/.test(f));
+	ok('export: note shown', g().includes('exported 1 comment'));
+	const md = readFileSync(join(dir, f), 'utf8');
+	ok('export: content', md.includes('hello.txt') && md.includes('my `note`') && md.includes('state: saved'));
+	await w('a');
+	await w('x');
+	await w('E');
+	ok('export: E is text while typing', g().includes('xE') && files().length === 1);
+	r.unmount();
+}
+
 finish();

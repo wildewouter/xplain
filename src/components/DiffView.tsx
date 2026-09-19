@@ -179,6 +179,7 @@ export function DiffView({
 	col = 0,
 	sel,
 	hoff = 0,
+	skip = 0,
 	askSel,
 	sent,
 	side = 'new',
@@ -195,6 +196,7 @@ export function DiffView({
 	col?: number; // char cursor column (0-based, clamped by caller)
 	sel?: Sel; // visual selection
 	hoff?: number; // horizontal scroll (code text only)
+	skip?: number; // lines of the first row block (row + boxes) hidden above the viewport
 	askSel?: AskSel;
 	sent?: Map<number, SentQ[]>; // submitted questions by anchor row
 	side?: PaneSide; // split: pane carrying the char cursor
@@ -203,16 +205,16 @@ export function DiffView({
 	const w = Math.floor((cols - 1) / 2);
 	// rows that fit, counting inline boxes (sent questions, ask box under the cursor row)
 	const vis: {r: Row | SRow; ri: number}[] = [];
-	let used = 0;
+	let used = -skip; // lines of the first row block scrolled off the top
 	for (let ri = offset; ri < rows.length; ri++) {
 		const h = 1 + (sent?.get(ri) ?? []).reduce((n, q) => n + sentH(q), 0) + (ask && ri === cur ? askH(askSel) : 0);
-		if (used + h > height && used > 0) break;
-		used += h;
+		if (used >= height) break;
+		used += h; // last item may overflow; the container clips it
 		vis.push({r: rows[ri]!, ri});
 	}
 	return (
-		<Box flexDirection="column" height={height}>
-			{vis.flatMap(({r, ri}, i) => {
+		<Box flexDirection="column" height={height} overflow="hidden">
+			{vis.map(({r, ri}, i) => {
 				const c = ri === cur;
 				const cb = c ? t.curBg : undefined;
 
@@ -286,13 +288,15 @@ export function DiffView({
 					);
 				})();
 				const bw = Math.max(10, cols - 1);
-				return [
-					el,
-					...(sent?.get(ri) ?? []).map((q, k) => <SentBox key={`sent${i}-${k}`} q={q} width={bw} />),
-					...(ask && c
-						? [<AskBox key={`ask${i}`} text={ask.text} pos={ask.pos} width={bw} sel={askSel} mode={ask.mode} />]
-						: []),
-				];
+				return (
+					<Box key={i} flexDirection="column" flexShrink={0} marginTop={i === 0 ? -skip : 0}>
+						{el}
+						{(sent?.get(ri) ?? []).map((q, k) => (
+							<SentBox key={`sent${k}`} q={q} width={bw} />
+						))}
+						{ask && c ? <AskBox text={ask.text} pos={ask.pos} width={bw} sel={askSel} mode={ask.mode} /> : null}
+					</Box>
+				);
 			})}
 		</Box>
 	);

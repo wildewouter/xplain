@@ -7,7 +7,7 @@ const ok = (n: string, c: boolean) => {
 	console.log(c ? 'PASS' : 'FAIL', n);
 	if (!c) fail++;
 };
-const base = join(process.env.CLAUDE_JOB_DIR ?? process.env.TMPDIR ?? '/tmp', 'tmp');
+const base = join(process.env.TMPDIR ?? '/tmp', 'tmp');
 mkdirSync(base, {recursive: true});
 const made: string[] = [];
 const tmp = () => {

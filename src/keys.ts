@@ -13,6 +13,8 @@ export const KEYS: {g: string; k: string; d: string}[] = [
 	{g: 'Files', k: 'f/F', d: 'file picker / search files, browse'},
 	{g: 'View', k: 's/c/m', d: 'split / full file / mode all,staged,unstaged'},
 	{g: 'View', k: 't/C/M', d: 'cycle theme / config / MCP (agents answer)'},
+	{g: 'View', k: 'r', d: 'reload from disk (also when agent reports changes)'},
+	{g: 'View', k: 'E', d: 'export comments + threads to markdown'},
 	{g: 'View', k: '?/q', d: 'help / quit'},
 ];
 // footer variants per state; full list lives in help modal

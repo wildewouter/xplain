@@ -18,6 +18,7 @@ export type PollResult = Question | null | 'closed';
 export type HubEvent =
 	| {type: 'answer'; threadId: string; turn: number; text: string}
 	| {type: 'annotate'; file: string; line: number; text: string; side?: 'old' | 'new'}
+	| {type: 'files_changed'; paths: string[]}
 	| {type: 'delivered'; threadId: string; clientId: string}
 	| {type: 'clients'}
 	| {type: 'enqueued'; threadId: string}
@@ -217,6 +218,11 @@ export function createHub(opts: {timers?: Partial<Timers>} = {}) {
 				text: sanitize(a.text),
 				...(a.side ? {side: a.side} : {}),
 			});
+		},
+
+		/** Agent edited files: tell listeners to reload from disk. */
+		filesChanged(paths: string[] = []) {
+			emit({type: 'files_changed', paths: paths.slice(0, 100).map((p) => sanitize(p).slice(0, 500))});
 		},
 
 		pending(): Question[] {

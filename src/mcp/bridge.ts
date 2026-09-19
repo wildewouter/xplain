@@ -80,6 +80,7 @@ export function createMcpBridge(deps: BridgeDeps) {
 		})),
 	};
 	const listeners = new Set<() => void>();
+	const changeListeners = new Set<(paths: string[]) => void>();
 	let hub: Hub | null = null;
 	let server: McpServer | null = null;
 	let unsub: (() => void) | null = null;
@@ -121,6 +122,8 @@ export function createMcpBridge(deps: BridgeDeps) {
 		} else if (e.type === 'answer') {
 			if (controller.turns(e.threadId).length >= e.turn)
 				controller.setAnswer(e.threadId, {status: 'done', text: e.text, agent: agentOf.get(e.threadId)}, e.turn);
+		} else if (e.type === 'files_changed') {
+			changeListeners.forEach((l) => l(e.paths));
 		} else if (e.type === 'annotate') {
 			controller.add({
 				file: e.file,
@@ -157,6 +160,12 @@ export function createMcpBridge(deps: BridgeDeps) {
 		subscribe(l: () => void) {
 			listeners.add(l);
 			return () => void listeners.delete(l);
+		},
+
+		/** Subscribe to agent "files changed" signals. */
+		onFilesChanged(l: (paths: string[]) => void) {
+			changeListeners.add(l);
+			return () => void changeListeners.delete(l);
 		},
 
 		async start(): Promise<void> {
@@ -199,6 +208,7 @@ export function createMcpBridge(deps: BridgeDeps) {
 			void teardown();
 			state = {...state, running: false, starting: false, clients: [], pending: 0};
 			listeners.clear();
+			changeListeners.clear();
 		},
 
 		/** Send a stored comment to a connected agent. False when MCP is off. */

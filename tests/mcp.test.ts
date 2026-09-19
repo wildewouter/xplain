@@ -18,7 +18,7 @@ const ok = (n: string, c: boolean) => {
 	console.log(c ? 'PASS' : 'FAIL', n);
 	if (!c) fail++;
 };
-const base = join(process.env.CLAUDE_JOB_DIR ?? process.env.TMPDIR ?? '/tmp', 'tmp');
+const base = join(process.env.TMPDIR ?? '/tmp', 'tmp');
 mkdirSync(base, {recursive: true});
 const made: string[] = [];
 const tmp = () => {
@@ -253,6 +253,11 @@ const parse = (r: {content: {text: string}[]}) => JSON.parse(r.content[0]!.text)
 	h.subscribe((x) => evs.push(x));
 	const an = await callTool('annotate', {file: 'a.ts', line: 3, text: 'hey'}, {hub: h, clientId: 'c'});
 	ok('tools: annotate ok', parse(an).ok === true && evs.some((x) => x.type === 'annotate'));
+	const fc = await callTool('files_changed', {paths: ['a.ts', 1]}, {hub: h, clientId: 'c'});
+	ok(
+		'tools: files_changed ok',
+		parse(fc).ok === true && evs.some((x) => x.type === 'files_changed' && x.paths.join() === 'a.ts'),
+	);
 	ok('tools: annotate bad', (await callTool('annotate', {file: 'a'}, {hub: h, clientId: 'c'})).isError === true);
 	ok('tools: unknown tool', (await callTool('zzz', {}, {hub: h, clientId: 'c'})).isError === true);
 	h.close();
@@ -327,7 +332,7 @@ ok('server: ping', Object.keys(pg.result).length === 0);
 const tl = (await (await rpc('tools/list')).json()) as {result: {tools: {name: string}[]}};
 ok(
 	'server: tools/list',
-	tl.result.tools.map((t) => t.name).join(',') === 'next_question,answer,get_questions,annotate',
+	tl.result.tools.map((t) => t.name).join(',') === 'next_question,answer,get_questions,annotate,files_changed',
 );
 const um = await rpc('does/not/exist');
 const umj = (await um.json()) as {error: {code: number}};

@@ -42,14 +42,14 @@ ok(
 );
 
 const long = Array.from({length: 40}, (_, i) => `l${i}`).join('\n');
-const v = answerView({status: 'streaming', text: long, tools: 0, agent: 'claude'}, 20, false);
+const v = answerView({status: 'streaming', text: long, tools: 0, agent: 'testagent'}, 20, false);
 ok(
 	'view cap 12 + more + streaming header',
-	v.lines.length === 12 && v.more === 28 && v.head === 'answer · claude · streaming…',
+	v.lines.length === 12 && v.more === 28 && v.head === 'answer · testagent · streaming…',
 );
-const vf = answerView({status: 'done', text: long, tools: 0, agent: 'claude'}, 20, true);
-ok('view focused cap 30', vf.lines.length === 30 && vf.more === 10 && vf.head === 'answer · claude · done');
-const ve = answerView({status: 'error', text: '', error: 'boom', tools: 0, agent: 'claude'}, 20, false);
+const vf = answerView({status: 'done', text: long, tools: 0, agent: 'testagent'}, 20, true);
+ok('view focused cap 30', vf.lines.length === 30 && vf.more === 10 && vf.head === 'answer · testagent · done');
+const ve = answerView({status: 'error', text: '', error: 'boom', tools: 0, agent: 'testagent'}, 20, false);
 ok('view error', ve.lines[0] === 'boom' && ve.head.endsWith('error'));
 ok('view pending empty', answerView({status: 'pending', text: '', tools: 0}, 20, false).lines.length === 0);
 

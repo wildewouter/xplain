@@ -12,7 +12,7 @@ export const ok = (n: string, c: boolean) => {
 const dirs: string[] = [];
 /** Unique temp dir (removed by finish()). */
 export const tmpDir = (prefix: string): string => {
-	const base = join(process.env.CLAUDE_JOB_DIR ?? '.', 'tmp');
+	const base = join(process.env.TMPDIR ?? '.', 'tmp');
 	mkdirSync(base, {recursive: true});
 	const d = mkdtempSync(join(base, prefix + '-'));
 	dirs.push(d);

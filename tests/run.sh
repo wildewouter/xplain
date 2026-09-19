@@ -2,7 +2,7 @@
 # Run all tests concurrently; exit nonzero on any FAIL or crash.
 # Builds a fixture (files stored as *.fx so tsc ignores them) git repo (HEAD = fixture/base, working tree = fixture/work) in a temp dir.
 cd "$(dirname "$0")/.." || exit 1
-T=$(mktemp -d "${CLAUDE_JOB_DIR:-${TMPDIR:-/tmp}}/xplain-test-XXXXXX") || exit 1
+T=$(mktemp -d "${TMPDIR:-/tmp}/xplain-test-XXXXXX") || exit 1
 trap 'rm -rf "$T"' EXIT
 R="$T/repo"
 mkdir -p "$R"
