@@ -68,6 +68,7 @@ export async function listCopilotSessions(
 				uptime: upById.get(pid) ?? (Number.isNaN(t) ? '' : fmtUp(now - t)),
 				cwd: w.cwd ?? '',
 				cmd: 'copilot',
+				sessionId: w.id || id,
 				name: w.name || (w.id ?? id).slice(0, 8),
 				status,
 				kind: w.client_name,

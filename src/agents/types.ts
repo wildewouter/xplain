@@ -6,6 +6,7 @@ export type Agent = {
 	cwd: string;
 	cmd: string;
 	name?: string;
+	sessionId?: string;
 	status?: string;
 	kind?: string;
 };

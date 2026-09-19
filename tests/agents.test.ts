@@ -1,4 +1,4 @@
-import {mkdtempSync, writeFileSync} from 'node:fs';
+import {rmSync, mkdtempSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {claudeProvider, parseSession} from '../src/agents/claude.js';
@@ -62,6 +62,7 @@ ok(
 		v.kind === 'bg' &&
 		v.cwd === '/x',
 );
+ok('session sessionId', v?.sessionId === 'eabb4231-8bc5');
 ok('session uptime', v?.uptime === '1-01:01:01');
 ok('session name fallback', parseSession(sj({pid: 5, sessionId: 'eabb4231-8bc5'}))?.name === 'eabb4231');
 ok('session malformed', parseSession('{nope') === undefined);
@@ -100,4 +101,5 @@ const reg = await listAgents([
 ]);
 ok('throwing provider skipped', reg.length === 3);
 ok('registry sorted', reg.map((a) => `${a.agent}${a.pid}`).join() === 'claude4,claude20,opencode3');
+rmSync(dir, {recursive: true, force: true});
 process.exit(fail ? 1 : 0);

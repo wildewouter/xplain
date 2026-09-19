@@ -46,6 +46,16 @@ export function loadConfig(path: string): Loaded {
 			}
 		}
 	}
+	if ('app' in r) {
+		if (!isObj(r.app)) warn('app must be an object; using defaults');
+		else if ('confirmQuit' in r.app) {
+			if (typeof r.app.confirmQuit === 'boolean') config.app.confirmQuit = r.app.confirmQuit;
+			else
+				warn(
+					`invalid app.confirmQuit ${JSON.stringify(r.app.confirmQuit)} (boolean); using ${DEFAULTS.app.confirmQuit}`,
+				);
+		}
+	}
 	return {config, broken: false};
 }
 
@@ -55,7 +65,7 @@ const merge = (a: Record<string, unknown>, b: Record<string, unknown>): Record<s
 	return o;
 };
 
-export type Patch = {theme?: ThemeName; view?: Partial<Config['view']>};
+export type Patch = {theme?: ThemeName; view?: Partial<Config['view']>; app?: Partial<Config['app']>};
 
 /** Returns error message, or undefined on success. */
 export function saveConfig(path: string, patch: Patch): string | undefined {
@@ -83,11 +93,15 @@ export function saveConfig(path: string, patch: Patch): string | undefined {
 }
 
 /** defaults < config < flags */
-export function resolve(c: Config, f: {theme?: ThemeName; mode?: Mode; split?: boolean; full?: boolean}) {
+export function resolve(
+	c: Config,
+	f: {theme?: ThemeName; mode?: Mode; split?: boolean; full?: boolean; confirmQuit?: boolean},
+) {
 	return {
 		theme: f.theme ?? c.theme,
 		mode: f.mode ?? c.view.mode,
 		split: f.split ?? c.view.split,
 		full: f.full ?? c.view.full,
+		confirmQuit: f.confirmQuit ?? c.app.confirmQuit,
 	};
 }

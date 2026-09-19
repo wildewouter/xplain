@@ -141,6 +141,7 @@ export const codexProvider = (deps: CodexDeps = {}): AgentProvider => {
 					}
 					if (!id) continue;
 					used.add(id);
+					a.sessionId = id;
 					if (state) {
 						try {
 							const t = (await q(state, `select ${T_COLS} from threads where id = ?`, [id]))[0];

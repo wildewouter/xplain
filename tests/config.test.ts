@@ -1,4 +1,4 @@
-import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync} from 'node:fs';
+import {rmSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {DEFAULTS, configPath, loadConfig, resolve, saveConfig} from '../src/config.js';
 
@@ -9,7 +9,12 @@ const ok = (n: string, c: boolean) => {
 };
 const base = join(process.env.CLAUDE_JOB_DIR ?? process.env.TMPDIR ?? '/tmp', 'tmp');
 mkdirSync(base, {recursive: true});
-const tmp = () => mkdtempSync(join(base, 'cfg-'));
+const made: string[] = [];
+const tmp = () => {
+	const d = mkdtempSync(join(base, 'cfg-'));
+	made.push(d);
+	return d;
+};
 const capture = <T>(fn: () => T): [T, string] => {
 	const orig = process.stderr.write.bind(process.stderr);
 	let err = '';
@@ -75,8 +80,26 @@ const capture = <T>(fn: () => T): [T, string] => {
 	);
 }
 {
+	ok('confirmQuit default on', DEFAULTS.app.confirmQuit === true);
+	const d = tmp();
+	const p = join(d, 'config.json');
+	writeFileSync(p, JSON.stringify({app: {confirmQuit: false, extra: 1}}));
+	ok('confirmQuit loaded', loadConfig(p).config.app.confirmQuit === false);
+	saveConfig(p, {app: {confirmQuit: true}});
+	const j = JSON.parse(readFileSync(p, 'utf8'));
+	ok('confirmQuit merge keeps siblings', j.app.confirmQuit === true && j.app.extra === 1);
+	const p2 = join(d, 'bad.json');
+	writeFileSync(p2, JSON.stringify({app: {confirmQuit: 'nope'}}));
+	const [{config}, err] = capture(() => loadConfig(p2));
+	ok('invalid confirmQuit ignored + warning', config.app.confirmQuit === true && err.includes('app.confirmQuit'));
+	const c = {...DEFAULTS, app: {confirmQuit: false}};
+	ok('resolve: config used', resolve(c, {}).confirmQuit === false && resolve(DEFAULTS, {}).confirmQuit === true);
+	ok('resolve: flag beats config', resolve(c, {confirmQuit: true}).confirmQuit === true);
+}
+{
 	ok('flag path wins', configPath('/f', {XPLAIN_CONFIG: '/e', XDG_CONFIG_HOME: '/x'}) === '/f');
 	ok('env path', configPath(undefined, {XPLAIN_CONFIG: '/e', XDG_CONFIG_HOME: '/x'}) === '/e');
 	ok('xdg path', configPath(undefined, {XDG_CONFIG_HOME: '/x'}) === '/x/xplain/config.json');
 }
+for (const d of made) rmSync(d, {recursive: true, force: true});
 process.exit(fail ? 1 : 0);

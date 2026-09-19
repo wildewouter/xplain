@@ -1,4 +1,4 @@
-import {mkdirSync, mkdtempSync, utimesSync, writeFileSync} from 'node:fs';
+import {rmSync, mkdirSync, mkdtempSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {codexProvider, dedupeWrappers, parseRollout, rolloutId, statusFromTail} from '../src/agents/codex.js';
@@ -110,6 +110,7 @@ ok(
 		cl.find((a) => a.pid === 100)?.name === 'Fix bug' &&
 		cl.find((a) => a.pid === 100)?.cwd === '/w/a',
 );
+ok('copilot sessionId', cl.find((a) => a.pid === 100)?.sessionId === 's1');
 ok('copilot ps uptime reused', cl.find((a) => a.pid === 100)?.uptime === '05:00');
 ok(
 	'copilot busy/idle',
@@ -161,6 +162,7 @@ const c1 = await codexProvider({
 	readTail: () => '{"type":"task_started"}\n',
 	home: join(tmp, 'home'),
 }).list();
+ok('codex sessionId', c1[0]?.sessionId === UU);
 ok('codex (i) lsof rollout + tail busy', c1[0]?.name === 'T1' && c1[0]?.status === 'busy' && c1[0]?.kind === 'gpt');
 writeFileSync(join(hd, 'logs_2.sqlite'), '');
 writeFileSync(join(hd, 'logs_10.sqlite'), '');
@@ -172,6 +174,7 @@ const qfake = async (db: string, sql: string, p: any[]) => {
 	return [];
 };
 const c2 = await codexProvider({...cxBase, home: hd, query: qfake, readTail: () => '{"type":"task_complete"}'}).list();
+ok('codex sessionId from logs', c2[0]?.sessionId === 'LOG-ID');
 ok('codex (ii) logs highest version', seen[0] === 'logs_10.sqlite:pid:2:%' && c2[0]?.name === 'hello');
 const c3 = await codexProvider({
 	...cxBase,
@@ -211,8 +214,8 @@ const ofake = {
 	query: async (_d: string, _s: string, p: any[]) =>
 		p[0] === '/proj'
 			? [
-					{title: 'new', time_updated: 99_000},
-					{title: 'old', time_updated: 1},
+					{id: 's-new', title: 'new', time_updated: 99_000},
+					{id: 's-old', title: 'old', time_updated: 1},
 				]
 			: [],
 };
@@ -222,7 +225,9 @@ ok(
 	'opencode Nth proc Nth session',
 	o[0]!.name === 'new' && o[0]!.status === 'busy' && o[1]!.name === 'old' && o[1]!.status === 'idle',
 );
+ok('opencode sessionId', o[0]!.sessionId === 's-new' && o[1]!.sessionId === 's-old');
 ok('opencode no session -> bare', !o[2]!.name);
 const o2 = await opencodeProvider({...ofake, query: async () => []}).list();
 ok('opencode no db fallback', o2.length === 3 && !o2[0]!.name);
+rmSync(tmp, {recursive: true, force: true});
 process.exit(fail ? 1 : 0);

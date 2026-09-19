@@ -2,13 +2,14 @@ import {MODES, type Mode} from './diff/load.js';
 import {THEME_NAMES, type ThemeName} from './theme.js';
 import type {Patch} from './config.js';
 
-export type SettingsState = {theme: ThemeName; mode: Mode; split: boolean; full: boolean};
+export type SettingsState = {theme: ThemeName; mode: Mode; split: boolean; full: boolean; confirmQuit: boolean};
 // live-apply hooks provided by the app
 export type Actions = {
 	theme(v: ThemeName): void;
 	mode(v: Mode): void;
 	split(v: boolean): void;
 	full(v: boolean): void;
+	confirmQuit(v: boolean): void;
 };
 export type Setting = {
 	path: string; // config key path
@@ -53,5 +54,13 @@ export const SETTINGS: Setting[] = [
 		get: (s) => (s.full ? 'full' : 'changes'),
 		set: (v, a) => a.full(bool(v)),
 		patch: (v) => ({view: {full: bool(v)}}),
+	},
+	{
+		path: 'app.confirmQuit',
+		label: 'confirm quit',
+		choices: ['off', 'on'],
+		get: (s) => (s.confirmQuit ? 'on' : 'off'),
+		set: (v, a) => a.confirmQuit(bool(v)),
+		patch: (v) => ({app: {confirmQuit: bool(v)}}),
 	},
 ];

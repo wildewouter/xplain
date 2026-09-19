@@ -23,6 +23,9 @@ export type Theme = {
 	modalFg: string; // default text color inside modals
 	selBg: string;
 	selFg: string;
+	curBg: string; // cursor-mode row highlight
+	visBg: string; // visual selection chars
+	visFg: string;
 };
 
 const syn = (o: Record<string, string>, ...same: [string, string[]][]) => {
@@ -60,6 +63,9 @@ export const THEMES = {
 		modalFg: '#e4e4e4',
 		selBg: 'cyan',
 		selFg: 'black',
+		curBg: '#33336b',
+		visBg: '#875f00',
+		visFg: '#ffffff',
 	},
 	dull: {
 		syntax: syn(
@@ -90,6 +96,9 @@ export const THEMES = {
 		modalFg: '#c0c0c0',
 		selBg: '#3a3f47',
 		selFg: '#d0d0d0',
+		curBg: '#3f3f5f',
+		visBg: '#6b5a2e',
+		visFg: '#f0f0f0',
 	},
 	contrast: {
 		syntax: syn(
@@ -120,6 +129,9 @@ export const THEMES = {
 		modalFg: '#ffffff',
 		selBg: '#ffff00',
 		selFg: '#000000',
+		curBg: '#3a3aa8',
+		visBg: '#af5f00',
+		visFg: '#ffffff',
 	},
 	colorblind: {
 		syntax: syn(
@@ -150,6 +162,9 @@ export const THEMES = {
 		modalFg: '#e0e0e0',
 		selBg: '#56b6f7',
 		selFg: '#000000',
+		curBg: '#5a5a5a',
+		visBg: '#b8a000',
+		visFg: '#000000',
 	},
 	light: {
 		syntax: syn(
@@ -180,6 +195,9 @@ export const THEMES = {
 		modalFg: '#202020',
 		selBg: '#bcd8ff',
 		selFg: '#101010',
+		curBg: '#ffe9a0',
+		visBg: '#7fb2ff',
+		visFg: '#000000',
 	},
 	solarized: {
 		syntax: syn(
@@ -210,6 +228,9 @@ export const THEMES = {
 		modalFg: '#93a1a1',
 		selBg: '#073642',
 		selFg: '#93a1a1',
+		curBg: '#22586b',
+		visBg: '#6b4f00',
+		visFg: '#fdf6e3',
 	},
 } satisfies Record<string, Theme>;
 

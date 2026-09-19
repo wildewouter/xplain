@@ -10,7 +10,7 @@ const usage = `usage: xplain [--cwd dir] [--config file] [--mode all|staged|unst
   --unstaged   same as --mode unstaged
   --split      start in side-by-side view (s toggles)
   --changes-only  start with git hunks only, not the full file (c toggles)
-  --theme <t>  vibrant, dull, contrast, colorblind, light, solarized (default) (t cycles)
+  --theme <t>  ${THEME_NAMES.join(', ')} (first is default) (t cycles)
   --config <f> config file (default $XPLAIN_CONFIG or ~/.config/xplain/config.json)
   -h, --help   show this help
 xplain config path  print the resolved config path

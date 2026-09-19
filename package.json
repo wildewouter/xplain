@@ -4,7 +4,7 @@
 	"description": "",
 	"main": "index.js",
 	"scripts": {
-		"test": "echo \"Error: no test specified\" && exit 1",
+		"test": "sh tests/run.sh",
 		"dev": "tsx src/cli.tsx",
 		"build": "tsc -p tsconfig.build.json",
 		"start": "node dist/cli.js",

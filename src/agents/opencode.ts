@@ -2,7 +2,7 @@ import {homedir} from 'node:os';
 import {join} from 'node:path';
 import {BUSY_MS, only, psProvider, type PsDeps} from './ps.js';
 import {query as sqlQuery, type Param, type Row} from './sqlite.js';
-import type {Agent, AgentProvider} from './types.js';
+import type {AgentProvider} from './types.js';
 
 const base = only('opencode');
 // Not `opencode serve` / other non-TUI subcommands.
@@ -16,7 +16,7 @@ export type OpenCodeDeps = PsDeps & {
 };
 
 const SQL =
-	'select title, time_updated from session where directory = ? and parent_id is null and time_archived is null order by time_updated desc';
+	'select id, title, time_updated from session where directory = ? and parent_id is null and time_archived is null order by time_updated desc';
 
 export const opencodeProvider = (deps: OpenCodeDeps = {}): AgentProvider => {
 	const ps = psProvider('opencode', 'OpenCode', classifyOpenCode, deps);
@@ -40,6 +40,7 @@ export const opencodeProvider = (deps: OpenCodeDeps = {}): AgentProvider => {
 					seen.set(a.cwd, n + 1);
 					const s = ss[n];
 					if (!s) continue;
+					a.sessionId = s.id ? String(s.id) : undefined;
 					a.name = String(s.title ?? '') || undefined;
 					a.status = now - Number(s.time_updated) < BUSY_MS ? 'busy' : 'idle';
 				} catch {}

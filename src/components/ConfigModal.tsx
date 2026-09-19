@@ -5,7 +5,8 @@ import {SETTINGS, type SettingsState} from '../settings.js';
 
 export const configHeight = SETTINGS.length + 4;
 
-const PREFIX = 9; // '> ' + label(7)
+const LW = Math.max(...SETTINGS.map((s) => s.label.length));
+const PREFIX = 2 + LW; // '> ' + label
 const ARROWS = 2; // room for ‹ and › each side of the choices
 
 // Slice of choices that fits `avail` cols and always contains the cursor (index `at`).
@@ -62,7 +63,7 @@ export function ConfigModal({
 						backgroundColor={i === sel ? t.selBg : undefined}
 						color={i === sel ? t.selFg : undefined}
 					>
-						{i === sel ? '>' : ' '} {s.label.padEnd(7)}
+						{i === sel ? '>' : ' '} {s.label.padEnd(LW)}
 						{lo > 0 ? '‹ ' : '  '}
 						{s.choices.slice(lo, hi + 1).map((c, k) => (
 							<Text
