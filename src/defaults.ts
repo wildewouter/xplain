@@ -6,6 +6,7 @@ export type Config = {
 	theme: ThemeName;
 	view: {mode: Mode; split: boolean; full: boolean};
 	app: {confirmQuit: boolean};
+	mcp: {autostart: boolean};
 	agent: Record<string, unknown>; // reserved
 	keys: Record<string, unknown>; // reserved
 };
@@ -15,6 +16,7 @@ export const DEFAULTS: Config = {
 	theme: 'solarized',
 	view: {mode: 'all', split: false, full: true},
 	app: {confirmQuit: true},
+	mcp: {autostart: false},
 	agent: {},
 	keys: {},
 };

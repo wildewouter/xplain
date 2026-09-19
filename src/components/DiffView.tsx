@@ -1,6 +1,6 @@
 import {Fragment, type ReactNode} from 'react';
 import {Box, Text} from 'ink';
-import {AskBox, askH, SentBox, sentH, type AskSel, type SentQ} from './AskBox.js';
+import {AskBox, askH, SentBox, sentH, type AskMode, type AskSel, type SentQ} from './AskBox.js';
 import type {DiffFile} from '../diff/load.js';
 import {hl} from '../highlight.js';
 import {useTheme, type Theme, type ThemeName} from '../theme.js';
@@ -191,7 +191,7 @@ export function DiffView({
 	name: ThemeName;
 	single?: boolean;
 	cur?: number; // absolute row index of cursor, -1 none
-	ask?: {text: string; pos: number}; // input box below cursor row
+	ask?: {text: string; pos: number; mode?: AskMode}; // input box below cursor row
 	col?: number; // char cursor column (0-based, clamped by caller)
 	sel?: Sel; // visual selection
 	hoff?: number; // horizontal scroll (code text only)
@@ -289,7 +289,9 @@ export function DiffView({
 				return [
 					el,
 					...(sent?.get(ri) ?? []).map((q, k) => <SentBox key={`sent${i}-${k}`} q={q} width={bw} />),
-					...(ask && c ? [<AskBox key={`ask${i}`} text={ask.text} pos={ask.pos} width={bw} sel={askSel} />] : []),
+					...(ask && c
+						? [<AskBox key={`ask${i}`} text={ask.text} pos={ask.pos} width={bw} sel={askSel} mode={ask.mode} />]
+						: []),
 				];
 			})}
 		</Box>

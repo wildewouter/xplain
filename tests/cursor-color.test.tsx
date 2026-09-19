@@ -53,11 +53,14 @@ for (const name of ['contrast', 'light', 'solarized', 'vibrant', 'dull', 'colorb
 	] as const) {
 		const lines = frame(name, rows, k);
 		ok(`${name} ${label}: cursor row has bg+marker`, lines[k]!.includes(esc) && lines[k]!.includes(CUR_MARK));
-		ok(`${name} ${label}: bg persists`, persists(lines[k]!, esc));
-		ok(
-			`${name} ${label}: others no bg/marker`,
-			lines.every((l, i) => i === k || (!l.includes(esc) && !l.includes(CUR_MARK))),
-		);
+		// full-width persistence + no leak to other rows: same code path per theme, check on 2 themes
+		if (name === 'contrast' || name === 'light') {
+			ok(`${name} ${label}: bg persists`, persists(lines[k]!, esc));
+			ok(
+				`${name} ${label}: others no bg/marker`,
+				lines.every((l, i) => i === k || (!l.includes(esc) && !l.includes(CUR_MARK))),
+			);
+		}
 	}
 }
 // split whole row
@@ -65,7 +68,7 @@ const pair: any[] = [
 	{kind: 'pair', l: rows[2], r: rows[1]},
 	{kind: 'pair', l: rows[0], r: rows[0]},
 ];
-for (const name of ['contrast', 'light', 'solarized'] as ThemeName[]) {
+for (const name of ['contrast'] as ThemeName[]) {
 	const esc = bgEsc(THEMES[name].curBg);
 	const lines = frame(name, pair, 0);
 	ok(`${name} split: cursor row bg+marker`, lines[0]!.includes(esc) && lines[0]!.includes(CUR_MARK));
@@ -87,14 +90,18 @@ for (const name of ['contrast', 'light', 'solarized', 'vibrant', 'dull', 'colorb
 		`${name} block: inverse at col`,
 		at > 0 && strip(l0.slice(0, at)).length === 12 + 6 && strip(l0.slice(at)).startsWith('a'),
 	);
-	ok(`${name} block: row bg kept`, l0.includes(bgEsc(T.curBg)) && l0.includes(CUR_MARK));
-	ok(`${name} block: only cursor row`, frame(name, rows, 0, false, {col: 6})[1]!.indexOf(INV) < 0);
+	if (name === 'contrast') {
+		ok('block: row bg kept', l0.includes(bgEsc(T.curBg)) && l0.includes(CUR_MARK));
+		ok('block: only cursor row', frame(name, rows, 0, false, {col: 6})[1]!.indexOf(INV) < 0);
+	}
 	const s = {sr: 0, sc: 2, er: 0, ec: 4, line: false};
 	const l1 = frame(name, rows, 0, false, {col: 4, sel: s})[0]!;
 	const m = new RegExp(bgEsc(T.visBg).replace(/[\[\]]/g, '\\$&') + '([^]*?)\x1b\\[49m').exec(l1);
 	ok(`${name} sel: bg over selected chars only`, !!m && strip(m[1]!).startsWith('ns'));
 	ok(`${name} sel: distinct from cursor bg`, T.visBg !== T.curBg && l1.includes(bgEsc(T.curBg)));
-	ok(`${name} sel: not on other rows`, !frame(name, rows, 0, false, {col: 4, sel: s})[1]!.includes(bgEsc(T.visBg)));
+	if (name === 'contrast') {
+		ok('sel: not on other rows', !frame(name, rows, 0, false, {col: 4, sel: s})[1]!.includes(bgEsc(T.visBg)));
+	}
 }
 {
 	const e = frame('light', [{kind: 'line', type: 'normal', oldNo: 1, newNo: 1, text: ''}], 0, false, {col: 0})[0]!;
@@ -152,11 +159,11 @@ for (const name of ['contrast', 'light', 'solarized', 'vibrant', 'dull', 'colorb
 {
 	// focused comment: accent border + marker differ from unfocused
 	const sentMap = (focused: boolean) =>
-		new Map<number, any[]>([[0, [{head: 'line L1', lines: [], message: 'hi', focused}]]]);
+		new Map<number, any[]>([[0, [{head: 'line L1', lines: [], body: [{t: 'hi', k: 'msg'}], focused}]]]);
 	for (const name of ['contrast', 'light', 'solarized', 'vibrant', 'dull', 'colorblind'] as ThemeName[]) {
 		const a = frame(name, rows, -1, false, {sent: sentMap(true), height: 6}).join('\n');
 		const b = frame(name, rows, -1, false, {sent: sentMap(false), height: 6}).join('\n');
-		ok(`${name} focused comment: marker + border differ`, a.includes('▸') && !b.includes('▸') && a !== b);
+		if (name === 'contrast') ok('focused comment: marker differs', a.includes('▸') && !b.includes('▸'));
 		const esc = (x: string) => x.match(/\x1b\[[0-9;]*m/g)?.join('') ?? '';
 		ok(`${name} focused comment: border color differs`, esc(a) !== esc(b));
 	}

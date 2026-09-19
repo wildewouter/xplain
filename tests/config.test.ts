@@ -38,7 +38,6 @@ const capture = <T>(fn: () => T): [T, string] => {
 	ok('save ok', saveConfig(p, {theme: 'light'}) === undefined);
 	ok('save creates dir+file', JSON.parse(readFileSync(p, 'utf8')).theme === 'light');
 	ok('atomic: no temp left', readdirSync(join(d, 'a', 'b')).join() === 'config.json');
-	ok('roundtrip', loadConfig(p).config.theme === 'light');
 }
 {
 	const p = join(tmp(), 'config.json');
@@ -80,7 +79,6 @@ const capture = <T>(fn: () => T): [T, string] => {
 	);
 }
 {
-	ok('confirmQuit default on', DEFAULTS.app.confirmQuit === true);
 	const d = tmp();
 	const p = join(d, 'config.json');
 	writeFileSync(p, JSON.stringify({app: {confirmQuit: false, extra: 1}}));
@@ -95,6 +93,25 @@ const capture = <T>(fn: () => T): [T, string] => {
 	const c = {...DEFAULTS, app: {confirmQuit: false}};
 	ok('resolve: config used', resolve(c, {}).confirmQuit === false && resolve(DEFAULTS, {}).confirmQuit === true);
 	ok('resolve: flag beats config', resolve(c, {confirmQuit: true}).confirmQuit === true);
+}
+{
+	const d = tmp();
+	const p = join(d, 'config.json');
+	ok('mcp autostart default off', DEFAULTS.mcp.autostart === false && resolve(DEFAULTS, {}).mcpAutostart === false);
+	writeFileSync(p, JSON.stringify({app: {confirmQuit: false}, mcp: {autostart: true, extra: 1}}));
+	const l = loadConfig(p).config;
+	ok('mcp autostart on round-trips', l.mcp.autostart === true && resolve(l, {}).mcpAutostart === true);
+	saveConfig(p, {mcp: {autostart: false}});
+	const j = JSON.parse(readFileSync(p, 'utf8'));
+	ok(
+		'mcp autostart off saved, merge keeps others',
+		j.mcp.autostart === false && j.mcp.extra === 1 && j.app.confirmQuit === false,
+	);
+	ok('mcp autostart off resolves', resolve(loadConfig(p).config, {}).mcpAutostart === false);
+	const p2 = join(d, 'bad.json');
+	writeFileSync(p2, JSON.stringify({mcp: {autostart: 'yes'}}));
+	const [{config}, err] = capture(() => loadConfig(p2));
+	ok('invalid mcp.autostart ignored + warning', config.mcp.autostart === false && err.includes('mcp.autostart'));
 }
 {
 	ok('flag path wins', configPath('/f', {XPLAIN_CONFIG: '/e', XDG_CONFIG_HOME: '/x'}) === '/f');

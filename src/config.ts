@@ -56,6 +56,13 @@ export function loadConfig(path: string): Loaded {
 				);
 		}
 	}
+	if ('mcp' in r) {
+		if (!isObj(r.mcp)) warn('mcp must be an object; using defaults');
+		else if ('autostart' in r.mcp) {
+			if (typeof r.mcp.autostart === 'boolean') config.mcp.autostart = r.mcp.autostart;
+			else warn(`invalid mcp.autostart ${JSON.stringify(r.mcp.autostart)} (boolean); using ${DEFAULTS.mcp.autostart}`);
+		}
+	}
 	return {config, broken: false};
 }
 
@@ -65,7 +72,12 @@ const merge = (a: Record<string, unknown>, b: Record<string, unknown>): Record<s
 	return o;
 };
 
-export type Patch = {theme?: ThemeName; view?: Partial<Config['view']>; app?: Partial<Config['app']>};
+export type Patch = {
+	theme?: ThemeName;
+	view?: Partial<Config['view']>;
+	app?: Partial<Config['app']>;
+	mcp?: Partial<Config['mcp']>;
+};
 
 /** Returns error message, or undefined on success. */
 export function saveConfig(path: string, patch: Patch): string | undefined {
@@ -95,7 +107,7 @@ export function saveConfig(path: string, patch: Patch): string | undefined {
 /** defaults < config < flags */
 export function resolve(
 	c: Config,
-	f: {theme?: ThemeName; mode?: Mode; split?: boolean; full?: boolean; confirmQuit?: boolean},
+	f: {theme?: ThemeName; mode?: Mode; split?: boolean; full?: boolean; confirmQuit?: boolean; mcpAutostart?: boolean},
 ) {
 	return {
 		theme: f.theme ?? c.theme,
@@ -103,5 +115,6 @@ export function resolve(
 		split: f.split ?? c.view.split,
 		full: f.full ?? c.view.full,
 		confirmQuit: f.confirmQuit ?? c.app.confirmQuit,
+		mcpAutostart: f.mcpAutostart ?? c.mcp.autostart,
 	};
 }

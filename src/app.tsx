@@ -11,11 +11,15 @@ import {ThemeContext, THEMES, THEME_NAMES, type ThemeName} from './theme.js';
 import {ConfigModal} from './components/ConfigModal.js';
 import {SETTINGS, type Actions} from './settings.js';
 import {DEFAULTS, saveConfig} from './config.js';
-import {askH, sentH, type AskSel, type SentQ} from './components/AskBox.js';
+import {askH, sentBase, sentH, type AskMode, type AskSel, type SentQ} from './components/AskBox.js';
 import {DeleteModal} from './components/DeleteModal.js';
 import {QuitModal} from './components/QuitModal.js';
-import {AgentsModal} from './components/AgentsModal.js';
-import {listAgents, type Agent} from './agents/index.js';
+import {threadBody, windowBody} from './components/answerView.js';
+import {McpModal, type McpConfirm, type McpPreview} from './components/McpModal.js';
+import {useMcp} from './useMcp.js';
+import type {McpBridge} from './mcp/bridge.js';
+import {useAsk} from './useAsk.js';
+import {type AskController, type Question} from './ask/index.js';
 import {footerFor} from './keys.js';
 import {
 	DiffView,
@@ -31,21 +35,16 @@ import {
 	paneOf,
 } from './components/DiffView.js';
 
-export type Question = {
-	id?: string; // stable id, set on send
-	file: string;
-	index: number; // cursor row
-	side?: PaneSide; // split view pane of the cursor (unified/browse: 'new')
-	line?: number;
-	text: string; // cursor line, or selected text (joined with \n) when a selection was active
+export type {Question};
+type Sent = Omit<SentQ, 'body'> & {
 	message: string;
-	// only with a selection: 1-based lines and 1-based inclusive cols
-	startLine?: number;
-	endLine?: number;
-	startCol?: number;
-	endCol?: number;
+	id: string;
+	file: string;
+	no?: number;
+	del: boolean;
+	idx: number;
+	side: PaneSide;
 };
-type Sent = SentQ & {id: string; file: string; no?: number; del: boolean; idx: number; side: PaneSide};
 // does row match the anchor (line number, deleted-side flag)? works for unified + split rows
 const isDel = (r?: Row | SRow) => (r?.kind === 'line' ? r.type === 'del' : r?.kind === 'pair' ? !r.r : false);
 const anchors = (r: Row | SRow | undefined, no: number, del: boolean, side: PaneSide = 'new') =>
@@ -80,10 +79,12 @@ export default function App({
 	theme: theme0 = DEFAULTS.theme,
 	configPath,
 	confirmQuit: cq0 = DEFAULTS.app.confirmQuit,
+	mcpAutostart: ma0 = DEFAULTS.mcp.autostart,
 	onCursor,
 	onQuestion,
 	onQuestionUpdate,
 	onQuestionDelete,
+	mcp: mcp0,
 }: {
 	args: string[];
 	cwd?: string;
@@ -93,7 +94,9 @@ export default function App({
 	theme?: ThemeName;
 	configPath?: string;
 	confirmQuit?: boolean;
-	onQuestion?: (q: Question) => void; // prompt submitted (no agent yet)
+	mcpAutostart?: boolean; // start the MCP bridge once after first render
+	mcp?: McpBridge | ((ctl: AskController) => McpBridge); // MCP bridge (default: lazily created, off until started)
+	onQuestion?: (q: Question) => void; // prompt submitted
 	onQuestionUpdate?: (q: Question) => void; // sent comment edited
 	onQuestionDelete?: (q: Question) => void; // sent comment deleted
 	onCursor?: (c: {index: number; row: Row | SRow | undefined} | undefined) => void; // cursor row hook (prompt anchor)
@@ -115,16 +118,17 @@ export default function App({
 	const [csel, setCsel] = useState(0);
 	const [ccur, setCcur] = useState<number[]>([]);
 	const [confirmQuit, setConfirmQuit] = useState(cq0);
+	const [mcpAutostart, setMcpAutostart] = useState(ma0);
 	const [qmodal, setQmodal] = useState(false);
 	const [ask, setAsk] = useState(false);
 	const [askText, setAskText] = useState('');
 	const [askPos, setAskPos] = useState(0);
-	const [questions, setQuestions] = useState<Question[]>([]);
 	const [sent, setSent] = useState<Sent[]>([]);
 	const [focus, setFocus] = useState<string>();
 	const [editId, setEditId] = useState<string>();
+	const [fuId, setFuId] = useState<string>(); // follow-up input open for this comment
+	const [scrolls, setScrolls] = useState<Record<string, {off: number; follow?: boolean}>>({});
 	const [dmodal, setDmodal] = useState(false);
-	const nextId = useRef(1);
 	const [tCommit, setTCommit] = useState<ThemeName>(theme0); // theme that esc reverts to
 	const [split, setSplit] = useState(split0);
 	const cols = stdout.columns || 80;
@@ -132,18 +136,57 @@ export default function App({
 	const [full, setFull] = useState(full0);
 	const keep = useRef<string | undefined>(undefined);
 	const [sel, setSel] = useState(0);
-	const [amodal, setAmodal] = useState(false);
-	const [agents, setAgents] = useState<Agent[] | null>(null);
-	const [asel, setAsel] = useState(0);
-	const agentsLoad = () => {
-		setAgents(null);
-		listAgents().then(
-			(l) => {
-				setAgents(l);
-				setAsel((s) => Math.min(s, Math.max(0, l.length - 1)));
-			},
-			() => setAgents([]),
-		);
+	const [ctl, ask0] = useAsk();
+	const {questions, answers} = ask0;
+	const [mcp, ms] = useMcp(ctl, mcp0, cwd);
+	const [mmodal, setMmodal] = useState(false);
+	const [msel, setMsel] = useState(0);
+	const [mconfirm, setMconfirm] = useState<McpConfirm>();
+	const [mprev, setMprev] = useState<McpPreview>();
+	const [mnote, setMnote] = useState<string>();
+	const [chosen, setChosen] = useState<AskMode>();
+	// autostart: once after mount, not blocking; failure leaves MCP off and shows the bridge error (never the token)
+	useEffect(() => {
+		if (!ma0) return;
+		void mcp.start().then(() => {
+			const e = mcp.getState().error;
+			if (e) setNote(`mcp autostart failed: ${e}`);
+		});
+	}, []);
+	// default: ask while MCP runs, else save; a chosen mode only counts while MCP runs
+	const sendMode: AskMode = ms.running ? (chosen ?? 'ask') : 'save';
+	useEffect(() => {
+		if (!ms.running) setChosen(undefined);
+	}, [ms.running]);
+	// comments added by an agent join the inline list
+	useEffect(() => {
+		const fresh = questions.filter((q) => q.origin === 'agent' && !sent.some((x) => x.id === q.id));
+		if (fresh.length)
+			setSent((l) => [
+				...l,
+				...fresh.map((q) => ({
+					id: q.id!,
+					file: q.file,
+					no: q.line,
+					del: false,
+					idx: q.index,
+					side: q.side ?? ('new' as PaneSide),
+					head: `agent note ${q.line !== undefined ? 'L' + q.line : ''}`.trim(),
+					lines: [],
+					message: q.message,
+				})),
+			]);
+	}, [questions]);
+	const mcpClose = () => {
+		setMmodal(false);
+		setMconfirm(undefined);
+		setMprev(undefined);
+		setMnote(undefined);
+	};
+	const quit = () => {
+		ctl.dispose();
+		mcp.dispose();
+		exit();
 	};
 	const height = Math.max(3, (stdout.rows || 24) - 3);
 	const half = Math.max(1, Math.floor(height / 2));
@@ -222,8 +265,38 @@ export default function App({
 		if (browsePath !== undefined) return toRows(file).slice(1); // drop empty hunk header
 		return eff ? toSplit(toRows(file)) : toRows(file);
 	}, [file, eff, browsePath]);
-	const sentAt = useMemo(() => {
+	const built = useMemo(() => {
 		const m = new Map<number, SentQ[]>();
+		const info = new Map<string, {v: number; off: number; maxOff: number}>();
+		const bw = Math.max(1, Math.max(10, cols - 1) - 3);
+		const fuRows = fuId ? askH({head: '', lines: []}) : 0; // follow-up input under the thread
+		const mkQ = (q: Sent, foc: boolean, v: number): SentQ => {
+			const an = answers[q.id];
+			const qq = questions.find((x) => x.id === q.id);
+			const agentQ = qq?.origin === 'agent';
+			const tu = qq?.turns?.length ? qq.turns : [{message: q.message}];
+			const multi = tu.length > 1;
+			const live = an?.status === 'pending' || an?.status === 'streaming';
+			const body = threadBody([{...tu[0]!, message: q.message}, ...tu.slice(1)], q.message, bw);
+			const sc = scrolls[q.id];
+			const w = windowBody(body, foc, v, live && sc?.follow !== false ? Infinity : (sc?.off ?? 0));
+			if (foc) info.set(q.id, {v, off: w.off, maxOff: w.maxOff});
+			const {id, head, lines} = q;
+			return {
+				id,
+				head,
+				lines,
+				body: w.shown,
+				more: w.more,
+				focused: foc,
+				saved: !an && !agentQ && !multi,
+				canAsk: !agentQ && !multi && (!an || an.status === 'error' || an.status === 'cancelled'),
+				canFollow: !agentQ && an?.status === 'done',
+				scroll: foc && w.maxOff > 0,
+				pos: foc && w.maxOff > 0 ? `${w.from}-${w.to}/${w.total}` : undefined,
+			};
+		};
+		const rowOf = new Map<string, number>();
 		for (const q of sent) {
 			if (q.file !== file?.path) continue;
 			const i =
@@ -232,16 +305,61 @@ export default function App({
 						? q.idx
 						: -1
 					: rows.findIndex((r) => anchors(r, q.no!, q.del, q.side));
-			if (i >= 0) m.set(i, [...(m.get(i) ?? []), {...q, focused: q.id === focus}]);
+			if (i < 0) continue;
+			rowOf.set(q.id, i);
+			m.set(i, [...(m.get(i) ?? []), mkQ(q, false, 0)]);
 		}
-		return m;
-	}, [sent, rows, file, focus]);
+		// focused box takes the room the viewport has left on its row
+		const f = sent.find((x) => x.id === focus && rowOf.has(x.id));
+		if (f) {
+			const list = m.get(rowOf.get(f.id)!)!;
+			const k = list.findIndex((x) => x.id === f.id);
+			const others = list.reduce((n, x, j) => n + (j === k ? 0 : sentH(x)), 0);
+			const v = Math.max(1, height - 1 - sentBase({lines: f.lines, focused: true}) - others - fuRows);
+			list[k] = mkQ(f, true, v);
+		}
+		return {m, info};
+	}, [sent, rows, file, focus, answers, questions, cols, height, scrolls, fuId]);
+	const sentAt = built.m;
 	// comments of this file in visual order
 	const focusList = useMemo(
 		() => [...sentAt.entries()].sort((a, b) => a[0] - b[0]).flatMap(([row, l]) => l.map((q) => ({id: q.id!, row}))),
 		[sentAt],
 	);
 	const fo = focusList.findIndex((x) => x.id === focus);
+	const askable = (id: string) => {
+		const q = questions.find((x) => x.id === id);
+		const a = answers[id];
+		return (
+			!!q &&
+			q.origin !== 'agent' &&
+			(q.turns?.length ?? 1) <= 1 &&
+			(!a || a.status === 'error' || a.status === 'cancelled')
+		);
+	};
+	const askFocused = () => {
+		const q = questions.find((x) => x.id === focus);
+		if (!q) return;
+		if (q.origin === 'agent') return setNote("agent notes can't be asked");
+		const an = answers[q.id!];
+		if (an?.status === 'pending' || an?.status === 'streaming') return setNote('still waiting for the agent');
+		if (an?.status === 'done') {
+			setAskText('');
+			setAskPos(0);
+			setFuId(q.id);
+			setAsk(true);
+			return;
+		}
+		if (!askable(q.id!)) return setNote("can't retry a follow-up yet");
+		setNote(mcp.ask(q) ? 'question queued' : 'MCP is off (M to start)');
+	};
+	const askAll = () => {
+		const todo = focusList.filter((x) => askable(x.id)).map((x) => questions.find((q) => q.id === x.id)!);
+		if (!todo.length) return setNote('nothing to ask');
+		if (!ms.running) return setNote('MCP is off (M to start)');
+		const n = todo.filter((q) => mcp.ask(q)).length;
+		setNote(`queued ${n} question${n === 1 ? '' : 's'}`);
+	};
 	const focusTo = (x?: {id: string; row: number}) => {
 		setFocus(x?.id);
 		if (x) {
@@ -261,6 +379,7 @@ export default function App({
 	const max = rows.length ? fitOff(height) : 0;
 	const starts = useMemo(() => changeStarts(rows), [rows]);
 	const CTX = 3;
+	const CTX_WIDE = 15;
 	const [curOn, setCurOn] = useState(false);
 	const [cur, setCur] = useState(0);
 	const pend = useRef(0); // pending count prefix
@@ -315,9 +434,11 @@ export default function App({
 	const editing = editId ? sent.find((q) => q.id === editId) : undefined;
 	const askSel: AskSel | undefined = editing
 		? {head: `edit ${editing.head}`, lines: editing.lines}
-		: ask && vsel
-			? {head: `selection ${selTag(vsel)}`, lines: selText(vsel).split('\n')}
-			: undefined;
+		: fuId
+			? {head: 'follow-up', lines: []}
+			: ask && vsel
+				? {head: `selection ${selTag(vsel)}`, lines: selText(vsel).split('\n')}
+				: undefined;
 	const wordMove = (kind: 'w' | 'b' | 'e', n: number) => {
 		let r = curI;
 		let c = ccol;
@@ -435,6 +556,7 @@ export default function App({
 
 	const actions: Actions = {
 		confirmQuit: setConfirmQuit,
+		mcpAutostart: setMcpAutostart, // preference only; the M modal starts/stops
 		theme: (v) => {
 			setTheme(v);
 			setTCommit(v); // selected: preview becomes the committed theme
@@ -455,7 +577,7 @@ export default function App({
 		},
 	};
 	const cfgOpen = () => {
-		const st = {theme, mode, split, full, confirmQuit};
+		const st = {theme, mode, split, full, confirmQuit, mcpAutostart};
 		setCcur(SETTINGS.map((s) => Math.max(0, s.choices.indexOf(s.get(st)))));
 		setTCommit(theme);
 		setCmodal(true);
@@ -488,26 +610,31 @@ export default function App({
 					setAsk(false);
 					setAskText('');
 					setEditId(undefined);
+					setFuId(undefined);
 				} else if (key.return) {
 					const message = askText.trim();
 					if (!message) return;
+					if (fuId) {
+						if (mcp.followUp(fuId, message)) {
+							setScrolls((v) => ({...v, [fuId]: {off: 0, follow: true}}));
+							setNote('follow-up queued');
+							setFuId(undefined);
+							setAsk(false);
+							setAskText('');
+						} else setNote(ms.running ? "can't follow up yet" : 'MCP is off (M to start)');
+						return;
+					}
 					if (editId) {
-						const q0 = questions.find((x) => x.id === editId);
-						const q1 = q0 && {...q0, message};
+						const q1 = ctl.edit(editId, message);
 						setSent((l) => l.map((x) => (x.id === editId ? {...x, message} : x)));
-						if (q1) {
-							setQuestions((l) => l.map((x) => (x.id === editId ? q1 : x)));
-							onQuestionUpdate?.(q1);
-						}
+						if (q1) onQuestionUpdate?.(q1);
 						setNote('comment updated');
 						setEditId(undefined);
 						setAsk(false);
 						setAskText('');
 						return;
 					}
-					const id = `q${nextId.current++}`;
 					const q: Question = {
-						id,
 						file: file?.path ?? '',
 						index: curI,
 						side,
@@ -523,6 +650,17 @@ export default function App({
 						q.endCol = vsel.line ? Math.max(1, tx(vsel.er).length) : vsel.ec + 1;
 					}
 					const ar = vsel ? vsel.er : curI;
+					q.context = [];
+					q.wide = [];
+					for (let i = Math.max(0, (vsel ? vsel.sr : curI) - CTX_WIDE); i <= Math.min(last, ar + CTX_WIDE); i++)
+						if (rows[i]?.kind === 'line' || rows[i]?.kind === 'pair') {
+							const tx = rowText(rows[i], side);
+							q.wide.push(tx);
+							if (i >= (vsel ? vsel.sr : curI) - CTX && i <= ar + CTX) q.context.push(tx);
+						}
+					const added = ctl.add(q);
+					q.id = added.id!;
+					const id = q.id;
 					setSent((l) => [
 						...l,
 						{
@@ -540,11 +678,21 @@ export default function App({
 						},
 					]);
 					endVis();
-					setQuestions([...questions, q]);
-					setNote(`question saved (${questions.length + 1})`);
+					setNote(
+						sendMode === 'ask'
+							? mcp.ask(added)
+								? 'question sent to agent'
+								: 'MCP is off (M to start)'
+							: `question saved (${questions.length + 1})`,
+					);
 					onQuestion?.(q);
 					setAsk(false);
 					setAskText('');
+				} else if (key.tab) {
+					if (editId || fuId) return;
+					if (sendMode === 'ask') setChosen('save');
+					else if (ms.running) setChosen('ask');
+					else setNote('MCP is off (M to start)');
 				} else if (key.leftArrow) setAskPos((p) => Math.max(0, p - 1));
 				else if (key.rightArrow) setAskPos((p) => Math.min(askText.length, p + 1));
 				else if (key.backspace || key.delete) {
@@ -563,8 +711,8 @@ export default function App({
 				if (input === 'y' || key.return) {
 					const nx = focusList[fo + 1];
 					const q0 = questions.find((x) => x.id === focus);
+					if (focus) ctl.remove(focus);
 					setSent((l) => l.filter((x) => x.id !== focus));
-					setQuestions((l) => l.filter((x) => x.id !== focus));
 					if (q0) onQuestionDelete?.(q0);
 					focusTo(nx);
 					setNote('comment deleted');
@@ -573,7 +721,7 @@ export default function App({
 				return;
 			}
 			if (qmodal) {
-				if (input === 'y' || key.return) exit();
+				if (input === 'y' || key.return) quit();
 				else if (input === 'n' || input === 'q' || key.escape) setQmodal(false);
 				return;
 			}
@@ -600,11 +748,60 @@ export default function App({
 				if (key.escape || input === 'q' || input === '?') setHelp(false);
 				return;
 			}
-			if (amodal) {
-				if (key.escape || input === 'q' || input === 'A') setAmodal(false);
-				else if (input === 'r') agentsLoad();
-				else if (input === 'j' || key.downArrow) setAsel((s) => Math.min((agents?.length ?? 1) - 1, s + 1));
-				else if (input === 'k' || key.upArrow) setAsel((s) => Math.max(0, s - 1));
+			if (mmodal) {
+				const it = msel > 0 ? ms.integrations[msel - 1] : undefined;
+				if (mconfirm) {
+					if (input === 'y' || key.return) {
+						const c = mconfirm;
+						setMconfirm(undefined);
+						setMnote(undefined);
+						void (c.kind === 'register' ? mcp.register(c.id) : mcp.unregister(c.id));
+					} else if (input === 'n' || key.escape) setMconfirm(undefined);
+					return;
+				}
+				const pick = (n: number) => {
+					setMsel((v) => Math.min(ms.integrations.length, Math.max(0, v + n)));
+					setMprev(undefined);
+					setMnote(undefined);
+				};
+				if (key.escape || input === 'q' || input === 'M') mcpClose();
+				else if (input === 'j' || key.downArrow) pick(1);
+				else if (input === 'k' || key.upArrow) pick(-1);
+				else if ((key.return || input === ' ') && msel === 0) {
+					setMnote(undefined);
+					void (ms.running ? mcp.stop() : mcp.start());
+				} else if (it && (key.return || input === 'd')) {
+					setMprev(undefined);
+					if (!it.canRegister) setMnote('copy-paste only: c copies the snippet');
+					else if (input === 'd') {
+						if (!it.registered) setMnote('not registered');
+						else {
+							setMnote(undefined);
+							setMconfirm({kind: 'unregister', id: it.id});
+						}
+					} else if (!ms.running) setMnote('start MCP first');
+					else if (it.registered && !it.stale) setMnote('already registered (d to remove)');
+					else {
+						setMnote(undefined);
+						setMconfirm({kind: 'register', id: it.id});
+					}
+				} else if (it && (input === 'c' || input === 'w')) {
+					const text = input === 'c' ? mcp.commandText(it.id) : mcp.watchText(it.id);
+					if (text === null) {
+						setMprev(undefined);
+						setMnote('start MCP first');
+					} else {
+						mcp.copy(text);
+						setMnote(undefined);
+						setMprev({
+							what: `${input === 'c' ? 'register command' : 'watch prompt'} (copied)`,
+							text: (input === 'c' ? mcp.commandText(it.id, true) : mcp.watchText(it.id, true)) ?? '',
+						});
+					}
+				} else if (input === 'R') {
+					if (!ms.running) setMnote('start MCP first');
+					else void mcp.refreshRegistration();
+				}
 				return;
 			}
 			if (cmodal) {
@@ -631,10 +828,12 @@ export default function App({
 			}
 			if (key.ctrl) return;
 			if (input === 'F') return srchOpen();
-			if (input === 'A') {
-				setAsel(0);
-				setAmodal(true);
-				return agentsLoad();
+			if (input === 'M') {
+				setMsel(0);
+				setMnote(undefined);
+				setMprev(undefined);
+				setMconfirm(undefined);
+				return setMmodal(true);
 			}
 			if (input === 'i') {
 				pend.current = 0;
@@ -664,6 +863,7 @@ export default function App({
 					);
 				}
 				if (fo >= 0 && (input === 'e' || key.return)) {
+					if (ctl.turns(focus).length > 1) return setNote("can't edit after follow-ups");
 					const m = sent.find((x) => x.id === focus)?.message ?? '';
 					setAskText(m);
 					setAskPos(m.length);
@@ -672,6 +872,31 @@ export default function App({
 					return;
 				}
 				if (fo >= 0 && input === 'D') return setDmodal(true);
+				if (fo >= 0 && input === 'a') return askFocused();
+				if (fo >= 0 && input === 'A') return askAll();
+				const ti = fo >= 0 ? built.info.get(focus!) : undefined;
+				if (ti && ti.maxOff > 0 && /^[jkdugG]$/.test(input)) {
+					const hv = Math.max(1, Math.floor(ti.v / 2));
+					const want =
+						input === 'j'
+							? ti.off + 1
+							: input === 'k'
+								? ti.off - 1
+								: input === 'd'
+									? ti.off + hv
+									: input === 'u'
+										? ti.off - hv
+										: input === 'g'
+											? 0
+											: ti.maxOff;
+					const o = Math.min(ti.maxOff, Math.max(0, want));
+					const id = focus!;
+					setScrolls((v) => ({
+						...v,
+						[id]: {off: o, follow: input === 'G' ? true : o < ti.off ? false : v[id]?.follow},
+					}));
+					return;
+				}
 				if (
 					fo >= 0 &&
 					(key.leftArrow ||
@@ -754,7 +979,7 @@ export default function App({
 				setModal(true);
 			} else if (input === 'q') {
 				if (confirmQuit) setQmodal(true);
-				else exit();
+				else quit();
 			} else if ((key.tab && !key.shift) || key.rightArrow) sw(1);
 			else if ((key.tab && key.shift) || key.leftArrow) sw(-1);
 			else if (input === 'j' || key.downArrow) scroll(1);
@@ -777,6 +1002,7 @@ export default function App({
 			{canSide ? ` ${side}` : ''} {cn !== undefined ? `L${cn}` : `r${curI + 1}`}:C{ccol + 1}]{' '}
 		</Text>
 	) : null;
+	const mcpChip = <Text color={th.view}>[mcp: {ms.running ? 'on' : 'off'}] </Text>;
 	const rowsT = height + 3;
 	const mw = Math.min(cols, Math.max(20, Math.floor(cols * 0.7)));
 	const mh = Math.min(rowsT, Math.max(5, Math.min(files.length + 4, Math.floor(rowsT * 0.6))));
@@ -788,12 +1014,14 @@ export default function App({
 					{noChanges && browsePath === undefined ? (
 						<>
 							<Text color={th.mode}>[{mode}] </Text>
+							{mcpChip}
 							<Text>No changes (m cycles mode, F search, q quits)</Text>
 						</>
 					) : browsePath !== undefined ? (
 						<>
 							<Text color={th.mode}>[browse] </Text>
 							<Text color={th.view}>[{theme}] </Text>
+							{mcpChip}
 							{curTag}
 							<Text color={th.file}>{file.path}</Text>
 						</>
@@ -803,6 +1031,7 @@ export default function App({
 							<Text color={th.mode}>[{full ? 'full' : 'changes'}] </Text>
 							<Text color={th.view}>[{split ? 'split' : 'unified'}] </Text>
 							<Text color={th.view}>[{theme}] </Text>
+							{mcpChip}
 							<Text bold>
 								[{idx + 1}/{files.length}]{' '}
 							</Text>
@@ -826,7 +1055,7 @@ export default function App({
 					name={theme}
 					single={browsePath !== undefined}
 					cur={curOn ? Math.min(cur, last) : -1}
-					ask={ask ? {text: askText, pos: askPos} : undefined}
+					ask={ask ? {text: askText, pos: askPos, mode: editId || fuId ? undefined : sendMode} : undefined}
 					askSel={askSel}
 					col={ccol}
 					sel={vsel}
@@ -838,7 +1067,14 @@ export default function App({
 					{note ? `${note} | ` : ''}
 					{split && !eff ? 'too narrow for split | ' : ''}({Math.min(rows.length, off + 1)}-
 					{Math.min(rows.length, off + height)}/{rows.length}){' '}
-					{footerFor({cursor: curOn, visual: !!anchor, split: canSide, focused: fo >= 0, ask})}
+					{footerFor({
+						cursor: curOn,
+						visual: !!anchor,
+						split: canSide,
+						focused: fo >= 0,
+						ask,
+						edit: !!editId || !!fuId,
+					})}
 				</Text>
 				{dmodal && (
 					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
@@ -855,23 +1091,25 @@ export default function App({
 						<HelpModal width={mw} height={Math.min(rowsT, helpHeight)} />
 					</Box>
 				)}
+				{mmodal && (
+					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
+						<McpModal
+							state={ms}
+							sel={msel}
+							confirm={mconfirm}
+							preview={mprev}
+							note={mnote}
+							width={Math.min(cols, 64)}
+						/>
+					</Box>
+				)}
 				{cmodal && (
 					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
 						<ConfigModal
 							sel={csel}
 							cur={ccur}
-							state={{theme: tCommit, mode, split, full, confirmQuit}}
+							state={{theme: tCommit, mode, split, full, confirmQuit, mcpAutostart}}
 							width={Math.min(cols, 56)}
-						/>
-					</Box>
-				)}
-				{amodal && (
-					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
-						<AgentsModal
-							agents={agents}
-							sel={asel}
-							height={Math.min(rowsT, Math.max(8, Math.floor(rowsT * 0.6)))}
-							width={mw}
 						/>
 					</Box>
 				)}

@@ -2,7 +2,14 @@ import {MODES, type Mode} from './diff/load.js';
 import {THEME_NAMES, type ThemeName} from './theme.js';
 import type {Patch} from './config.js';
 
-export type SettingsState = {theme: ThemeName; mode: Mode; split: boolean; full: boolean; confirmQuit: boolean};
+export type SettingsState = {
+	theme: ThemeName;
+	mode: Mode;
+	split: boolean;
+	full: boolean;
+	confirmQuit: boolean;
+	mcpAutostart: boolean;
+};
 // live-apply hooks provided by the app
 export type Actions = {
 	theme(v: ThemeName): void;
@@ -10,6 +17,7 @@ export type Actions = {
 	split(v: boolean): void;
 	full(v: boolean): void;
 	confirmQuit(v: boolean): void;
+	mcpAutostart(v: boolean): void;
 };
 export type Setting = {
 	path: string; // config key path
@@ -62,5 +70,13 @@ export const SETTINGS: Setting[] = [
 		get: (s) => (s.confirmQuit ? 'on' : 'off'),
 		set: (v, a) => a.confirmQuit(bool(v)),
 		patch: (v) => ({app: {confirmQuit: bool(v)}}),
+	},
+	{
+		path: 'mcp.autostart',
+		label: 'mcp on startup',
+		choices: ['off', 'on'],
+		get: (s) => (s.mcpAutostart ? 'on' : 'off'),
+		set: (v, a) => a.mcpAutostart(bool(v)),
+		patch: (v) => ({mcp: {autostart: bool(v)}}),
 	},
 ];
