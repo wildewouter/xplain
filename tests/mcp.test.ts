@@ -10,6 +10,7 @@ import {
 	rotateToken,
 	callTool,
 	TOOLS,
+	SERVER_INSTRUCTIONS,
 	type HubEvent,
 } from '../src/mcp/index.js';
 
@@ -257,6 +258,11 @@ const parse = (r: {content: {text: string}[]}) => JSON.parse(r.content[0]!.text)
 	ok(
 		'tools: files_changed ok',
 		parse(fc).ok === true && evs.some((x) => x.type === 'files_changed' && x.paths.join() === 'a.ts'),
+	);
+	ok(
+		'tools: files_changed described as required + server instructions',
+		/MUST/.test(TOOLS.find((t) => t.name === 'files_changed')?.description ?? '') &&
+			SERVER_INSTRUCTIONS.includes('files_changed'),
 	);
 	ok('tools: annotate bad', (await callTool('annotate', {file: 'a'}, {hub: h, clientId: 'c'})).isError === true);
 	ok('tools: unknown tool', (await callTool('zzz', {}, {hub: h, clientId: 'c'})).isError === true);

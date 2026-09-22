@@ -71,19 +71,41 @@ export const rowCode = (r?: Row | SRow, side: PaneSide = 'new') =>
 	!r ? '' : r.kind === 'pair' ? expand((paneOf(r, side) === 'old' ? r.l : r.r)?.text ?? '') : expand(r.text);
 // inclusive char selection, ordered; line = whole rows
 export type Sel = {sr: number; sc: number; er: number; ec: number; line: boolean};
-export type Cell = {col: number; sel?: [number, number]; hoff: number}; // sel = [from, to) in this row
+export type Cell = {col: number; sel?: [number, number]; hoff: number; hits?: [number, number][]};
+// search hits in text; smartcase (case-insensitive unless term has uppercase)
+export const findAll = (text: string, term: string): [number, number][] => {
+	if (!term) return [];
+	const ci = term === term.toLowerCase();
+	const h = ci ? text.toLowerCase() : text;
+	const needle = term;
+	const out: [number, number][] = [];
+	for (let i = h.indexOf(needle); i >= 0; i = h.indexOf(needle, i + needle.length)) out.push([i, i + term.length]);
+	return out;
+};
+// texts of a row that search looks at
+export const searchTexts = (r?: Row | SRow): string[] =>
+	!r
+		? []
+		: r.kind === 'pair'
+			? [r.l, r.r].filter((x, i, a) => x && a.indexOf(x) === i).map((x) => expand(x!.text))
+			: r.kind === 'line'
+				? [expand(r.text)]
+				: []; // sel = [from, to) in this row
 
 // code text as segments: plain (syntax highlighted), selection (visBg), cursor block (inverse)
 function code(text: string, path: string, name: ThemeName, t: Theme, cell?: Cell, on = false): ReactNode {
 	const hoff = cell?.hoff ?? 0;
-	if (!cell || (!on && !cell.sel)) return hl(hoff ? text.slice(hoff) : text, path, name);
+	if (!cell || (!on && !cell.sel && !cell.hits?.length)) return hl(hoff ? text.slice(hoff) : text, path, name);
 	const cur = on ? cell.col : -1;
 	const need = Math.max(cur + 1, cell.sel?.[1] ?? 0);
 	const tx = text.length < need ? text.padEnd(need) : text;
 	const v = tx.slice(hoff);
 	const [a, b] = cell.sel ? [cell.sel[0] - hoff, cell.sel[1] - hoff] : [-1, -1];
 	const c = cur - hoff;
-	const cuts = [...new Set([0, a, b, c, c + 1, v.length])].filter((x) => x >= 0 && x <= v.length).sort((x, y) => x - y);
+	const hits = (cell.hits ?? []).map(([x, y]) => [x - hoff, y - hoff] as [number, number]);
+	const cuts = [...new Set([0, a, b, c, c + 1, v.length, ...hits.flat()])]
+		.filter((x) => x >= 0 && x <= v.length)
+		.sort((x, y) => x - y);
 	const out: ReactNode[] = [];
 	for (let k = 0; k + 1 < cuts.length; k++) {
 		const [x, y] = [cuts[k]!, cuts[k + 1]!];
@@ -98,6 +120,12 @@ function code(text: string, path: string, name: ThemeName, t: Theme, cell?: Cell
 		else if (inSel)
 			out.push(
 				<Text key={k} backgroundColor={t.visBg} color={t.visFg}>
+					{seg}
+				</Text>,
+			);
+		else if (hits.some(([p, q]) => x >= p && y <= q))
+			out.push(
+				<Text key={k} backgroundColor="yellow" color="black">
 					{seg}
 				</Text>,
 			);
@@ -183,6 +211,7 @@ export function DiffView({
 	askSel,
 	sent,
 	side = 'new',
+	find = '',
 }: {
 	file: DiffFile;
 	rows: (Row | SRow)[];
@@ -200,6 +229,7 @@ export function DiffView({
 	askSel?: AskSel;
 	sent?: Map<number, SentQ[]>; // submitted questions by anchor row
 	side?: PaneSide; // split: pane carrying the char cursor
+	find?: string; // search term to highlight
 }) {
 	const t = useTheme();
 	const w = Math.floor((cols - 1) / 2);
@@ -226,7 +256,12 @@ export function DiffView({
 						const b = ri === sel.er && !sel.line ? sel.ec + 1 : n;
 						s2 = n === 0 ? [0, 1] : [Math.min(a, n), Math.min(Math.max(b, a + 1), n)];
 					}
-					return c || s2 ? {col, sel: s2, hoff} : hoff ? {col, hoff} : undefined;
+					const hits = findAll(txt, find);
+					return c || s2 || hits.length ? {col, sel: s2, hoff, hits} : hoff ? {col, hoff} : undefined;
+				};
+				const other = (txt: string): Cell | undefined => {
+					const hits = findAll(txt, find);
+					return hits.length ? {col, hoff, hits} : hoff ? {col, hoff} : undefined;
 				};
 				const el = (() => {
 					if (r.kind === 'hunk')
@@ -247,7 +282,7 @@ export function DiffView({
 									name={name}
 									cur={c}
 									active={paneOf(r, side) === 'old'}
-									cell={paneOf(r, side) === 'old' ? cellFor(expand(r.l?.text ?? '')) : hoff ? {col, hoff} : undefined}
+									cell={paneOf(r, side) === 'old' ? cellFor(expand(r.l?.text ?? '')) : other(expand(r.l?.text ?? ''))}
 								/>
 								<Text color={t.dim} backgroundColor={cb}>
 									│
@@ -260,7 +295,7 @@ export function DiffView({
 									name={name}
 									cur={c}
 									active={paneOf(r, side) === 'new'}
-									cell={r.r && paneOf(r, side) === 'new' ? cellFor(expand(r.r.text)) : hoff ? {col, hoff} : undefined}
+									cell={r.r && paneOf(r, side) === 'new' ? cellFor(expand(r.r.text)) : other(expand(r.r?.text ?? ''))}
 								/>
 							</Box>
 						);

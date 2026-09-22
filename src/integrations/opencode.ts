@@ -1,4 +1,5 @@
 import {buildWatchPrompt} from './prompt.js';
+//hahahaha
 import type {IntegrationFactory} from './types.js';
 
 export const createOpencode: IntegrationFactory = () => ({
@@ -31,5 +32,6 @@ export const createOpencode: IntegrationFactory = () => ({
 	watchPrompt: () =>
 		buildWatchPrompt({pollSeconds: 45})
 			.replace(/`next_question`/g, '`xplain_next_question`')
-			.replace(/`answer`/g, '`xplain_answer`'),
+			.replace(/`answer`/g, '`xplain_answer`')
+			.replace(/`files_changed`/g, '`xplain_files_changed`'),
 });

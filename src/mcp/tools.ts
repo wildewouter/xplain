@@ -6,6 +6,12 @@ export type ToolContext = {hub: Hub; clientId: string; signal?: AbortSignal; onD
 
 export const DEFAULT_WAIT_S = 45;
 export const MAX_WAIT_S = 120;
+export const SERVER_INSTRUCTIONS =
+	'xplain shows the user a live diff of the working tree. ' +
+	'REQUIRED: after EVERY edit, create, rename or delete of a file on disk, call the `files_changed` tool (pass the changed paths). ' +
+	'Without this call the xplain view stays stale and the user does not see your changes. ' +
+	'Batch several edits into one call, but always call it before you answer or go idle. ' +
+	'Questions from the user arrive via `next_question`; answer with `answer`.';
 const AGAIN = 'Call next_question again immediately.';
 
 export const TOOLS: ToolDef[] = [
@@ -70,11 +76,16 @@ export const TOOLS: ToolDef[] = [
 	{
 		name: 'files_changed',
 		description:
-			'Tell xplain that you changed files on disk, so the diff view reloads. Call after editing files. Then continue the next_question loop.',
+			'REQUIRED after every file change: you MUST call this after each edit, creation, rename or deletion of any file on disk (also right after a batch of edits, before replying). ' +
+			'It makes the xplain diff view reload; without it the user sees stale content. Pass the changed paths in `paths`. Then continue the next_question loop.',
 		inputSchema: {
 			type: 'object',
 			properties: {
-				paths: {type: 'array', items: {type: 'string'}, description: 'Optional changed file paths.'},
+				paths: {
+					type: 'array',
+					items: {type: 'string'},
+					description: 'Paths of the files you edited, created or deleted (relative to the repo root).',
+				},
 			},
 			additionalProperties: false,
 		},

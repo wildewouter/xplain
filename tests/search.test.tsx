@@ -1,0 +1,45 @@
+import {render} from 'ink-testing-library';
+import App from '../src/app.js';
+import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
+const {stdin, lastFrame} = render(<App args={[]} cwd={cwd} />);
+await tick();
+const pr = keyPress({stdin, lastFrame});
+const f = () => lastFrame() ?? '';
+const type = async (s: string) => {
+	for (const ch of s) await pr(ch);
+};
+// diff mode: cursor jumps to match
+await pr('i');
+await pr('/');
+ok('search line shown', f().includes('/█'));
+await type('e');
+ok('typed text shown', f().includes('/e'));
+await pr('\x1b');
+ok('esc cancels', !f().includes('/e'));
+await pr('/');
+await type('e');
+await pr('\r');
+const c1 = /\[cursor [^\]]*\]/.exec(f())?.[0];
+ok('enter confirms, cursor on match', !!c1 && f().includes('/e |'));
+await pr('n');
+await pr('n');
+const c2 = /\[cursor [^\]]*\]/.exec(f())?.[0];
+ok('n moves to next match', !!c2 && c1 !== c2);
+await pr('N');
+await pr('N');
+ok('N moves back', /\[cursor [^\]]*\]/.exec(f())?.[0] === c1);
+await pr('/');
+await type('zzzqqq');
+await pr('\r');
+ok('no match notice', f().includes('pattern not found'));
+// browse mode
+await pr('\x1b');
+await pr('F');
+await type('README');
+await pr('\r');
+ok('browse open', f().includes('[browse]'));
+await pr('/');
+await type('e');
+await pr('\r');
+ok('search works in browse', f().includes('[browse]') && !f().includes('pattern not found: e'));
+finish();

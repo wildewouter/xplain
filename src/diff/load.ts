@@ -1,4 +1,5 @@
 import {execFile} from 'node:child_process';
+import {lstat} from 'node:fs/promises';
 import parseDiff from 'parse-diff';
 
 export type Line = {type: 'add' | 'del' | 'normal'; oldNo?: number; newNo?: number; text: string};
@@ -53,16 +54,64 @@ export function parse(raw: string): DiffFile[] {
 export const MODES = ['all', 'staged', 'unstaged'] as const;
 export type Mode = (typeof MODES)[number];
 
+const MAX_UNTRACKED = 1024 * 1024;
+
+function git(args: string[], cwd?: string, okCodes: number[] = [0]): Promise<string> {
+	return new Promise((resolve, reject) =>
+		execFile('git', args, {cwd, maxBuffer: 256 * 1024 * 1024, timeout: 60000}, (err, out, stderr) => {
+			const code = (err as {code?: number} | null)?.code;
+			err && !(typeof code === 'number' && okCodes.includes(code))
+				? reject(new Error(stderr || err.message))
+				: resolve(out);
+		}),
+	);
+}
+
+// Untracked (not ignored) regular files as all-added diffs. Never touches index/worktree.
+async function untrackedDiff(cwd: string | undefined, full: boolean): Promise<string> {
+	const names = (await git(['ls-files', '--others', '--exclude-standard', '-z'], cwd)).split('\0').filter(Boolean);
+	const parts: string[] = [];
+	for (let i = 0; i < names.length; i += 16)
+		parts.push(
+			...(await Promise.all(
+				names.slice(i, i + 16).map(async (n) => {
+					try {
+						const st = await lstat(cwd ? `${cwd}/${n}` : n);
+						if (!st.isFile() || st.size > MAX_UNTRACKED) return '';
+						return await git(
+							[
+								'diff',
+								'--no-index',
+								'--no-color',
+								'--no-ext-diff',
+								...(full ? ['-U1000000'] : []),
+								'--',
+								'/dev/null',
+								n,
+							],
+							cwd,
+							[0, 1],
+						);
+					} catch {
+						return '';
+					}
+				}),
+			)),
+		);
+	return parts.join('');
+}
+
 // Rule: mode picks base args (all=HEAD, staged=--cached, unstaged=none). Extra git args
 // are appended after --cached/none; for `all` they replace HEAD (legacy behavior).
-export function loadDiff(mode: Mode, args: string[], cwd?: string, full = true): Promise<DiffFile[]> {
+// `all` with no extra args also includes untracked files (as fully added).
+export async function loadDiff(mode: Mode, args: string[], cwd?: string, full = true): Promise<DiffFile[]> {
 	const base = mode === 'staged' ? ['--cached'] : mode === 'unstaged' ? [] : args.length ? [] : ['HEAD'];
 	const gitArgs = ['diff', '--no-color', '--no-ext-diff', ...(full ? ['-U1000000'] : []), ...base, ...args];
-	return new Promise((resolve, reject) =>
-		execFile('git', gitArgs, {cwd, maxBuffer: 256 * 1024 * 1024}, (err, out, stderr) =>
-			err ? reject(new Error(stderr || err.message)) : resolve(parse(out)),
-		),
-	);
+	const [out, extra] = await Promise.all([
+		git(gitArgs, cwd),
+		mode === 'all' && !args.length ? untrackedDiff(cwd, full) : '',
+	]);
+	return parse(out + extra);
 }
 
 export function listFiles(cwd?: string): Promise<string[]> {

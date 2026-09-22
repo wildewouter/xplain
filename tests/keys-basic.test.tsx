@@ -29,15 +29,36 @@ await pr('\x1b');
 ok('esc closes', f().includes('[2/') && !f().includes('Files ('));
 await pr('?');
 ok('help opens', f().includes('Help') && f().includes('d/u'));
-ok(
-	'help lists every documented key',
-	KEYS.every((k) => f().includes(k.k)),
-);
 const hl = f().split('\n');
+ok('help fits terminal, shows scroll position', hl.length <= 24 && /\d+\/\d+ \u25bc/.test(f()));
+ok('help first page shows heading + scroll keys', f().includes('Scroll') && f().includes('space/PgDn'));
+// scroll to end, collect every frame: all documented keys + descriptions must appear somewhere
+const seen = new Set<string>();
+const grab = () => {
+	const fr = f();
+	for (const k of KEYS) if (fr.includes(k.k.padEnd(13) + k.d.slice(0, 20))) seen.add(k.g + k.k + k.d);
+};
+grab();
+for (let i = 0; i < 40 && f().includes('\u25bc'); i++) {
+	await pr(' ');
+	grab();
+}
+await pr('j');
+ok('help space pages to end (no more below)', !f().includes('\u25bc') && f().includes('\u25b2'));
 ok(
-	'help lists a ask / follow up, scroll',
-	f().includes('a ask / follow up') && f().includes('scroll the comment thread') && hl.length <= 24,
+	'help lists every documented key across scroll',
+	KEYS.every((k) => seen.has(k.g + k.k + k.d)),
 );
+await pr('g');
+ok('help g back to top', !f().includes('\u25b2') && f().includes('Scroll'));
+await pr('G');
+ok('help G bottom', !f().includes('\u25bc'));
+await pr('k');
+ok('help k up', f().includes('\u25bc'));
+await pr('g');
+await pr(' ');
+ok('help space pages', f().includes('\u25b2'));
+await pr('g');
 ok(
 	'help bottom row has close hint and credit',
 	hl.some((l) => l.includes('?/esc/q close') && l.includes('Made by Wouter de Wild - 2026')),

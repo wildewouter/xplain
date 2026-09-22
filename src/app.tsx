@@ -6,7 +6,7 @@ import fuzzysort from 'fuzzysort';
 import {loadDiff, listFiles, MODES, type DiffFile, type Mode} from './diff/load.js';
 import {FileModal} from './components/FileModal.js';
 import {SearchModal, type Hit} from './components/SearchModal.js';
-import {HelpModal, helpHeight} from './components/HelpModal.js';
+import {HelpModal, helpHeight, helpMax, helpView} from './components/HelpModal.js';
 import {ThemeContext, THEMES, THEME_NAMES, type ThemeName} from './theme.js';
 import {ConfigModal} from './components/ConfigModal.js';
 import {SETTINGS, type Actions} from './settings.js';
@@ -28,6 +28,8 @@ import {
 	changeStarts,
 	rowNo,
 	rowCode,
+	findAll,
+	searchTexts,
 	type Row,
 	type SRow,
 	type Sel,
@@ -112,6 +114,7 @@ export default function App({
 	const [off, setOff] = useState(0);
 	const [modal, setModal] = useState(false);
 	const [help, setHelp] = useState(false);
+	const [helpOff, setHelpOff] = useState(0);
 	const [theme, setTheme] = useState<ThemeName>(theme0);
 	const th = THEMES[theme];
 	const [cmodal, setCmodal] = useState(false);
@@ -572,6 +575,31 @@ export default function App({
 	useEffect(() => {
 		onCursor?.(curOn ? {index: Math.min(cur, last), row: curRow} : undefined);
 	}, [curOn, cur, rows]);
+	// vim-like search: `/` opens the line, Enter confirms, n/N jump between matching rows
+	const [sOpen, setSOpen] = useState(false);
+	const [sText, setSText] = useState('');
+	const [term, setTerm] = useState('');
+	const matchRows = useMemo(
+		() => (term ? rows.flatMap((r, i) => (searchTexts(r).some((t) => findAll(t, term).length) ? [i] : [])) : []),
+		[rows, term],
+	);
+	const goRow = (r: number, t = term) => {
+		if (curOn) {
+			setCur(r);
+			const c = findAll(rowCode(rows[r], side), t)[0]?.[0] ?? findAll(searchTexts(rows[r])[0] ?? '', t)[0]?.[0] ?? 0;
+			setCol(c);
+			endVis();
+		} else setOff(Math.min(max, r));
+	};
+	const findNext = (d: 1 | -1, t = term, ms2 = matchRows) => {
+		if (!ms2.length) return setNote(`pattern not found: ${t}`);
+		const from = curOn ? curI : off;
+		const r =
+			d > 0
+				? (ms2.find((x) => x > from) ?? ms2[0]!)
+				: ([...ms2].reverse().find((x) => x < from) ?? ms2[ms2.length - 1]!);
+		goRow(r);
+	};
 	const mvCur = (n: number) => setCur((c) => Math.min(last, Math.max(0, c + n)));
 	useEffect(() => {
 		setOff(full && starts.length ? Math.min(max, Math.max(0, starts[0]! - CTX)) : 0);
@@ -773,6 +801,22 @@ export default function App({
 				}
 				return;
 			}
+			if (sOpen) {
+				if (key.escape) {
+					setSOpen(false);
+					setSText('');
+				} else if (key.return) {
+					setSOpen(false);
+					setTerm(sText);
+					if (!sText) return;
+					const ms2 = rows.flatMap((r, i) => (searchTexts(r).some((t) => findAll(t, sText).length) ? [i] : []));
+					if (!ms2.length) return setNote(`pattern not found: ${sText}`);
+					const from = curOn ? curI : off;
+					goRow(ms2.find((x) => x >= from) ?? ms2[0]!, sText);
+				} else if (key.backspace || key.delete) setSText((t) => t.slice(0, -1));
+				else if (input && !key.ctrl && !key.meta && !key.tab) setSText((t) => t + input.replace(/[\r\n]+/g, ' '));
+				return;
+			}
 			if (dmodal) {
 				if (input === 'y' || key.return) {
 					const nx = focusList[fo + 1];
@@ -811,7 +855,18 @@ export default function App({
 				return;
 			}
 			if (help) {
+				const hh = Math.min(rowsT - 2, helpHeight);
+				const hv = helpView(hh);
+				const hs = (n: number) => setHelpOff((o) => Math.min(helpMax(hh), Math.max(0, o + n)));
 				if (key.escape || input === 'q' || input === '?') setHelp(false);
+				else if (input === 'j' || key.downArrow) hs(1);
+				else if (input === 'k' || key.upArrow) hs(-1);
+				else if (input === 'd') hs(Math.max(1, hv >> 1));
+				else if (input === 'u') hs(-Math.max(1, hv >> 1));
+				else if (key.pageDown || input === ' ') hs(hv - 1);
+				else if (key.pageUp) hs(-(hv - 1));
+				else if (input === 'g') setHelpOff(0);
+				else if (input === 'G') setHelpOff(helpMax(hh));
 				return;
 			}
 			if (mmodal) {
@@ -894,6 +949,12 @@ export default function App({
 			}
 			if (key.ctrl) return;
 			if (input === 'F') return srchOpen();
+			if (input === '/') {
+				pend.current = 0;
+				setSText('');
+				return setSOpen(true);
+			}
+			if ((input === 'n' || input === 'N') && term) return findNext(input === 'n' ? 1 : -1);
 			if (input === 'r') return reload(true);
 			if (input === 'E') return exportReview();
 			if (input === 'M') {
@@ -1018,6 +1079,7 @@ export default function App({
 			if (browsePath !== undefined) {
 				if (key.escape) {
 					setBrowsePath(undefined);
+					setBrowseText('');
 					setOff(0);
 					return;
 				}
@@ -1026,8 +1088,10 @@ export default function App({
 			}
 			if (input === 'd') scroll(half);
 			else if (input === 'u') scroll(-half);
-			else if (input === '?') setHelp(true);
-			else if (input === 'C') cfgOpen();
+			else if (input === '?') {
+				setHelpOff(0);
+				setHelp(true);
+			} else if (input === 'C') cfgOpen();
 			else if (input === 't') setTheme((v) => THEME_NAMES[(THEME_NAMES.indexOf(v) + 1) % THEME_NAMES.length]!);
 			else if (input === 's') {
 				setSplit((v) => !v);
@@ -1131,9 +1195,12 @@ export default function App({
 					skip={skip}
 					sent={sentAt}
 					side={side}
+					find={term}
 				/>
 				<Text color={th.dim} wrap="truncate">
-					{note ? `${note} | ` : ''}
+					{sOpen ? `/${sText}█` : ''}
+					{sOpen ? '' : term ? `/${term} | ` : ''}
+					{sOpen ? '' : note ? `${note} | ` : ''}
 					{split && !eff ? 'too narrow for split | ' : ''}({Math.min(rows.length, off + 1)}-
 					{Math.min(rows.length, off + height)}/{rows.length}){' '}
 					{footerFor({
@@ -1157,7 +1224,7 @@ export default function App({
 				)}
 				{help && (
 					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
-						<HelpModal width={mw} height={Math.min(rowsT, helpHeight)} />
+						<HelpModal width={mw} height={Math.min(rowsT - 2, helpHeight)} off={helpOff} />
 					</Box>
 				)}
 				{mmodal && (

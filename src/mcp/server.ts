@@ -2,7 +2,7 @@ import {randomUUID, createHash, timingSafeEqual} from 'node:crypto';
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http';
 import type {AddressInfo} from 'node:net';
 import type {Hub, Question} from './hub.js';
-import {callTool, TOOLS} from './tools.js';
+import {callTool, SERVER_INSTRUCTIONS, TOOLS} from './tools.js';
 import {readMcpConfig, writeMcpConfig} from './token.js';
 
 export const DEFAULT_PORT = 47615;
@@ -91,6 +91,7 @@ export function createMcpServer(opts: McpServerOptions): McpServer {
 						protocolVersion,
 						capabilities: {tools: {listChanged: false}},
 						serverInfo: {name: 'xplain', version: SERVER_VERSION},
+						instructions: SERVER_INSTRUCTIONS,
 					},
 				};
 			}

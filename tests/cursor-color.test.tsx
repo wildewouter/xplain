@@ -184,5 +184,11 @@ for (const name of ['contrast', 'light', 'solarized', 'vibrant', 'dull', 'colorb
 		cut.length === 9 && cut[0] === all[2] && !cut.join('').includes('const a'),
 	);
 }
+{
+	// search hit highlighted yellow in file viewer (single) mode
+	const out = frame('contrast', rows, -1, true, {find: 'const'}).join('\n');
+	ok('search hit yellow bg in viewer', out.includes('\x1b[43m') || out.includes('\x1b[103m'));
+	ok('no hit, no yellow', !frame('contrast', rows, -1, true).join('\n').includes('\x1b[43m'));
+}
 console.log(fail ? `${fail} FAILED` : 'ALL PASS');
 process.exit(fail ? 1 : 0);
