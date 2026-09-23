@@ -60,6 +60,19 @@ const defaultRun: Runner = (cmd, args, opts) =>
 		);
 	});
 
+const NOTE_TURN = '(note you added with annotate)';
+// where the replied-to agent note sits, so the agent knows which note the reply is about
+const noteContext = (q: Question) =>
+	[
+		`Reply to your annotate note${q.number !== undefined ? ` #${q.number}` : ''}:`,
+		`File: ${q.file}`,
+		`Side: ${q.side ?? 'new'}`,
+		...(q.line !== undefined ? [`Line: ${q.line}`] : []),
+		'',
+		'Your note:',
+		q.message,
+	].join('\n');
+
 export function createMcpBridge(deps: BridgeDeps) {
 	const {controller} = deps;
 	const integrations =
@@ -121,7 +134,7 @@ export function createMcpBridge(deps: BridgeDeps) {
 			if (controller.isLive(e.threadId)) controller.setAnswer(e.threadId, {status: 'streaming', text: '', agent});
 		} else if (e.type === 'answer') {
 			if (controller.turns(e.threadId).length >= e.turn)
-				controller.setAnswer(e.threadId, {status: 'done', text: e.text, agent: agentOf.get(e.threadId)}, e.turn);
+				controller.addAnswer(e.threadId, {status: 'done', text: e.text, agent: agentOf.get(e.threadId)}, e.turn);
 		} else if (e.type === 'files_changed') {
 			changeListeners.forEach((l) => l(e.paths));
 		} else if (e.type === 'annotate') {
@@ -133,6 +146,7 @@ export function createMcpBridge(deps: BridgeDeps) {
 				text: '',
 				message: e.text,
 				origin: 'agent',
+				...(e.number !== undefined ? {number: e.number} : {}),
 			});
 		}
 		syncHub();
@@ -223,13 +237,29 @@ export function createMcpBridge(deps: BridgeDeps) {
 		/** Send a follow-up turn on an answered thread. False when MCP is off or the thread refuses. */
 		followUp(id: string, message: string): boolean {
 			if (!hub || !state.running) return false;
-			const history = controller
-				.turns(id)
-				.map((t, i) => ({turn: i + 1, message: t.message, ...(t.answer ? {answer: t.answer.text} : {})}));
+			const q = controller.getState().questions.find((x) => x.id === id);
+			const note = q?.origin === 'agent' ? q : undefined;
+			// an agent note is turn 1 with the note text as the agent's answer
+			const history = controller.turns(id).map((t, i) =>
+				note && i === 0
+					? {turn: 1, message: NOTE_TURN, answer: t.message}
+					: {
+							turn: i + 1,
+							message: t.message,
+							...(t.answer ? {answer: [...(t.prior ?? []), t.answer].map((a) => a.text).join('\n\n')} : {}),
+						},
+			);
 			const turn = controller.followUp(id, message);
 			if (turn === undefined) return false;
 			controller.setAnswer(id, {status: 'pending', text: ''}, turn); // before enqueue: delivery may be synchronous
-			hub.enqueue({threadId: id, turn, message, followUp: true, history});
+			hub.enqueue({
+				threadId: id,
+				turn,
+				message,
+				followUp: true,
+				history,
+				...(note ? {context: noteContext(note)} : {}),
+			});
 			syncHub();
 			return true;
 		},

@@ -1,6 +1,6 @@
 import {askHint} from '../src/components/AskBox.js';
 import {buildPrompt} from '../src/ask/prompt.js';
-import {wrapText, answerView} from '../src/components/answerView.js';
+import {wrapText, answerView, threadBody} from '../src/components/answerView.js';
 
 let fail = 0;
 const ok = (n: string, c: boolean) => {
@@ -52,6 +52,13 @@ ok('view focused cap 30', vf.lines.length === 30 && vf.more === 10 && vf.head ==
 const ve = answerView({status: 'error', text: '', error: 'boom', tools: 0, agent: 'testagent'}, 20, false);
 ok('view error', ve.lines[0] === 'boom' && ve.head.endsWith('error'));
 ok('view pending empty', answerView({status: 'pending', text: '', tools: 0}, 20, false).lines.length === 0);
+
+const tbl = (status: 'pending' | 'streaming' | 'done', text = '') =>
+	threadBody([{message: 'm', answer: {status, text, tools: 0}}], 'm', 40).find((l) => l.k === 'ans');
+ok('thread pending placeholder: live pending', tbl('pending')?.live === 'pending');
+ok('thread streaming placeholder: live streaming', tbl('streaming')?.live === 'streaming');
+ok('thread streaming with text: not live', tbl('streaming', 'hi')?.live === undefined);
+ok('thread done: not live', tbl('done', 'hi')?.live === undefined);
 
 ok('hint edit no chip', askHint(60) === 'enter send  esc cancel');
 

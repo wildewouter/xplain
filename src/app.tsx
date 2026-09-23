@@ -46,6 +46,7 @@ type Sent = Omit<SentQ, 'body'> & {
 	del: boolean;
 	idx: number;
 	side: PaneSide;
+	num?: number; // order label; ( ) jump between numbered comments
 };
 // does row match the anchor (line number, deleted-side flag)? works for unified + split rows
 const isDel = (r?: Row | SRow) => (r?.kind === 'line' ? r.type === 'del' : r?.kind === 'pair' ? !r.r : false);
@@ -174,9 +175,10 @@ export default function App({
 					del: false,
 					idx: q.index,
 					side: q.side ?? ('new' as PaneSide),
-					head: `agent note ${q.line !== undefined ? 'L' + q.line : ''}`.trim(),
+					head: `${q.number !== undefined ? '#' + q.number + ' ' : ''}agent note ${q.line !== undefined ? 'L' + q.line : ''}`.trim(),
 					lines: [],
 					message: q.message,
+					num: q.number,
 				})),
 			]);
 	}, [questions]);
@@ -326,7 +328,7 @@ export default function App({
 				focused: foc,
 				saved: !an && !agentQ && !multi,
 				canAsk: !agentQ && !multi && (!an || an.status === 'error' || an.status === 'cancelled'),
-				canFollow: !agentQ && an?.status === 'done',
+				canFollow: an?.status === 'done' || (agentQ && ctl.canFollowUp(q.id)),
 				scroll: foc && w.maxOff > 0,
 				pos: foc && w.maxOff > 0 ? `${w.from}-${w.to}/${w.total}` : undefined,
 			};
@@ -375,16 +377,17 @@ export default function App({
 	const askFocused = () => {
 		const q = questions.find((x) => x.id === focus);
 		if (!q) return;
-		if (q.origin === 'agent') return setNote("agent notes can't be asked");
 		const an = answers[q.id!];
 		if (an?.status === 'pending' || an?.status === 'streaming') return setNote('still waiting for the agent');
-		if (an?.status === 'done') {
+		// agent notes are never asked, only replied to
+		if (an?.status === 'done' || (q.origin === 'agent' && ctl.canFollowUp(q.id))) {
 			setAskText('');
 			setAskPos(0);
 			setFuId(q.id);
 			setAsk(true);
 			return;
 		}
+		if (q.origin === 'agent') return setNote("can't reply to this note yet");
 		if (!askable(q.id!)) return setNote("can't retry a follow-up yet");
 		setNote(mcp.ask(q) ? 'question queued' : 'MCP is off (M to start)');
 	};
@@ -444,6 +447,39 @@ export default function App({
 		endVis();
 		pend.current = 0;
 	}, [rows, full]);
+	// numbered comments across files, by label; ( ) jump, wrapping at the ends
+	const [numGo, setNumGo] = useState<string>();
+	const numLast = useRef<string>(undefined);
+	const numJump = (d: 1 | -1) => {
+		const list = sent
+			.filter((q) => q.num !== undefined && files?.some((f) => f.path === q.file))
+			.sort((a, b) => a.num! - b.num!);
+		if (!list.length) return setNote('no numbered comments');
+		const n = list.length;
+		const i = [focus, numLast.current].map((id) => list.findIndex((q) => q.id === id)).find((k) => k >= 0) ?? -1;
+		const t = list[i < 0 ? (d > 0 ? 0 : n - 1) : (i + d + n) % n]!;
+		numLast.current = t.id;
+		if (browsePath !== undefined) {
+			setBrowsePath(undefined);
+			setBrowseText('');
+		}
+		const fi = files!.findIndex((f) => f.path === t.file);
+		if (fi !== idx) {
+			setIdx(fi);
+			setOff(0);
+		}
+		setCurOn(true);
+		setNumGo(t.id);
+	};
+	useEffect(() => {
+		if (!numGo) return;
+		const q = sent.find((x) => x.id === numGo);
+		if (q && q.file !== file?.path) return; // wait for the file switch
+		setNumGo(undefined);
+		const x = focusList.find((y) => y.id === numGo);
+		if (x) focusTo(x);
+		else setNote('comment not in view');
+	}, [numGo, focusList]);
 	// selection range, ordered, inclusive
 	const vsel: Sel | undefined = useMemo(() => {
 		if (!curOn || !anchor) return undefined;
@@ -599,6 +635,27 @@ export default function App({
 				? (ms2.find((x) => x > from) ?? ms2[0]!)
 				: ([...ms2].reverse().find((x) => x < from) ?? ms2[ms2.length - 1]!);
 		goRow(r);
+	};
+	// vim-like go-to-line: `:` opens the line, Enter jumps to new-side line N (nearest row if not in view)
+	const [gOpen, setGOpen] = useState(false);
+	const [gText, setGText] = useState('');
+	const goLine = (s: string) => {
+		const n = Number(s);
+		if (!/^\d+$/.test(s) || n < 1) return setNote(`not a line number: ${s}`);
+		const nos = rows.map((r) => (r.kind === 'line' ? r.newNo : r.kind === 'pair' ? r.r?.newNo : undefined));
+		let i = -1;
+		for (let k = 0; k < nos.length; k++)
+			if (nos[k] !== undefined && (i < 0 || Math.abs(nos[k]! - n) < Math.abs(nos[i]! - n))) i = k;
+		if (i < 0) return setNote('no lines in view');
+		const top = Math.max(...nos.map((x) => x ?? 0));
+		if ((full || browsePath !== undefined) && n > top) return setNote(`line ${n} out of range (1-${top})`);
+		if (nos[i] !== n) setNote(`line ${n} not in view, nearest L${nos[i]}`);
+		setFocus(undefined);
+		setCurOn(true);
+		setSide('new');
+		setCur(i);
+		setCol(0);
+		endVis();
 	};
 	const mvCur = (n: number) => setCur((c) => Math.min(last, Math.max(0, c + n)));
 	useEffect(() => {
@@ -817,6 +874,18 @@ export default function App({
 				else if (input && !key.ctrl && !key.meta && !key.tab) setSText((t) => t + input.replace(/[\r\n]+/g, ' '));
 				return;
 			}
+			if (gOpen) {
+				if (key.escape) {
+					setGOpen(false);
+					setGText('');
+				} else if (key.return) {
+					setGOpen(false);
+					setGText('');
+					if (gText) goLine(gText.trim());
+				} else if (key.backspace || key.delete) setGText((t) => t.slice(0, -1));
+				else if (input && !key.ctrl && !key.meta && !key.tab) setGText((t) => t + input.replace(/[\r\n]+/g, ''));
+				return;
+			}
 			if (dmodal) {
 				if (input === 'y' || key.return) {
 					const nx = focusList[fo + 1];
@@ -954,8 +1023,17 @@ export default function App({
 				setSText('');
 				return setSOpen(true);
 			}
+			if (input === ':') {
+				pend.current = 0;
+				setGText('');
+				return setGOpen(true);
+			}
 			if ((input === 'n' || input === 'N') && term) return findNext(input === 'n' ? 1 : -1);
 			if (input === 'r') return reload(true);
+			if (input === ')' || input === '(') {
+				pend.current = 0;
+				return numJump(input === ')' ? 1 : -1);
+			}
 			if (input === 'E') return exportReview();
 			if (input === 'M') {
 				setMsel(0);
@@ -1198,9 +1276,9 @@ export default function App({
 					find={term}
 				/>
 				<Text color={th.dim} wrap="truncate">
-					{sOpen ? `/${sText}█` : ''}
-					{sOpen ? '' : term ? `/${term} | ` : ''}
-					{sOpen ? '' : note ? `${note} | ` : ''}
+					{sOpen ? `/${sText}█` : gOpen ? `:${gText}█` : ''}
+					{sOpen || gOpen ? '' : term ? `/${term} | ` : ''}
+					{sOpen || gOpen ? '' : note ? `${note} | ` : ''}
 					{split && !eff ? 'too narrow for split | ' : ''}({Math.min(rows.length, off + 1)}-
 					{Math.min(rows.length, off + height)}/{rows.length}){' '}
 					{footerFor({

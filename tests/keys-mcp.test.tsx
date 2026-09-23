@@ -473,8 +473,49 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 			await w('\x1b');
 			await w('K');
 			ok('agent note focused', g().includes('agent note'));
+			ok('agent note hint: follow up', g().includes('a follow up'));
 			await w('a');
-			ok('agent note rejected', g().includes("agent notes can't be asked") && h.pending().length === 5);
+			ok('agent note: reply input', g().includes('enter send  esc cancel') && h.pending().length === 5);
+			await w('ok?');
+			await w('\r');
+			await tick();
+			const rp = h.pending()[5];
+			ok(
+				'agent note reply queued as follow-up',
+				h.pending().length === 6 &&
+					rp?.followUp === true &&
+					rp.turn === 2 &&
+					rp.message === 'ok?' &&
+					!!rp.context?.includes('Your note:') &&
+					g().includes('follow-up queued') &&
+					g().includes('follow-up: ok?'),
+			);
+			r.unmount();
+		}
+		{
+			// numbered agent notes: ) / ( jump across files by number, wrapping
+			const m = mkc();
+			const {r, g, w, rg} = m;
+			await tick();
+			await m.on();
+			await w(')');
+			ok(') without numbered notes', g().includes('no numbered comments'));
+			rg.hub().annotate({file: 'src/big.ts', line: 30, text: 'second', number: 2});
+			rg.hub().annotate({file: 'README.md', line: 3, text: 'first', number: 1});
+			rg.hub().annotate({file: 'src/a.ts', line: 1, text: 'plain'});
+			await tick();
+			await w(')');
+			await tick();
+			ok(') jumps to #1', g().includes('#1 agent note L3') && g().includes('first') && g().includes('[cursor'));
+			await w(')');
+			await tick();
+			ok(') jumps to #2 in other file', g().includes('#2 agent note L30') && g().includes('const v30 = 2'));
+			await w(')');
+			await tick();
+			ok(') wraps to #1', g().includes('#1 agent note L3') && !g().includes('const v30'));
+			await w('(');
+			await tick();
+			ok('( wraps back to #2', g().includes('#2 agent note L30'));
 			r.unmount();
 		}
 		{

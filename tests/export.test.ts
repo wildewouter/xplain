@@ -1,4 +1,5 @@
 import {renderReviewMarkdown, exportName, type Question} from '../src/ask/index.js';
+import {threadBody} from '../src/components/answerView.js';
 
 let fail = 0;
 const ok = (n: string, c: boolean) => {
@@ -62,4 +63,24 @@ const md2 = renderReviewMarkdown([{file: 'f', index: 0, line: 1, text: '```\nx\n
 ok('triple backticks get 4-fence', md2.includes('````\n```\nx\n```\n````'));
 ok('empty', renderReviewMarkdown([], meta).includes('No comments.'));
 ok('name', exportName(new Date(2026, 0, 2, 3, 4, 5)) === 'xplain-review-20260102-030405.md');
+// several answers on one turn: all kept, in order
+const pa = (text: string) => ({status: 'done' as const, text, tools: 0});
+const multi: Question = {
+	file: 'm',
+	index: 0,
+	text: 'x',
+	message: 'go',
+	turns: [{message: 'go', prior: [pa('starting work')], answer: pa('all done')}],
+};
+const md3 = renderReviewMarkdown([multi], meta);
+ok(
+	'prior answers exported in order',
+	md3.indexOf('starting work') >= 0 && md3.indexOf('starting work') < md3.indexOf('all done'),
+);
+const tb = threadBody(multi.turns!, 'go', 40);
+ok(
+	'threadBody shows every answer',
+	tb.filter((l) => l.k === 'div').length === 2 &&
+		tb.findIndex((l) => l.t === 'starting work') < tb.findIndex((l) => l.t === 'all done'),
+);
 process.exit(fail ? 1 : 0);

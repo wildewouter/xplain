@@ -2,6 +2,7 @@ import {Box} from 'ink';
 import {ModalText as Text} from './ModalText.js';
 import {useTheme} from '../theme.js';
 import type {BodyLine} from './answerView.js';
+import {Spinner} from '../spinner.js';
 
 export const ASK_H = 4;
 export const ASK_MAX = 5; // selected lines shown before "… +N more"
@@ -157,7 +158,9 @@ export function SentBox({q, width}: {q: SentQ; width: number}) {
 					</Text>
 				) : (
 					<Text key={i} wrap="truncate" color={l.err ? t.dels : l.k === 'fu' ? t.accent : undefined}>
-						{' ' + l.t}
+						{' '}
+						{l.live && <>{l.live === 'streaming' ? <Spinner color={t.accent} /> : <Text color={t.accent}>⠿</Text>} </>}
+						{l.t}
 					</Text>
 				),
 			)}

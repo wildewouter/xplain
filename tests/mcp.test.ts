@@ -254,6 +254,10 @@ const parse = (r: {content: {text: string}[]}) => JSON.parse(r.content[0]!.text)
 	h.subscribe((x) => evs.push(x));
 	const an = await callTool('annotate', {file: 'a.ts', line: 3, text: 'hey'}, {hub: h, clientId: 'c'});
 	ok('tools: annotate ok', parse(an).ok === true && evs.some((x) => x.type === 'annotate'));
+	await callTool('annotate', {file: 'a.ts', line: 3, text: 'n', number: 4}, {hub: h, clientId: 'c'});
+	await callTool('annotate', {file: 'a.ts', line: 3, text: 'n', number: 1.5}, {hub: h, clientId: 'c'});
+	const nums = evs.flatMap((x) => (x.type === 'annotate' ? [x.number] : []));
+	ok('tools: annotate number', nums.join() === ',4,');
 	const fc = await callTool('files_changed', {paths: ['a.ts', 1]}, {hub: h, clientId: 'c'});
 	ok(
 		'tools: files_changed ok',

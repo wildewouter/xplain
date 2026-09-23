@@ -96,10 +96,47 @@ const Q = (message = 'why?'): Question => ({file: 'a.ts', index: 0, text: 'x', m
 	// single-turn edit keeps turns in sync
 	const e = ctl.add(Q('one'));
 	ok('edit single turn', ctl.edit(e.id!, 'two')?.turns?.[0]!.message === 'two');
-	// agent annotations refuse follow-ups
+	// agent notes: the note is the answered first turn, so a reply is a follow-up
 	const ag = ctl.add({...Q('note'), origin: 'agent'});
-	ctl.setAnswer(ag.id!, {status: 'done', text: 'x'});
-	ok('agent origin refuses followUp', ctl.followUp(ag.id!, 'f') === undefined);
+	ok('agent note can follow up', ctl.canFollowUp(ag.id!));
+	ok('agent note reply is turn 2', ctl.followUp(ag.id!, 'why?') === 2);
+	ok(
+		'agent note turns',
+		ctl
+			.turns(ag.id!)
+			.map((t) => t.message)
+			.join() === 'note,why?',
+	);
+	ok('agent note waits for reply answer', !ctl.canFollowUp(ag.id!) && ctl.followUp(ag.id!, 'again') === undefined);
+	ctl.setAnswer(ag.id!, {status: 'pending', text: ''}, 2);
+	ok('agent note live refuses', !ctl.canFollowUp(ag.id!));
+	ctl.setAnswer(ag.id!, {status: 'done', text: 'because'}, 2);
+	ok('agent note answered reply follows up', ctl.canFollowUp(ag.id!) && ctl.followUp(ag.id!, 'ok') === 3);
+	ok('human unanswered refuses', !ctl.canFollowUp(ctl.add(Q('h')).id!));
+	// addAnswer: a second done answer on a turn appends, earlier kept in prior
+	const m = ctl.add(Q('multi'));
+	ctl.addAnswer(m.id!, {status: 'streaming', text: ''});
+	ctl.addAnswer(m.id!, {status: 'done', text: 'starting'});
+	ok('addAnswer replaces live', ctl.turns(m.id!)[0]!.prior === undefined && ctl.answer(m.id!)?.text === 'starting');
+	ctl.addAnswer(m.id!, {status: 'done', text: 'done'});
+	const mt = ctl.turns(m.id!)[0]!;
+	ok(
+		'addAnswer appends',
+		mt.prior?.map((a) => a.text).join() === 'starting' &&
+			mt.answer?.text === 'done' &&
+			ctl.answer(m.id!)?.text === 'done',
+	);
+	ctl.addAnswer(m.id!, {status: 'done', text: 'more'});
+	ok(
+		'addAnswer appends again',
+		ctl
+			.turns(m.id!)[0]!
+			.prior?.map((a) => a.text)
+			.join() === 'starting,done',
+	);
+	ctl.setAnswer(m.id!, {status: 'done', text: 'x'});
+	ok('setAnswer still replaces', ctl.turns(m.id!)[0]!.prior?.length === 2 && ctl.answer(m.id!)?.text === 'x');
+	ok('addAnswer bad turn', ctl.addAnswer(m.id!, {status: 'done', text: 'x'}, 5) === undefined);
 	ctl.dispose();
 }
 

@@ -2,7 +2,7 @@ export type PaneSide = 'old' | 'new';
 export type AnswerStatus = 'pending' | 'streaming' | 'done' | 'error' | 'cancelled';
 export type Answer = {status: AnswerStatus; text: string; error?: string; tools: number; agent?: string};
 
-export type Turn = {message: string; answer?: Answer};
+export type Turn = {message: string; answer?: Answer; prior?: Answer[]}; // prior: earlier answers on this turn, oldest first
 
 export type Question = {
 	id?: string; // stable id, set on send
@@ -22,4 +22,5 @@ export type Question = {
 	answer?: Answer; // mirrors the LATEST turn's answer
 	turns?: Turn[]; // thread: turn 1 = message/answer; set by the controller
 	origin?: 'agent'; // comment added by an external responder
+	number?: number; // optional order label; ( ) jump between numbered comments
 };

@@ -12,12 +12,12 @@ export type Question = {
 
 export const MAX_HISTORY = 5;
 export const MAX_HISTORY_TEXT = 4000;
-export type Annotation = {file: string; line: number; text: string; side?: 'old' | 'new'};
+export type Annotation = {file: string; line: number; text: string; side?: 'old' | 'new'; number?: number};
 export type PollResult = Question | null | 'closed';
 
 export type HubEvent =
 	| {type: 'answer'; threadId: string; turn: number; text: string}
-	| {type: 'annotate'; file: string; line: number; text: string; side?: 'old' | 'new'}
+	| {type: 'annotate'; file: string; line: number; text: string; side?: 'old' | 'new'; number?: number}
 	| {type: 'files_changed'; paths: string[]}
 	| {type: 'delivered'; threadId: string; clientId: string}
 	| {type: 'clients'}
@@ -217,6 +217,7 @@ export function createHub(opts: {timers?: Partial<Timers>} = {}) {
 				line,
 				text: sanitize(a.text),
 				...(a.side ? {side: a.side} : {}),
+				...(a.number !== undefined && Number.isFinite(a.number) ? {number: Math.floor(a.number)} : {}),
 			});
 		},
 

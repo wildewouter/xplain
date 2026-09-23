@@ -58,8 +58,7 @@ const renderComment = (q: Question, n: number) => {
 			quote(t.message),
 			'',
 		);
-		if (t.answer) {
-			const a = t.answer;
+		for (const a of [...(t.prior ?? []), ...(t.answer ? [t.answer] : [])]) {
 			out.push(`**${answerHead(a)}**`, '');
 			if (a.text) out.push(quote(a.text), '');
 			if (a.error) out.push(`Error: ${inline(a.error)}`, '');

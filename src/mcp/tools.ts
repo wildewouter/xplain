@@ -21,6 +21,7 @@ export const TOOLS: ToolDef[] = [
 			'Long-poll for the next question a human asked in the xplain code-review UI. ' +
 			'Returns {status:"question", thread_id, turn, follow_up, question}: answer it with the answer tool. ' +
 			'If follow_up is true it continues an earlier thread: use `previous` (earlier questions and your answers) for reference and answer with the SAME thread_id. ' +
+			'A follow-up can also be the user replying to a note you added with annotate: the question then names the note (file, line, text). ' +
 			'If status is "no_question_yet", call next_question again immediately. ' +
 			'Keep looping: after every answer, call next_question again immediately, until status is "closed".',
 		inputSchema: {
@@ -60,7 +61,9 @@ export const TOOLS: ToolDef[] = [
 	},
 	{
 		name: 'annotate',
-		description: 'Attach a note to a line of a file in the xplain diff view. Then continue the next_question loop.',
+		description:
+			'Attach a note to a line of a file in the xplain diff view. The user may reply to it; replies arrive via next_question as follow-ups. ' +
+			'Then continue the next_question loop.',
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -68,6 +71,11 @@ export const TOOLS: ToolDef[] = [
 				line: {type: 'number', description: '1-based line number.'},
 				text: {type: 'string', description: 'Annotation text.'},
 				side: {type: 'string', enum: ['old', 'new'], description: 'Diff side; default new.'},
+				number: {
+					type: 'integer',
+					description:
+						'Optional order label shown on the note (e.g. step 1, 2, 3); the user jumps between numbered notes in order.',
+				},
 			},
 			required: ['file', 'line', 'text'],
 			additionalProperties: false,
@@ -151,7 +159,14 @@ export async function callTool(name: string, args: unknown, ctx: ToolContext): P
 				return text('file (string), line (number) and text (string) are required', true);
 			}
 			const side = a.side === 'old' || a.side === 'new' ? a.side : undefined;
-			ctx.hub.annotate({file: a.file, line: a.line, text: a.text, ...(side ? {side} : {})});
+			const number = typeof a.number === 'number' && Number.isInteger(a.number) ? a.number : undefined;
+			ctx.hub.annotate({
+				file: a.file,
+				line: a.line,
+				text: a.text,
+				...(side ? {side} : {}),
+				...(number !== undefined ? {number} : {}),
+			});
 			return text({ok: true});
 		}
 		case 'files_changed': {

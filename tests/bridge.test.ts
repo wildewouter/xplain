@@ -214,8 +214,11 @@ const addQ = (f: Fx, message = 'why?') =>
 			q.line === 9 &&
 			q.side === 'old' &&
 			q.message === 'note!' &&
-			q.index === 0,
+			q.index === 0 &&
+			q.number === undefined,
 	);
+	f.hub().annotate({file: 'b.ts', line: 1, text: 'n', number: 3});
+	ok('annotate passes number', f.controller.getState().questions[1]?.number === 3);
 	f.bridge.dispose();
 }
 
@@ -313,6 +316,68 @@ const addQ = (f: Fx, message = 'why?') =>
 	await f.bridge.stop();
 	const th2 = f.controller.turns(id);
 	ok('stop cancels live turn only', th2[2]!.answer?.status === 'cancelled' && th2[1]!.answer?.status === 'done');
+	f.bridge.dispose();
+}
+
+// reply to an agent note: follow-up with the note as turn 1 answer + note context
+{
+	const f = mk();
+	await f.bridge.start();
+	f.hub().annotate({file: 'b.ts', line: 9, text: 'look here', side: 'old', number: 2});
+	const id = f.controller.getState().questions[0]!.id!;
+	ok('reply to agent note accepted', f.bridge.followUp(id, 'why?'));
+	const pend = f.hub().pending()[0]!;
+	ok(
+		'note reply enqueued',
+		pend.followUp === true &&
+			pend.turn === 2 &&
+			pend.threadId === id &&
+			pend.message === 'why?' &&
+			JSON.stringify(pend.history) ===
+				JSON.stringify([{turn: 1, message: '(note you added with annotate)', answer: 'look here'}]),
+	);
+	ok(
+		'note reply context names the note',
+		!!pend.context &&
+			pend.context.includes('#2') &&
+			pend.context.includes('File: b.ts') &&
+			pend.context.includes('Side: old') &&
+			pend.context.includes('Line: 9') &&
+			pend.context.includes('look here'),
+	);
+	await f.hub().poll('c1', 100);
+	ok('note reply streaming', f.controller.answer(id)?.status === 'streaming');
+	f.hub().answer(id, 'because');
+	const th = f.controller.turns(id);
+	ok(
+		'note reply answer in thread',
+		th.length === 2 &&
+			th[0]!.message === 'look here' &&
+			th[1]!.answer?.status === 'done' &&
+			th[1]!.answer.text === 'because',
+	);
+	ok('second reply accepted', f.bridge.followUp(id, 'ok?') && f.controller.turns(id).length === 3);
+	f.bridge.dispose();
+}
+
+// several answer calls on one turn append
+{
+	const f = mk();
+	const id = addQ(f);
+	await f.bridge.start();
+	f.bridge.ask(f.controller.getState().questions[0]!);
+	await f.hub().poll('c1', 100);
+	f.hub().answer(id, 'starting work');
+	f.hub().answer(id, 'done');
+	const t = f.controller.turns(id)[0]!;
+	ok(
+		'answers append',
+		t.prior?.map((a) => a.text).join() === 'starting work' &&
+			t.answer?.text === 'done' &&
+			f.controller.answer(id)?.text === 'done',
+	);
+	ok('follow-up history joins answers', f.bridge.followUp(id, 'Q2'));
+	ok('history has both answers', f.hub().pending()[0]!.history?.[0]!.answer === 'starting work\n\ndone');
 	f.bridge.dispose();
 }
 

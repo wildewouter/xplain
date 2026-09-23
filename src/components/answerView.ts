@@ -48,27 +48,28 @@ export function answerView(a: Answer, width: number, focused: boolean, room = In
 }
 
 // ---- thread body: all turns flattened to display lines ----
-export type BodyLine = {t: string; k: 'msg' | 'fu' | 'div' | 'ans'; err?: boolean};
-export type TurnIn = {message: string; answer?: Answer};
+export type BodyLine = {t: string; k: 'msg' | 'fu' | 'div' | 'ans'; err?: boolean; live?: 'pending' | 'streaming'};
+export type TurnIn = {message: string; answer?: Answer; prior?: Answer[]};
 export const BODY_CAP = 14; // unfocused: lines shown before "… +N more"
 
 const isLive = (a: Answer) => a.status === 'pending' || a.status === 'streaming';
 
-// message line of turn 1, then per turn: answer divider + wrapped answer; follow-ups get `follow-up:` lines
+// message line of turn 1, then per turn: answer divider + wrapped answer (each prior answer too); follow-ups get `follow-up:` lines
 export function threadBody(turns: TurnIn[], msg0: string, width: number): BodyLine[] {
 	const out: BodyLine[] = [];
 	turns.forEach((tu, i) => {
 		if (i === 0) out.push({t: msg0, k: 'msg'});
 		else for (const l of wrapText('follow-up: ' + tu.message, width)) out.push({t: l, k: 'fu'});
-		const a = tu.answer;
-		if (!a) return;
-		const shown =
-			a.text || !isLive(a) ? a : {...a, text: a.status === 'pending' ? 'waiting for agent…' : 'agent working…'};
-		const v = answerView(shown, width, true, Infinity);
-		const body = a.status === 'error' ? (a.error ?? 'failed') : shown.text;
-		const err = a.status === 'error';
-		out.push({t: v.head, k: 'div', err});
-		if (body) for (const l of wrapText(body, width)) out.push({t: l, k: 'ans', err});
+		for (const a of [...(tu.prior ?? []), ...(tu.answer ? [tu.answer] : [])]) {
+			const shown =
+				a.text || !isLive(a) ? a : {...a, text: a.status === 'pending' ? 'waiting for agent…' : 'agent working…'};
+			const v = answerView(shown, width, true, Infinity);
+			const body = a.status === 'error' ? (a.error ?? 'failed') : shown.text;
+			const err = a.status === 'error';
+			out.push({t: v.head, k: 'div', err});
+			const live = !a.text && isLive(a) ? (a.status as 'pending' | 'streaming') : undefined;
+			if (body) for (const l of wrapText(body, width)) out.push({t: l, k: 'ans', err, ...(live && {live})});
+		}
 	});
 	return out;
 }
