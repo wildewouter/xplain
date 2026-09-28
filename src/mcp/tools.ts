@@ -13,6 +13,8 @@ export const SERVER_INSTRUCTIONS =
 	'Batch several edits into one call, but always call it before you answer or go idle. ' +
 	'Questions from the user arrive via `next_question`; answer with `answer`.';
 const AGAIN = 'Call next_question again immediately.';
+const CODE_HINT =
+	'Put code samples in markdown fenced blocks (```lang ... ```): xplain highlights them and gives the user a copy button.';
 
 export const TOOLS: ToolDef[] = [
 	{
@@ -42,12 +44,14 @@ export const TOOLS: ToolDef[] = [
 		name: 'answer',
 		description:
 			'Send your answer for a question received from next_question, using its thread_id (for a follow-up, the same thread_id as before). Plain text or markdown. ' +
+			CODE_HINT +
+			' ' +
 			'Then call next_question again immediately.',
 		inputSchema: {
 			type: 'object',
 			properties: {
 				thread_id: {type: 'string', description: 'thread_id from next_question.'},
-				text: {type: 'string', description: 'The answer text.'},
+				text: {type: 'string', description: `The answer text. ${CODE_HINT}`},
 			},
 			required: ['thread_id', 'text'],
 			additionalProperties: false,
@@ -69,7 +73,7 @@ export const TOOLS: ToolDef[] = [
 			properties: {
 				file: {type: 'string', description: 'File path as shown in the diff.'},
 				line: {type: 'number', description: '1-based line number.'},
-				text: {type: 'string', description: 'Annotation text.'},
+				text: {type: 'string', description: `Annotation text. ${CODE_HINT}`},
 				side: {type: 'string', enum: ['old', 'new'], description: 'Diff side; default new.'},
 				number: {
 					type: 'integer',

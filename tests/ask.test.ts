@@ -60,6 +60,28 @@ ok('thread streaming placeholder: live streaming', tbl('streaming')?.live === 's
 ok('thread streaming with text: not live', tbl('streaming', 'hi')?.live === undefined);
 ok('thread done: not live', tbl('done', 'hi')?.live === undefined);
 
+{
+	// fenced code: button line (no raw fences), raw code kept for copy, code hard-cut not word-wrapped
+	const txt = 'see:\n```ts\nconst a = 1; // long comment here\n\tx();\n```\nafter\n~~~\nplain\n~~~';
+	const b = threadBody([{message: 'm', answer: {status: 'done', text: txt, tools: 0}}], 'm', 12);
+	const btns = b.filter((l) => l.k === 'btn');
+	const code0 = b.filter((l) => l.k === 'code' && l.blk === 0).map((l) => l.t);
+	ok('fence: no raw fence lines', !b.some((l) => /```|~~~/.test(l.t)));
+	ok(
+		'fence: button per block, lang, raw code',
+		btns.length === 2 &&
+			btns[0]!.t === '[ copy ] ts' &&
+			btns[0]!.lang === 'ts' &&
+			btns[0]!.code === 'const a = 1; // long comment here\n\tx();' &&
+			btns[1]!.t === '[ copy ]' &&
+			btns[1]!.code === 'plain',
+	);
+	ok('fence: code hard-cut at width - gutter', code0.join('|') === 'const a = |1; // long| comment h|ere|  x();');
+	ok('fence: prose around unchanged', b.some((l) => l.k === 'ans' && l.t === 'see:') && b.some((l) => l.t === 'after'));
+	const note = threadBody([{message: 'n\n```\ncode\n```'}], 'n\n```\ncode\n```', 20);
+	ok('fence: multi-line note parsed', note.map((l) => l.k).join(',') === 'msg,btn,code');
+}
+
 ok('hint edit no chip', askHint(60) === 'enter send  esc cancel');
 
 const pq = {

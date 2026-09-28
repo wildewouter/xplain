@@ -519,6 +519,45 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 			r.unmount();
 		}
 		{
+			// code blocks in a note: up/down cycle copy buttons, enter copies raw code, esc clears selection
+			const copied: string[] = [];
+			const m = mkc({copy: (t: string) => copied.push(t)});
+			const {r, g, w, rg} = m;
+			await tick();
+			await m.on();
+			const text = 'try:\n```ts\nconst a = 1;\nconst b = 2;\n```\nor\n```\nplain\n```';
+			rg.hub().annotate({file: 'README.md', line: 3, text, number: 1});
+			await tick();
+			await w(')');
+			await tick();
+			const selLine = () =>
+				g()
+					.split('\n')
+					.find((l) => l.includes('enter copy')) ?? '';
+			ok(
+				'code: buttons shown, fences hidden, hint',
+				g().includes('[ copy ] ts') && !g().includes('```') && g().includes('↑/↓ code') && selLine() === '',
+			);
+			await w('\x1b[B');
+			ok('down selects first button', selLine().includes('[ copy ] ts'));
+			await w('\x1b[B');
+			ok('down selects next button', selLine() !== '' && !selLine().includes(' ts'));
+			await w('\x1b[B');
+			ok('down wraps to first', selLine().includes('[ copy ] ts'));
+			await w('\x1b[A');
+			ok('up wraps to last', selLine() !== '' && !selLine().includes(' ts') && g().includes('▸ sent'));
+			await w('\r');
+			ok('enter copies raw code', copied.at(-1) === 'plain' && g().includes('copied 1 line'));
+			await w('\x1b[A');
+			await w('\r');
+			ok('enter copies other block', copied.at(-1) === 'const a = 1;\nconst b = 2;' && g().includes('copied 2 lines'));
+			await w('\x1b');
+			ok('esc clears selection, keeps focus', selLine() === '' && g().includes('▸ sent'));
+			await w('\x1b');
+			ok('second esc unfocuses', !g().includes('▸ sent') && copied.length === 2);
+			r.unmount();
+		}
+		{
 			const m = mkc({}, 44);
 			const {r, g, w} = m;
 			await tick();

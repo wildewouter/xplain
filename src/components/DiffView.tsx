@@ -327,7 +327,7 @@ export function DiffView({
 					<Box key={i} flexDirection="column" flexShrink={0} marginTop={i === 0 ? -skip : 0}>
 						{el}
 						{(sent?.get(ri) ?? []).map((q, k) => (
-							<SentBox key={`sent${k}`} q={q} width={bw} />
+							<SentBox key={`sent${k}`} q={q} width={bw} name={name} />
 						))}
 						{ask && c ? <AskBox text={ask.text} pos={ask.pos} width={bw} sel={askSel} mode={ask.mode} /> : null}
 					</Box>

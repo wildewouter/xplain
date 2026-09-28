@@ -21,6 +21,7 @@ import type {McpBridge} from './mcp/bridge.js';
 import {useAsk} from './useAsk.js';
 import {exportName, renderReviewMarkdown, type AskController, type Question} from './ask/index.js';
 import {footerFor} from './keys.js';
+import {osc52Copy} from './clipboard.js';
 import {
 	DiffView,
 	toRows,
@@ -88,6 +89,7 @@ export default function App({
 	onQuestionUpdate,
 	onQuestionDelete,
 	mcp: mcp0,
+	copy = osc52Copy,
 }: {
 	args: string[];
 	cwd?: string;
@@ -103,6 +105,7 @@ export default function App({
 	onQuestionUpdate?: (q: Question) => void; // sent comment edited
 	onQuestionDelete?: (q: Question) => void; // sent comment deleted
 	onCursor?: (c: {index: number; row: Row | SRow | undefined} | undefined) => void; // cursor row hook (prompt anchor)
+	copy?: (text: string) => void; // clipboard for code block copy buttons
 }) {
 	const [note, setNote] = useState<string>();
 	const {exit} = useApp();
@@ -132,6 +135,8 @@ export default function App({
 	const [editId, setEditId] = useState<string>();
 	const [fuId, setFuId] = useState<string>(); // follow-up input open for this comment
 	const [scrolls, setScrolls] = useState<Record<string, {off: number; follow?: boolean}>>({});
+	const [btn, setBtn] = useState<{id: string; i: number}>(); // selected code copy button in the focused thread
+	useEffect(() => setBtn(undefined), [focus]);
 	const [dmodal, setDmodal] = useState(false);
 	const [tCommit, setTCommit] = useState<ThemeName>(theme0); // theme that esc reverts to
 	const [split, setSplit] = useState(split0);
@@ -304,7 +309,7 @@ export default function App({
 	}, [file, eff, browsePath]);
 	const built = useMemo(() => {
 		const m = new Map<number, SentQ[]>();
-		const info = new Map<string, {v: number; off: number; maxOff: number}>();
+		const info = new Map<string, {v: number; off: number; maxOff: number; btns: {at: number; code: string}[]}>();
 		const bw = Math.max(1, Math.max(10, cols - 1) - 3);
 		const fuRows = fuId ? askH({head: '', lines: []}) : 0; // follow-up input under the thread
 		const mkQ = (q: Sent, foc: boolean, v: number): SentQ => {
@@ -317,7 +322,8 @@ export default function App({
 			const body = threadBody([{...tu[0]!, message: q.message}, ...tu.slice(1)], q.message, bw);
 			const sc = scrolls[q.id];
 			const w = windowBody(body, foc, v, live && sc?.follow !== false ? Infinity : (sc?.off ?? 0));
-			if (foc) info.set(q.id, {v, off: w.off, maxOff: w.maxOff});
+			const btns = foc ? body.flatMap((l, at) => (l.k === 'btn' ? [{at, code: l.code ?? ''}] : [])) : [];
+			if (foc) info.set(q.id, {v, off: w.off, maxOff: w.maxOff, btns});
 			const {id, head, lines} = q;
 			return {
 				id,
@@ -331,6 +337,8 @@ export default function App({
 				canFollow: an?.status === 'done' || (agentQ && ctl.canFollowUp(q.id)),
 				scroll: foc && w.maxOff > 0,
 				pos: foc && w.maxOff > 0 ? `${w.from}-${w.to}/${w.total}` : undefined,
+				btn: foc && btn?.id === q.id && btn.i < btns.length ? btn.i : undefined,
+				codes: btns.length,
 			};
 		};
 		const rowOf = new Map<string, number>();
@@ -356,7 +364,7 @@ export default function App({
 			list[k] = mkQ(f, true, v);
 		}
 		return {m, info};
-	}, [sent, rows, file, focus, answers, questions, cols, height, scrolls, fuId]);
+	}, [sent, rows, file, focus, answers, questions, cols, height, scrolls, fuId, btn]);
 	const sentAt = built.m;
 	// comments of this file in visual order
 	const focusList = useMemo(
@@ -397,6 +405,26 @@ export default function App({
 		if (!ms.running) return setNote('MCP is off (M to start)');
 		const n = todo.filter((q) => mcp.ask(q)).length;
 		setNote(`queued ${n} question${n === 1 ? '' : 's'}`);
+	};
+	// focused thread's code copy buttons: up/down select (wrapping, scrolled into view), enter copies
+	const ti = fo >= 0 ? built.info.get(focus!) : undefined;
+	const bsel = ti && btn && btn.id === focus && btn.i < ti.btns.length ? btn.i : undefined;
+	const pickBtn = (d: 1 | -1) => {
+		if (!ti?.btns.length) return;
+		const n = ti.btns.length;
+		const i = bsel === undefined ? (d > 0 ? 0 : n - 1) : (bsel + d + n) % n;
+		const id = focus!;
+		setBtn({id, i});
+		const at = ti.btns[i]!.at;
+		if (at >= ti.off && at < ti.off + ti.v) return;
+		const o = Math.min(ti.maxOff, at);
+		setScrolls((v) => ({...v, [id]: {off: o, follow: o < ti.maxOff ? false : v[id]?.follow}}));
+	};
+	const copyBtn = (i: number) => {
+		const code = ti!.btns[i]!.code;
+		copy(code);
+		const n = code.split('\n').length;
+		setNote(`copied ${n} line${n === 1 ? '' : 's'}`);
 	};
 	const focusTo = (x?: {id: string; row: number}) => {
 		setFocus(x?.id);
@@ -1056,6 +1084,7 @@ export default function App({
 				const n = c || 1;
 				pend.current = 0;
 				if (key.escape) {
+					if (bsel !== undefined) return setBtn(undefined);
 					if (fo >= 0) return setFocus(undefined);
 					if (anchor) return endVis();
 					return setCurOn(false);
@@ -1069,6 +1098,8 @@ export default function App({
 						],
 					);
 				}
+				if (bsel !== undefined && key.return) return copyBtn(bsel);
+				if (ti?.btns.length && (key.upArrow || key.downArrow)) return pickBtn(key.downArrow ? 1 : -1);
 				if (fo >= 0 && (input === 'e' || key.return)) {
 					if (ctl.turns(focus).length > 1) return setNote("can't edit after follow-ups");
 					const m = sent.find((x) => x.id === focus)?.message ?? '';
@@ -1081,7 +1112,6 @@ export default function App({
 				if (fo >= 0 && input === 'D') return setDmodal(true);
 				if (fo >= 0 && input === 'a') return askFocused();
 				if (fo >= 0 && input === 'A') return askAll();
-				const ti = fo >= 0 ? built.info.get(focus!) : undefined;
 				if (ti && ti.maxOff > 0 && /^[jkdugG]$/.test(input)) {
 					const hv = Math.max(1, Math.floor(ti.v / 2));
 					const want =

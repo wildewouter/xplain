@@ -1,7 +1,8 @@
 import {Box} from 'ink';
 import {ModalText as Text} from './ModalText.js';
-import {useTheme} from '../theme.js';
-import type {BodyLine} from './answerView.js';
+import {useTheme, type ThemeName} from '../theme.js';
+import {COPY_BTN, type BodyLine} from './answerView.js';
+import {hlFence} from '../highlight.js';
 import {Spinner} from '../spinner.js';
 
 export const ASK_H = 4;
@@ -100,6 +101,8 @@ export type SentQ = {
 	more?: number; // unfocused: hidden lines
 	pos?: string; // focused + overflowing: "12-24/58"
 	scroll?: boolean; // focused thread scrolls (j/k)
+	btn?: number; // focused: selected code block copy button
+	codes?: number; // focused: code blocks in the thread (up/down select)
 };
 export const SENT_MAX = 3;
 // rows of a sent box without its body lines
@@ -110,12 +113,13 @@ export const sentBase = (q: Pick<SentQ, 'lines' | 'focused'>) =>
 	(q.focused ? 1 : 0);
 export const sentH = (q: SentQ) => sentBase(q) + q.body.length + (q.more ? 1 : 0);
 
-export const sentHint = (width: number, q: Pick<SentQ, 'canAsk' | 'canFollow' | 'scroll'>) => {
+export const sentHint = (width: number, q: Pick<SentQ, 'canAsk' | 'canFollow' | 'scroll' | 'codes'>) => {
 	const room = width - 2 - 1; // borders + leading space
 	const a = q.canFollow ? '  a follow up' : q.canAsk ? '  a ask' : '';
 	const sc = q.scroll ? '  j/k scroll' : '';
+	const cb = q.codes ? '  ↑/↓ code' : '';
 	const opts = [
-		`e edit  D delete${a}${sc}  esc back`,
+		`e edit  D delete${a}${sc}${cb}  esc back`,
 		`e edit  D delete${a}  esc back`,
 		`e edit  D delete${a}`,
 		'e edit  D delete',
@@ -124,7 +128,7 @@ export const sentHint = (width: number, q: Pick<SentQ, 'canAsk' | 'canFollow' | 
 	return opts.find((h) => h.length <= room) ?? '';
 };
 
-export function SentBox({q, width}: {q: SentQ; width: number}) {
+export function SentBox({q, width, name}: {q: SentQ; width: number; name: ThemeName}) {
 	const t = useTheme();
 	return (
 		<Box
@@ -155,6 +159,21 @@ export function SentBox({q, width}: {q: SentQ; width: number}) {
 				l.k === 'div' ? (
 					<Text key={i} wrap="truncate" color={l.err ? t.dels : t.accent}>
 						{('─ ' + l.t + ' ').padEnd(Math.max(1, width - 2), '─')}
+					</Text>
+				) : l.k === 'btn' ? (
+					<Text key={i} wrap="truncate">
+						{' '}
+						<Text color={t.accent} inverse={l.blk === q.btn} bold={l.blk === q.btn}>
+							{COPY_BTN}
+						</Text>
+						{l.lang && <Text color={t.dim}>{' ' + l.lang}</Text>}
+						{l.blk === q.btn && <Text color={t.dim}>{'  enter copy  esc cancel'}</Text>}
+					</Text>
+				) : l.k === 'code' ? (
+					<Text key={i} wrap="truncate">
+						{' '}
+						<Text color={l.blk === q.btn ? t.accent : t.dim}>{'│ '}</Text>
+						{hlFence(l.t, l.lang, name)}
 					</Text>
 				) : (
 					<Text key={i} wrap="truncate" color={l.err ? t.dels : l.k === 'fu' ? t.accent : undefined}>
