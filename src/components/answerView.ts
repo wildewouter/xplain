@@ -100,15 +100,13 @@ export function richLines(text: string, width: number, k: 'msg' | 'ans', blk = {
 
 const isLive = (a: Answer) => a.status === 'pending' || a.status === 'streaming';
 
-// message line of turn 1 (multi-line agent notes get wrapped + code blocks), then per turn: answer divider + wrapped answer (each prior answer too); follow-ups get `follow-up:` lines
+// message of turn 1 (wrapped + code blocks), then per turn: answer divider + wrapped answer (each prior answer too); follow-ups get `follow-up:` lines
 export function threadBody(turns: TurnIn[], msg0: string, width: number): BodyLine[] {
 	const out: BodyLine[] = [];
 	const blk = {n: 0};
 	turns.forEach((tu, i) => {
-		if (i === 0) {
-			if (msg0.includes('\n')) out.push(...richLines(msg0, width, 'msg', blk));
-			else out.push({t: msg0, k: 'msg'});
-		} else for (const l of wrapText('follow-up: ' + tu.message, width)) out.push({t: l, k: 'fu'});
+		if (i === 0) out.push(...richLines(msg0, width, 'msg', blk));
+		else for (const l of wrapText('follow-up: ' + tu.message, width)) out.push({t: l, k: 'fu'});
 		for (const a of [...(tu.prior ?? []), ...(tu.answer ? [tu.answer] : [])]) {
 			const shown =
 				a.text || !isLive(a) ? a : {...a, text: a.status === 'pending' ? 'waiting for agent…' : 'agent working…'};

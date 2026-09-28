@@ -67,6 +67,15 @@ const anchors = (r: Row | SRow | undefined, no: number, del: boolean, side: Pane
 							? !r.r && r.l?.oldNo === no
 							: r.r?.newNo === no
 						: false;
+// new-side line number per row; index of the row nearest line n (-1 if none)
+const newNos = (rows: readonly (Row | SRow)[]) =>
+	rows.map((r) => (r.kind === 'line' ? r.newNo : r.kind === 'pair' ? r.r?.newNo : undefined));
+const nearest = (nos: (number | undefined)[], n: number) => {
+	let i = -1;
+	for (let k = 0; k < nos.length; k++)
+		if (nos[k] !== undefined && (i < 0 || Math.abs(nos[k]! - n) < Math.abs(nos[i]! - n))) i = k;
+	return i;
+};
 const cls = (ch?: string) => (!ch || /\s/.test(ch) ? 0 : /\w/.test(ch) ? 1 : 2);
 const rowText = (r?: Row | SRow, side: PaneSide = 'new') =>
 	!r ? '' : r.kind === 'pair' ? ((paneOf(r, side) === 'old' ? r.l : r.r)?.text ?? '') : r.text;
@@ -285,7 +294,10 @@ export default function App({
 				setBrowsePath(p);
 				setOff(0);
 			},
-			(e) => setNote(String(e.message ?? e)),
+			(e) => {
+				setNote(String(e.message ?? e));
+				setNumGo(undefined);
+			},
 		);
 	};
 	const dfile = files?.[idx];
@@ -467,10 +479,26 @@ export default function App({
 		setAnchor(undefined);
 		setVline(false);
 	};
+	const fkey = browsePath !== undefined ? 'b:' + browsePath : 'd:' + file?.path;
+	const prev = useRef<{rows: readonly (Row | SRow)[]; key: string; full: boolean; eff: boolean}>(undefined);
+	const kept = useRef(false); // cursor kept across a rows change (reload of same file)
 	useEffect(() => {
-		setCur(full && starts.length ? starts[0]! : 0);
-		setCol(0);
-		setSide('new');
+		const p = prev.current;
+		// `full` flips before its rows load: rows keep the `full` they were built under
+		prev.current = {rows, key: fkey, full: p && rows === p.rows ? p.full : full, eff};
+		// same file reloaded: keep the cursor on its source line (`cur`/`side` still hold the old values)
+		const o = p && p.key === fkey && p.full === full && p.eff === eff ? p.rows[Math.min(cur, p.rows.length - 1)] : undefined;
+		kept.current = !!o;
+		if (o) {
+			const no = rowNo(o, side);
+			let i = no === undefined ? -1 : rows.findIndex((r) => anchors(r, no, isDel(o), side));
+			if (i < 0 && no !== undefined) i = nearest(newNos(rows), no);
+			setCur(i < 0 ? Math.min(cur, last) : i);
+		} else {
+			setCur(full && starts.length ? starts[0]! : 0);
+			setCol(0);
+			setSide('new');
+		}
 		endVis();
 		pend.current = 0;
 	}, [rows, full]);
@@ -478,23 +506,23 @@ export default function App({
 	const [numGo, setNumGo] = useState<string>();
 	const numLast = useRef<string>(undefined);
 	const numJump = (d: 1 | -1) => {
-		const list = sent
-			.filter((q) => q.num !== undefined && files?.some((f) => f.path === q.file))
-			.sort((a, b) => a.num! - b.num!);
+		const list = sent.filter((q) => q.num !== undefined).sort((a, b) => a.num! - b.num!);
 		if (!list.length) return setNote('no numbered comments');
 		const n = list.length;
 		const i = [focus, numLast.current].map((id) => list.findIndex((q) => q.id === id)).find((k) => k >= 0) ?? -1;
 		const t = list[i < 0 ? (d > 0 ? 0 : n - 1) : (i + d + n) % n]!;
 		numLast.current = t.id;
-		if (browsePath !== undefined) {
-			setBrowsePath(undefined);
-			setBrowseText('');
-		}
-		const fi = files!.findIndex((f) => f.path === t.file);
-		if (fi !== idx) {
-			setIdx(fi);
-			setOff(0);
-		}
+		const fi = files?.findIndex((f) => f.path === t.file) ?? -1;
+		if (fi >= 0) {
+			if (browsePath !== undefined) {
+				setBrowsePath(undefined);
+				setBrowseText('');
+			}
+			if (fi !== idx) {
+				setIdx(fi);
+				setOff(0);
+			}
+		} else if (browsePath !== t.file) openBrowse(t.file);
 		setCurOn(true);
 		setNumGo(t.id);
 	};
@@ -669,10 +697,8 @@ export default function App({
 	const goLine = (s: string) => {
 		const n = Number(s);
 		if (!/^\d+$/.test(s) || n < 1) return setNote(`not a line number: ${s}`);
-		const nos = rows.map((r) => (r.kind === 'line' ? r.newNo : r.kind === 'pair' ? r.r?.newNo : undefined));
-		let i = -1;
-		for (let k = 0; k < nos.length; k++)
-			if (nos[k] !== undefined && (i < 0 || Math.abs(nos[k]! - n) < Math.abs(nos[i]! - n))) i = k;
+		const nos = newNos(rows);
+		const i = nearest(nos, n);
 		if (i < 0) return setNote('no lines in view');
 		const top = Math.max(...nos.map((x) => x ?? 0));
 		if ((full || browsePath !== undefined) && n > top) return setNote(`line ${n} out of range (1-${top})`);
@@ -686,6 +712,11 @@ export default function App({
 	};
 	const mvCur = (n: number) => setCur((c) => Math.min(last, Math.max(0, c + n)));
 	useEffect(() => {
+		// same file reloaded: keep the view (cursor mode: cursor-follow effect already placed it)
+		if (kept.current) {
+			if (!curOn) setOff((o) => Math.min(max, o));
+			return;
+		}
 		setOff(full && starts.length ? Math.min(max, Math.max(0, starts[0]! - CTX)) : 0);
 	}, [rows, full]);
 	const jump = (d: 1 | -1) => {
@@ -1075,7 +1106,10 @@ export default function App({
 			if (input === 'i') {
 				pend.current = 0;
 				setFocus(undefined);
-				setCurOn((v) => !v);
+				// cursor on: stale cursor out of view starts at top of view, past the follow margin so the view stays put
+				if (!curOn && (cur < off || cur >= off + height))
+					setCur(Math.min(last, off && off + Math.min(2, Math.floor((height - 1) / 2))));
+				setCurOn(!curOn);
 				setCol(0);
 				setSide('new');
 				endVis();
