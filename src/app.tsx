@@ -6,7 +6,7 @@ import fuzzysort from 'fuzzysort';
 import {loadDiff, listFiles, MODES, type DiffFile, type Mode} from './diff/load.js';
 import {FileModal} from './components/FileModal.js';
 import {SearchModal, type Hit} from './components/SearchModal.js';
-import {HelpModal, helpHeight, helpMax, helpView} from './components/HelpModal.js';
+import {HelpPanel} from './components/HelpModal.js';
 import {ThemeContext, THEMES, THEME_NAMES, type ThemeName} from './theme.js';
 import {ConfigModal} from './components/ConfigModal.js';
 import {SETTINGS, type Actions} from './settings.js';
@@ -20,7 +20,7 @@ import {useMcp} from './useMcp.js';
 import type {McpBridge} from './mcp/bridge.js';
 import {useAsk} from './useAsk.js';
 import {exportName, renderReviewMarkdown, type AskController, type Question} from './ask/index.js';
-import {footerFor} from './keys.js';
+import {footerFor, hasMotions, helpCtx} from './keys.js';
 import {osc52Copy} from './clipboard.js';
 import {
 	DiffView,
@@ -117,8 +117,7 @@ export default function App({
 	const [idx, setIdx] = useState(0);
 	const [off, setOff] = useState(0);
 	const [modal, setModal] = useState(false);
-	const [help, setHelp] = useState(false);
-	const [helpOff, setHelpOff] = useState(0);
+	const [help, setHelp] = useState<0 | 1 | 2>(0);
 	const [theme, setTheme] = useState<ThemeName>(theme0);
 	const th = THEMES[theme];
 	const [cmodal, setCmodal] = useState(false);
@@ -781,8 +780,26 @@ export default function App({
 		);
 	};
 
+	const hctx = helpCtx({
+		ask,
+		find: sOpen,
+		goto: gOpen,
+		dialog: dmodal || qmodal,
+		search: srch,
+		mcp: mmodal,
+		config: cmodal,
+		picker: modal,
+		browse: browsePath !== undefined,
+		cursor: curOn,
+		visual: !!anchor,
+		focused: fo >= 0,
+	});
 	useInput(
 		(input, key) => {
+			if (input === '?' && !ask && !sOpen && !gOpen && !srch) {
+				setHelp((v) => (v === 0 ? 1 : v === 1 && hasMotions(hctx) ? 2 : 0));
+				return;
+			}
 			if (ask) {
 				pend.current = 0;
 				if (key.escape) {
@@ -949,21 +966,6 @@ export default function App({
 					setQuery((q) => q + input);
 					setSsel(0);
 				}
-				return;
-			}
-			if (help) {
-				const hh = Math.min(rowsT - 2, helpHeight);
-				const hv = helpView(hh);
-				const hs = (n: number) => setHelpOff((o) => Math.min(helpMax(hh), Math.max(0, o + n)));
-				if (key.escape || input === 'q' || input === '?') setHelp(false);
-				else if (input === 'j' || key.downArrow) hs(1);
-				else if (input === 'k' || key.upArrow) hs(-1);
-				else if (input === 'd') hs(Math.max(1, hv >> 1));
-				else if (input === 'u') hs(-Math.max(1, hv >> 1));
-				else if (key.pageDown || input === ' ') hs(hv - 1);
-				else if (key.pageUp) hs(-(hv - 1));
-				else if (input === 'g') setHelpOff(0);
-				else if (input === 'G') setHelpOff(helpMax(hh));
 				return;
 			}
 			if (mmodal) {
@@ -1196,10 +1198,7 @@ export default function App({
 			}
 			if (input === 'd') scroll(half);
 			else if (input === 'u') scroll(-half);
-			else if (input === '?') {
-				setHelpOff(0);
-				setHelp(true);
-			} else if (input === 'C') cfgOpen();
+			else if (input === 'C') cfgOpen();
 			else if (input === 't') setTheme((v) => THEME_NAMES[(THEME_NAMES.indexOf(v) + 1) % THEME_NAMES.length]!);
 			else if (input === 's') {
 				setSplit((v) => !v);
@@ -1246,6 +1245,9 @@ export default function App({
 	const rowsT = height + 3;
 	const mw = Math.min(cols, Math.max(20, Math.floor(cols * 0.7)));
 	const mh = Math.min(rowsT, Math.max(5, Math.min(files.length + 4, Math.floor(rowsT * 0.6))));
+	const ov = help
+		? ({alignItems: 'flex-start', paddingTop: 2} as const)
+		: ({alignItems: 'center'} as const);
 
 	return (
 		<ThemeContext value={th}>
@@ -1321,22 +1323,17 @@ export default function App({
 					})}
 				</Text>
 				{dmodal && (
-					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
+					<Box position="absolute" width="100%" height="100%" justifyContent="center" {...ov}>
 						<DeleteModal />
 					</Box>
 				)}
 				{qmodal && (
-					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
+					<Box position="absolute" width="100%" height="100%" justifyContent="center" {...ov}>
 						<QuitModal />
 					</Box>
 				)}
-				{help && (
-					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
-						<HelpModal width={mw} height={Math.min(rowsT - 2, helpHeight)} off={helpOff} />
-					</Box>
-				)}
 				{mmodal && (
-					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
+					<Box position="absolute" width="100%" height="100%" justifyContent="center" {...ov}>
 						<McpModal
 							state={ms}
 							sel={msel}
@@ -1348,7 +1345,7 @@ export default function App({
 					</Box>
 				)}
 				{cmodal && (
-					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
+					<Box position="absolute" width="100%" height="100%" justifyContent="center" {...ov}>
 						<ConfigModal
 							sel={csel}
 							cur={ccur}
@@ -1358,7 +1355,7 @@ export default function App({
 					</Box>
 				)}
 				{srch && (
-					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
+					<Box position="absolute" width="100%" height="100%" justifyContent="center" {...ov}>
 						<SearchModal
 							query={query}
 							hits={hits}
@@ -1369,8 +1366,18 @@ export default function App({
 					</Box>
 				)}
 				{modal && (
-					<Box position="absolute" width="100%" height="100%" alignItems="center" justifyContent="center">
+					<Box position="absolute" width="100%" height="100%" justifyContent="center" {...ov}>
 						<FileModal files={files} sel={sel} current={idx} height={mh} width={mw} />
+					</Box>
+				)}
+				{help > 0 && (
+					<Box position="absolute" width="100%" height="100%" alignItems="flex-end" justifyContent="flex-end" paddingTop={2} paddingBottom={1}>
+						<HelpPanel
+							ctx={hctx}
+							motions={help === 2}
+							width={Math.min(96, Math.max(36, Math.floor(cols * 0.6)))}
+							maxHeight={Math.max(3, rowsT - 3)}
+						/>
 					</Box>
 				)}
 			</Box>

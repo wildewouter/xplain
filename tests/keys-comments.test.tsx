@@ -338,7 +338,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 			ok('focus: J stops at last', hd().includes('L3'));
 			await w('\x1b');
 			ok('focus: esc unfocuses, stays cursor', !g().includes('▸') && g().includes('[cursor'));
-			ok('footer: cursor', g().includes('hjkl move  v select  enter ask  J/K comments') && !g().includes('i cursor'));
+			ok('footer: cursor', g().includes('hjkl move  enter ask  J/K comments') && !g().includes('v select') && !g().includes('i cursor'));
 			await w('v');
 			ok('footer: visual', g().includes('v/esc end  enter ask'));
 			await w('\x1b');

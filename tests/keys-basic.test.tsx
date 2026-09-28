@@ -2,7 +2,6 @@ import {render} from 'ink-testing-library';
 import App from '../src/app.js';
 import {join} from 'node:path';
 import {existsSync, readFileSync} from 'node:fs';
-import {KEYS} from '../src/keys.js';
 import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 const {stdin, lastFrame} = render(<App args={[]} cwd={cwd} />);
 await tick();
@@ -28,53 +27,105 @@ await pr('f');
 await pr('\x1b');
 ok('esc closes', f().includes('[2/') && !f().includes('Files ('));
 await pr('?');
-ok('help opens', f().includes('Help') && f().includes('d/u'));
+ok('help opens', f().includes('Help \u00b7 Diff view') && f().includes('[2/'));
 const hl = f().split('\n');
-ok('help fits terminal, shows scroll position', hl.length <= 24 && /\d+\/\d+ \u25bc/.test(f()));
-ok('help first page shows heading + scroll keys', f().includes('Scroll') && f().includes('space/PgDn'));
-// scroll to end, collect every frame: all documented keys + descriptions must appear somewhere
-const seen = new Set<string>();
-const grab = () => {
-	const fr = f();
-	for (const k of KEYS) if (fr.includes(k.k.padEnd(13) + k.d.slice(0, 20))) seen.add(k.g + k.k + k.d);
-};
-grab();
-for (let i = 0; i < 40 && f().includes('\u25bc'); i++) {
-	await pr(' ');
-	grab();
+ok('help fits terminal', hl.length <= 24);
+ok('normal help shows i, footer lacks i cursor', /i\s+enter cursor mode/.test(f()) && !f().includes('i cursor'));
+ok('normal footer: j/k scroll  d/u half page  ? help', f().includes('j/k scroll  d/u half page  ? help'));
+ok(
+	'help core keys, no motions',
+	f().includes(']/[') &&
+		f().includes('export comments') &&
+		!f().includes('Move') &&
+		!/j\/k\s+line down/.test(f()) &&
+		!/g\/G\s+top/.test(f()),
+);
+{
+	const hi = hl.findIndex((l) => l.includes('Help · Diff view'));
+	const top = hl[hi - 1] ?? '';
+	const bw = top.lastIndexOf('╮') - top.indexOf('╭') + 1;
+	ok(
+		'help single column, fits content at 100 cols',
+		hl.some((l) => /│ Find\s+│/.test(l)) &&
+			hl.some((l) => /│ View\s+│/.test(l)) &&
+			top.includes('╭') &&
+			bw < 50,
+	);
 }
+ok('help fits without overflow at 24 rows', !/\u2026 \d+ more/.test(f()));
+ok('help bottom row has move keys hint', hl.some((l) => l.includes('? move keys')) && !f().includes('? close'));
+await pr('?');
+ok(
+	'2nd ? shows motions, minus footer ones',
+	f().includes('Help \u00b7 Diff view') &&
+		f().includes('Move') &&
+		!/j\/k\s+line down/.test(f()) &&
+		!/d\/u\s+half page dn/.test(f()) &&
+		/g\/G\s+top/.test(f()) &&
+		f().includes('? close') &&
+		!f().includes('? move keys'),
+);
+await pr('?');
+ok('3rd ? closes help', !f().includes('Help \u00b7'));
+await pr('?');
+const top = () => Number(/\((\d+)-/.exec(f())?.[1]);
+await pr('g');
+const t0 = top();
 await pr('j');
-ok('help space pages to end (no more below)', !f().includes('\u25bc') && f().includes('\u25b2'));
+ok('j scrolls main view while help open', top() === t0 + 1 && f().includes('Help \u00b7 Diff view'));
+await pr('\x1b');
+ok('esc does not close help', f().includes('Help \u00b7 Diff view'));
+await pr('i');
+ok('help label follows cursor mode', f().includes('Help \u00b7 Cursor mode'));
 ok(
-	'help lists every documented key across scroll',
-	KEYS.every((k) => seen.has(k.g + k.k + k.d)),
+	'cursor core: full v/V, no w/b/e',
+	/v\/V\s+select chars\/lines/.test(f()) && !f().includes('w/b/e') && f().includes('? move keys'),
 );
-await pr('g');
-ok('help g back to top', !f().includes('\u25b2') && f().includes('Scroll'));
-await pr('G');
-ok('help G bottom', !f().includes('\u25bc'));
-await pr('k');
-ok('help k up', f().includes('\u25bc'));
-await pr('g');
-await pr(' ');
-ok('help space pages', f().includes('\u25b2'));
-await pr('g');
-ok(
-	'help bottom row has close hint and credit',
-	hl.some((l) => l.includes('?/esc/q close') && l.includes('Made by Wouter de Wild - 2026')),
-);
-await pr('f');
-ok('main keys ignored in help', !f().includes('Files ('));
-await pr('q');
-ok('q closes help, app alive', !f().includes('Help') && f().includes('[2/'));
 await pr('?');
+ok('cursor 2nd ?: w/b/e', f().includes('Help \u00b7 Cursor mode') && f().includes('w/b/e') && f().includes('? close'));
 await pr('?');
-ok('? closes help', !f().includes('Help'));
 await pr('?');
 await pr('\x1b');
-ok('esc closes help', !f().includes('Help'));
+ok('esc exits cursor, help stays', f().includes('Help \u00b7 Diff view'));
+await pr('f');
+ok('f opens picker while help open', f().includes('Files (') && f().includes('Help \u00b7 File picker'));
+await pr('\x1b');
+await pr('M');
+ok('help label in MCP modal', f().includes('Help \u00b7 MCP'));
+await pr('?');
+ok('? shows motions in MCP modal', f().includes('Help \u00b7 MCP') && f().includes('Move') && f().includes('? close'));
+await pr('?');
+ok('? closes help in MCP modal', !f().includes('Help \u00b7') && f().includes('MCP'));
+await pr('?');
+ok('? reopens help in MCP modal', f().includes('Help \u00b7 MCP'));
+await pr('\x1b');
+await pr('C');
+ok('help label in config modal', f().includes('Help \u00b7 Config') && f().includes('Config'));
 await pr('?');
 await pr('?');
+ok('? closes help in config modal', !f().includes('Help \u00b7') && f().includes('Config'));
+await pr('?');
+await pr('\x1b');
+await pr('/');
+ok('help label in find', f().includes('Help \u00b7 Find in file'));
+ok('help no close hint in find', !f().includes('? close'));
+await pr('?');
+ok('? typed in / input, help stays', f().includes('/?\u2588') && f().includes('Help \u00b7 Find in file'));
+await pr('\x1b');
+ok('esc cancels find, help stays', !f().includes('/?\u2588') && f().includes('Help \u00b7 Diff view'));
+await pr('?');
+await pr('?');
+ok('? closes help', !f().includes('Help \u00b7'));
+await pr('q');
+await pr('?');
+ok(
+	'dialog help: no motions, close hint',
+	f().includes('Help \u00b7 Confirm') && f().includes('? close') && !f().includes('? move keys'),
+);
+await pr('?');
+ok('dialog 2nd ? closes help', !f().includes('Help \u00b7') && f().includes('Quit xplain?'));
+await pr('n');
+ok('n closes quit dialog', !f().includes('Quit xplain?'));
 console.log('unified header', f().includes('[unified]'));
 await pr('s');
 ok('s -> split', f().includes('[split]') && f().includes('│'));
@@ -82,8 +133,37 @@ const splitFrame = f();
 await pr('?');
 const helpFrame = f();
 await pr('?');
+await pr('?');
 await pr('s');
 ok('s -> unified', f().includes('[unified]') && !f().includes('│'));
+{
+	const r = render(<App args={[]} cwd={cwd} />);
+	Object.defineProperty(r.stdout, 'rows', {value: 60});
+	await tick();
+	const g = () => r.lastFrame() ?? '';
+	await keyPress(r)('?');
+	ok(
+		'tall help: normal keys only, no overflow, credit',
+		g().includes('Help · Diff view') &&
+			!g().includes('v/V') &&
+			!g().includes('select chars') &&
+			!/… \d+ more/.test(g()) &&
+			g().includes('Made by Wouter de Wild - 2026'),
+	);
+	ok('tall help: normal lists global keys', g().includes('M/C') && g().includes('t/r'));
+	await keyPress(r)('i');
+	ok(
+		'tall help: cursor shows full v/V entry',
+		g().includes('Help · Cursor mode') && /v\/V\s+select chars\/lines/.test(g()),
+	);
+	ok('tall help: cursor footer lacks v select', g().includes('hjkl move  enter ask') && !g().includes('v select'));
+	ok(
+		'tall help: cursor shows J/K and )/( comment jumps',
+		/J\/K\s+next\/prev in file/.test(g()) && /\)\/\(\s+numbered, any file/.test(g()),
+	);
+	ok('tall help: cursor omits global keys', !g().includes('M/C') && !g().includes('t/r'));
+	r.unmount();
+}
 const nar = render(<App args={[]} cwd={cwd} split />);
 Object.defineProperty(nar.stdout, 'columns', {value: 80});
 await tick();
@@ -133,8 +213,8 @@ ok('narrow fallback', (nar.lastFrame() ?? '').includes('too narrow for split'));
 	await keyPress(r)('q');
 	await keyPress(r)('?');
 	await keyPress(r)('t');
-	await keyPress(r)('q');
-	ok('t ignored in help', g().includes('[vibrant]'));
+	ok('t cycles theme while help open', g().includes('Help · Diff view') && g().includes('[dull]'));
+	await keyPress(r)('?');
 }
 {
 	const dir = tmpDir('keys-cfg');
@@ -254,6 +334,7 @@ ok('narrow fallback', (nar.lastFrame() ?? '').includes('too narrow for split'));
 	await keyPress(n)('\r');
 	ok('no-changes browse shows content', nf().includes('[browse]') && nf().includes('hello world'));
 	await keyPress(n)('\x1b');
+	await keyPress(n)('?');
 	await keyPress(n)('?');
 	await keyPress(n)('?');
 	await keyPress(n)('F');
