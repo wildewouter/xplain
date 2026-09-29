@@ -60,7 +60,7 @@ fn base_style(theme: &Theme, b: &ThreadBox) -> Style {
     if is_editor(b) {
         Style { fg: Some(theme.modal_fg), bg: Some(theme.modal_bg), ..Style::default() }
     } else {
-        Style::default()
+        Style { fg: Some(theme.modal_fg), ..Style::default() }
     }
 }
 
