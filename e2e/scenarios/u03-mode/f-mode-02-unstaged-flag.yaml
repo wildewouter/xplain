@@ -1,0 +1,20 @@
+id: F-MODE-02
+title: untracked file shown in default all mode but not with --unstaged, and ls-files not run then
+shims:
+  git:
+    - match: [diff, --no-color, --no-ext-diff]
+      stdout: "diff --git a/t.txt b/t.txt\nindex 1111111..2222222 100644\n--- a/t.txt\n+++ b/t.txt\n@@ -1 +1 @@\n-old\n+new\n"
+    - match: [ls-files]
+      stdout: "u.txt\0"
+files:
+  u.txt: "you\n"
+args: [--unstaged]
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[unstaged\] .*\[1/1\] .*t\.txt \+1 -1$'}}
+  - expectShimCall: {name: git, argsPrefix: [ls-files], count: 0}
+  - expectShimCall: {name: git, argsContain: [--no-index], count: 0}
+  - note: cycle unstaged -> all; now untracked are listed
+    keys: m
+  - expectScreen: {line: {row: 0, matches: '^\[all\] '}}
+  - expectShimCall: {name: git, args: [ls-files, --others, --exclude-standard, -z], count: 1}
+  - expectShimCall: {name: git, argsContain: [--no-index, u.txt], count: 1}

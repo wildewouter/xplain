@@ -1,0 +1,18 @@
+id: F-MCPUI-02
+title: 'Space on integration row, d/c/w on power row: nothing'
+shims:
+  claude: [{match: [mcp, get], exit: 0}]
+steps:
+  - keys: M<Enter>
+  - expectScreen: {matches: ['^ +│> ● on ', '^ +│  Claude Code registered']}
+  - keys: dcw
+  - expectScreen:
+      matches: ['^ +│> ● on ', '^ +│  Copilot [^\n]*│\n +│ j/k  enter register']
+      notContains: ['(y/n)', 'copied', 'start MCP first']
+  - expectOsc52: {count: 0}
+  - keys: j<Space>
+  - expectScreen:
+      matches: ['^ +│> Claude Code registered', '^ +│  Copilot [^\n]*│\n +│ j/k  enter register']
+      notContains: ['(y/n)', 'already registered']
+  - keys: <Esc>
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}

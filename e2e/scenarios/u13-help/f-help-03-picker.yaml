@@ -1,0 +1,16 @@
+id: F-HELP-03
+title: 'File picker entries verbatim: L1 [File picker] Enter, esc/f/q; L2 [Move] j/k, d/u first'
+size: 120x40
+steps:
+  - keys: f
+  - expectScreen: {contains: 'Files (1/4)', notContains: 'Help ·'}
+  - keys: '?'
+  - expectScreen:
+      contains: 'Files (1/4)'
+      matches: '^(?=.{120}$)[^\n]*│ Help · File picker *│$\n^[^\n]*│ File picker *│$\n^[^\n]*│  Enter   open file *│$\n^[^\n]*│  esc/f/q close *│$\n^[^\n]*│ \? move keys +Made by Wouter de Wild - 2026 │$\n^(?=.{120}$)[^\n]*╰─+╯$'
+      notContains: ['│  i ', 'Move']
+  - keys: '?'
+  - expectScreen:
+      contains: 'Files (1/4)'
+      matches: '^(?=.{120}$)[^\n]*│ Help · File picker *│$\n^[^\n]*│ Move *│$\n^[^\n]*│  j/k     move *│$\n^[^\n]*│  d/u     half page down/up *│$\n^[^\n]*│ File picker *│$\n^[^\n]*│  Enter   open file *│$\n^[^\n]*│  esc/f/q close *│$\n^[^\n]*│ \? close +Made by Wouter de Wild - 2026 │$\n^(?=.{120}$)[^\n]*╰─+╯$'
+      notContains: ['│  i ', '? move keys']

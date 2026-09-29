@@ -1,0 +1,15 @@
+id: F-LAYOUT-03
+title: 'unified rows: tab shown as 2 spaces; long line cut at screen edge with … in last cell (no wrap)'
+size: 80x24
+fixture: empty
+files:
+  t.txt: "first\n\tx\tb\n0123456789abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789END\nlast\n"
+steps:
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L1:C1] t.txt +4 -0'}
+        - {row: 2, matches: '^@@ -0,0 \+1,4 @@$'}
+        - {row: 3, matches: '^        1 \+▶first'}
+        - {row: 4, matches: '^        2 \+   x  b$'}
+        - {row: 5, matches: '^        3 \+ 0123456789abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTU…$'}
+        - {row: 6, matches: '^        4 \+ last$'}

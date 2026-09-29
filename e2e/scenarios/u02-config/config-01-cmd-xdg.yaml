@@ -1,0 +1,7 @@
+id: F-CONFIG-01
+title: resolved path defaults to $XDG_CONFIG_HOME/xplain/config.json
+tui: false
+args: [config, path]
+steps:
+  - expectExit: 0
+  - expectStdout: {equals: "${CONFIG}/xplain/config.json\n"}

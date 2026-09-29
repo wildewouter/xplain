@@ -1,0 +1,30 @@
+id: F-FIND-02
+title: 'tabs match as 2 spaces; hit columns counted on tab-expanded text'
+fixture: empty
+size: 120x12
+files:
+  f.txt: "alpha beta\ngamma Alpha\ndelta\naaa\n\tbeta alpha\n"
+steps:
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L1:C1] f.txt'}
+        - {row: 7, matches: '^        5 \+   beta alpha$'}
+  - keys: '/  beta<Enter>'
+  - note: two spaces + beta only matches the tab line (L1 has a single space)
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L5:C1] f.txt'}
+        - {row: -1, matches: '^/  beta \| \(1-6/6\) '}
+  - keys: /beta<Enter>
+  - note: Enter matches current row first; beta after the tab is col 3
+    expectScreen:
+      line: {row: 0, contains: '[cursor L5:C3] f.txt'}
+  - keys: k
+  - note: L1 beta at code col 7 (screen col 18) highlighted
+    expectCell: {at: {row: 3, col: 18}, bg: 3, fg: 0}
+  - expectCell: {at: {row: 3, col: 21}, bg: 3, fg: 0}
+  - expectCell: {at: {row: 3, col: 17}, bg: default}
+  - note: L5 beta drawn after the 2-space tab (screen cols 14-17)
+    expectCell: {at: {row: 7, col: 14}, bg: 3, fg: 0}
+  - expectCell: {at: {row: 7, col: 17}, bg: 3, fg: 0}
+  - expectCell: {at: {row: 7, col: 13}, bg: default}

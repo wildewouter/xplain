@@ -1,0 +1,15 @@
+id: F-HELP-01
+title: 'overflow at 80x24 L2 (max height R-3 = 21, top on screen row 3): whole items then " … <k> more" (dim)'
+size: 80x24
+steps:
+  - keys: '??'
+  - expectScreen:
+      matches: '│  a         comment on line *│$\n^[^\n]*│ … 7 more *│$\n^[^\n]*│ \? close +Made by Wouter de Wild - 2026 │$'
+      notContains: ['numbered, any file', 'export comments', 'General', 'quit']
+      line:
+        - {row: 1, matches: '^─+$'}
+        - {row: 2, matches: '^(?=.{80}$).*╭─+╮$'}
+        - {row: 3, matches: '│ Help · Diff view +│$'}
+        - {row: 4, matches: '│ Move +│$'}
+        - {row: 22, matches: '^(?=.{80}$).*╰─+╯$'}
+  - expectCell: {at: {text: '… 7 more', row: 20}, fg: '#586e75'}

@@ -1,0 +1,14 @@
+id: F-INTEG-03
+title: 'token masked as *** in register error message'
+files:
+  ${STATE}/xplain/mcp.json: {token: tok-0123456789abcdefXYZ}
+shims:
+  claude:
+    - {match: [mcp, get], exit: 1}
+    - {match: [mcp, add], exit: 1, stderr: "bad header Bearer tok-0123456789abcdefXYZ\n"}
+steps:
+  - keys: M<Enter>j<Enter>y
+  - expectShimCall: {name: claude, argsContain: ['Authorization: Bearer tok-0123456789abcdefXYZ'], count: 1}
+  - expectScreen:
+      matches: '^ +│ Claude Code register failed \(exit 1\):[\s│]+bad[\s│]+header[\s│]+Bearer[\s│]+\*\*\* +│$'
+      notContains: 'tok-0123456789abcdefXYZ'

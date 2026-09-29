@@ -1,0 +1,14 @@
+id: F-NAV-07
+title: Ctrl combos are not typed into find, goto, file search and comment editor
+size: 80x24
+steps:
+  - keys: /ab<C-a><C-w>c<C-u>
+  - expectScreen: {line: {row: -1, matches: '^/abc█\(1-5/5\) '}}
+  - keys: <Esc>:1<C-a><C-u>2<C-k>
+  - expectScreen: {line: {row: -1, matches: '^:12█\(1-5/5\) '}}
+  - keys: <Esc>FRE<C-a><C-w><C-u>AD
+  - expectScreen: {contains: ' Search (', matches: '> READ \s*│'}
+  - keys: <Esc>ax<C-a><C-w><C-u>y
+  - expectScreen: {matches: '│ xy \s*│'}
+  - keys: <Esc>
+  - expectScreen: {notContains: ['│ xy', 'Search (', '█']}

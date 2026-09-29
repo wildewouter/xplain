@@ -1,0 +1,9 @@
+id: F-EXPORT-01
+title: 'export lands in the process cwd (app started in a repo subdirectory)'
+size: 250x20
+cwd: src
+steps:
+  - keys: ac<Enter>E
+  - expectScreen: {line: {row: -1, matches: '^exported 1 comment -> ${REPO}/src/xplain-review-\d{8}-\d{6}\.md '}}
+  - expectFile: {glob: src/xplain-review-*.md, contains: "- comments: 1\n"}
+  - expectFile: {glob: xplain-review-*.md, count: 0}

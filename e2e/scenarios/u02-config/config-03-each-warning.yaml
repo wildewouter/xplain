@@ -1,0 +1,19 @@
+id: F-CONFIG-03
+title: each bad value warns on stderr in fixed order (theme, view.mode, view.split, view.full, app, mcp) and uses its default
+size: 160x30
+files:
+  ${CONFIG}/xplain/config.json:
+    mcp: 3
+    app: []
+    view: {full: 'no', split: null, mode: 1}
+    theme: x
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] '}}
+  - note: app invalid -> confirmQuit default true
+    keys: q
+  - expectScreen: {contains: 'Quit xplain? (y/n)'}
+  - keys: y
+  - expectExit: 0
+  - note: stderr went to the main screen before the UI started
+    expectScreen:
+      matches: '^xplain: config: invalid theme "x" \(solarized\|vibrant\|dull\|contrast\|colorblind\|light\); using solarized\nxplain: config: invalid view\.mode 1 \(all\|staged\|unstaged\); using all\nxplain: config: invalid view\.split null \(boolean\); using false\nxplain: config: invalid view\.full "no" \(boolean\); using true\nxplain: config: app must be an object; using defaults\nxplain: config: mcp must be an object; using defaults\n\s*$'

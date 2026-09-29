@@ -1,0 +1,16 @@
+id: F-CLI-05
+title: 'config warnings print before the UI (main screen); UI runs on the alternate screen and quitting returns to the main screen'
+files:
+  ${CONFIG}/xplain/config.json: {theme: nope, app: {confirmQuit: false}}
+steps:
+  - note: alternate screen active - warning not visible, UI up with default theme for the bad key
+    expectScreen:
+      line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] '}
+      notContains: 'xplain: config:'
+  - keys: q
+  - expectExit: 0
+  - note: back on the main screen - warning printed there before the UI, UI frame gone
+    expectScreen:
+      contains: 'xplain: config: invalid theme "nope" (solarized|vibrant|dull|contrast|colorblind|light); using solarized'
+      notContains: ['[mcp: off]', README.md, 'hjkl move']
+  # stderr (not stdout) carries the warning: f-cli-05-warnings-stderr.yaml (captureStderr)

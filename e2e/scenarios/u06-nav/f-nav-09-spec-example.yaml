@@ -1,0 +1,21 @@
+id: F-NAV-09
+title: spec example - 62 rows, R=24 (H=21) - 20j then 19k
+size: 80x24
+steps:
+  - keys: <Tab>g
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[2/4\] \[cursor r1:C1\] src/big\.ts '}
+        - {row: -1, equals: '(1-21/62) hjkl move  enter ask  J/K comments  ? help'}
+  - keys: 20j
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L20:C1\] src/big\.ts '}
+        - {row: 20, matches: '^  20   20  ▶const v20 = 1;'}
+        - {row: -1, equals: '(3-23/62) hjkl move  enter ask  J/K comments  ? help'}
+  - keys: 19k
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L1:C1\] src/big\.ts '}
+        - {row: 2, matches: '^@@ '}
+        - {row: -1, equals: '(1-21/62) hjkl move  enter ask  J/K comments  ? help'}

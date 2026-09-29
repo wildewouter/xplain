@@ -1,0 +1,7 @@
+id: F-CLI-03
+title: 'flags between git args are removed; remaining args keep their order and are appended after --cached'
+args: [v1, --staged, --x, --changes-only, --, bar]
+shims: [git]
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[staged\] \[mcp: off\] No changes '}}
+  - expectShimCall: {name: git, args: [diff, --no-color, --no-ext-diff, --cached, v1, --x, --, bar]}

@@ -1,0 +1,21 @@
+id: F-NAV-08
+title: placement resets column to 1, pane to new, clears selection and pending count (split, 120x10)
+args: [--split]
+size: 120x10
+steps:
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[1/4\] \[cursor new L2:C1\] README\.md '}
+        - {row: -1, matches: 'p pane  \? help$'}
+  - keys: p3lv
+  - expectScreen: {line: {row: 0, matches: '\[1/4\] \[visual old L2:C4\] README\.md '}}
+  - note: pending count 5, then file switch
+    keys: 5<Tab>
+  - note: split rows 61; top = 27, follow keeps 27 (H=7)
+    expectScreen:
+      line:
+        - {row: 0, matches: '\[2/4\] \[cursor new L30:C1\] src/big\.ts '}
+        - {row: -1, matches: '^\(28-34/61\) '}
+  - keys: k
+  - note: count 5 was cleared by the switch - k moves one row
+    expectScreen: {line: {row: 0, matches: '\[2/4\] \[cursor new L29:C1\] src/big\.ts '}}

@@ -1,0 +1,57 @@
+id: F-COMMENT-06
+title: 'J/K walk file comments by row then creation; unfocused J = first, K = last; clamped, no wrap; cursor follows'
+# src/big.ts full scope: row 0 hunk, L1..L29, del/add L30, L31..L60. MCP off: comments saved.
+size: 120x40
+steps:
+  - keys: <Tab>
+  - keys: ':40<Enter>ac1<Enter>'
+  - keys: ':10<Enter>ac2<Enter>'
+  - keys: ':40<Enter>ac3<Enter>'
+  - keys: ':20<Enter>ac4<Enter>'
+  - expectScreen:
+      notContains: '▸'
+      line: {row: 0, contains: '[cursor L20:C1] src/big.ts'}
+  - keys: J
+  - note: unfocused J = first by row (L10), not first created (L40)
+    expectScreen:
+      matches: '▸ sent  line L10[^\n]*\n┃ c2 '
+      line:
+        - {row: 0, contains: '[cursor L10:C1] src/big.ts'}
+        - {row: -1, contains: 'e edit  D delete'}
+  - keys: J
+  - expectScreen:
+      matches: '▸ sent  line L20[^\n]*\n┃ c4 '
+      line: {row: 0, contains: '[cursor L20:C1] src/big.ts'}
+  - keys: J
+  - note: two comments on L40, creation order - c1 first
+    expectScreen:
+      matches: '▸ sent  line L40[^\n]*\n┃ c1 '
+      line: {row: 0, contains: '[cursor L40:C1] src/big.ts'}
+  - keys: J
+  - expectScreen:
+      matches: '▸ sent  line L40[^\n]*\n┃ c3 '
+      line: {row: 0, contains: '[cursor L40:C1] src/big.ts'}
+  - keys: J
+  - note: clamped at last, no wrap to c2
+    expectScreen:
+      matches: '▸ sent  line L40[^\n]*\n┃ c3 '
+      notContains: '▸ sent  line L10'
+      line: {row: 0, contains: '[cursor L40:C1] src/big.ts'}
+  - keys: K
+  - expectScreen: {matches: '▸ sent  line L40[^\n]*\n┃ c1 '}
+  - keys: K
+  - expectScreen:
+      matches: '▸ sent  line L20[^\n]*\n┃ c4 '
+      line: {row: 0, contains: '[cursor L20:C1] src/big.ts'}
+  - keys: KK
+  - note: clamped at first, no wrap to c3
+    expectScreen:
+      matches: '▸ sent  line L10[^\n]*\n┃ c2 '
+      line: {row: 0, contains: '[cursor L10:C1] src/big.ts'}
+  - keys: <Esc>
+  - expectScreen: {notContains: '▸'}
+  - keys: K
+  - note: unfocused K = last (c3 on L40)
+    expectScreen:
+      matches: '▸ sent  line L40[^\n]*\n┃ c3 '
+      line: {row: 0, contains: '[cursor L40:C1] src/big.ts'}

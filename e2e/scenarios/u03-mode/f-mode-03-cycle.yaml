@@ -1,0 +1,29 @@
+id: F-MODE-03
+title: m cycles all -> staged -> unstaged -> all; chip updates, file index back to 1, diff reloaded from the new source
+steps:
+  - expectScreen:
+      {line: {row: 0, equals: '[all] [full] [unified] [solarized] [mcp: off] [1/4] [cursor L2:C1] README.md +2 -1'}}
+  - git: add src/c.tsx
+  - keys: <Tab><Tab>
+  - expectScreen: {line: {row: 0, matches: '^\[all\] .*\[3/4\] \[cursor L1:C1\] src/c\.tsx \+1 -1$'}}
+  - keys: m
+  - note: staged diff has only the staged file
+    expectScreen:
+      line:
+        - {row: 0, equals: '[staged] [full] [unified] [solarized] [mcp: off] [1/1] [cursor L1:C1] src/c.tsx +1 -1'}
+        - {row: 2, matches: '^@@ -1 \+1 @@'}
+        - {row: 3, matches: '^   1      -▶export const C = \(\) => <div>hi</div>;'}
+  - keys: m
+  - note: unstaged - c.tsx fully staged and untracked x.bin not listed; index 1 of the new list
+    expectScreen:
+      line:
+        - {row: 0, equals: '[unstaged] [full] [unified] [solarized] [mcp: off] [1/2] [cursor L2:C1] README.md +2 -1'}
+        - {row: 4, matches: '^   2      -▶hello'}
+  - keys: <Tab>
+  - expectScreen: {line: {row: 0, matches: '^\[unstaged\] .*\[2/2\] \[cursor L30:C1\] src/big\.ts \+1 -1$'}}
+  - keys: m
+  - note: back to all; index 1 again (README.md), position per F-NAV-08 on the other path
+    expectScreen:
+      line:
+        - {row: 0, equals: '[all] [full] [unified] [solarized] [mcp: off] [1/4] [cursor L2:C1] README.md +2 -1'}
+        - {row: -1, matches: '^\(1-5/5\) '}

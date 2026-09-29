@@ -1,0 +1,36 @@
+id: F-CONFIG-05
+title: patch deep-merged into existing object; version, agent, keys, unknown and sibling keys kept
+files:
+  ${CONFIG}/xplain/config.json:
+    version: 3
+    agent: {name: someone, opts: [1, 2]}
+    keys: {q: z}
+    foo: bar
+    theme: vibrant
+    view: {mode: all, extra: true}
+    app: {confirmQuit: true, other: 7}
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[vibrant\] '}}
+  - note: split row, choose on
+    keys: Cjjl<Enter>
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[split\] \[vibrant\] '}}
+  - expectFile:
+      path: '${CONFIG}/xplain/config.json'
+      matches: ['^\{\n\t"', '\n\t\t"split": true', '\n\}\n$']
+      json:
+        version: 3
+        agent: {name: someone, opts: [1, 2]}
+        keys: {q: z}
+        foo: bar
+        theme: vibrant
+        view: {mode: all, extra: true, split: true}
+        app: {confirmQuit: true, other: 7}
+  - note: confirm quit row, choose off
+    keys: jjh<Enter>
+  - expectFile:
+      path: '${CONFIG}/xplain/config.json'
+      json:
+        version: 3
+        foo: bar
+        view: {mode: all, extra: true, split: true}
+        app: {confirmQuit: false, other: 7}

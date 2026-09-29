@@ -1,0 +1,46 @@
+id: F-FIND-02
+title: 'split: row matches if either side matches, hits highlighted in both panes; jump column from cursor pane text, else first hit in row'
+fixture: empty
+size: 120x12
+args: [--split]
+files:
+  g.txt: "ab foo\nold xyz\nkeep\n"
+steps:
+  - git: add -A
+  - git: {args: [commit, -qm, base], code: 0}
+  - writeFile: {path: g.txt, content: "c foo\nnew line text\nkeep\n"}
+  - keys: r
+  - keys: g
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[split] [solarized] [mcp: off] [1/1] [cursor new r1:C1] g.txt +2 -2'}
+        - {row: 3, matches: 'ab foo.*│.*c foo'}
+        - {row: 4, matches: 'old xyz.*│.*new line text'}
+        - {row: -1, matches: '\(1-4/4\) hjkl move  enter ask  J/K comments  p pane  \? help$'}
+  - keys: /foo<Enter>
+  - note: pane new, first hit in right text "c foo" is col 3
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor new L1:C3] g.txt'}
+        - {row: -1, matches: '^/foo \| '}
+  - keys: j
+  - note: both panes of row L1 highlighted
+    expectCell: {at: {text: foo, nth: 0, row: 3}, bg: 3, fg: 0}
+  - expectCell: {at: {text: foo, nth: 1, row: 3}, bg: 3, fg: 0}
+  - expectCell: {at: {text: ab, row: 3}, bg: default}
+  - keys: g0p
+  - expectScreen: {line: {row: 0, contains: '[cursor old r1:C1] g.txt'}}
+  - keys: /foo<Enter>
+  - note: pane old, first hit in left text "ab foo" is col 4
+    expectScreen: {line: {row: 0, contains: '[cursor old L1:C4] g.txt'}}
+  - keys: g0p
+  - expectScreen: {line: {row: 0, contains: '[cursor new r1:C1] g.txt'}}
+  - keys: /xyz<Enter>
+  - note: only the left (old) side has xyz; row matches, col from first hit in row texts
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor new L2:C5] g.txt'}
+        - {row: -1, matches: '^/xyz \| '}
+  - keys: k
+  - expectCell: {at: {text: xyz, row: 4}, bg: 3, fg: 0}
+  - expectCell: {at: {text: old, row: 4}, bg: default}

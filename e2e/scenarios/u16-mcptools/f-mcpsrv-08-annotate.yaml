@@ -1,0 +1,38 @@
+id: F-MCPSRV-08
+title: 'annotate ok: exact result, note box on file/line/side; line floored and min 1; unknown side = new; only in its own file'
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}, notContains: 'agent note'}
+  - http: {tool: annotate, args: {file: README.md, line: 3, text: on more}}
+    expect:
+      status: 200
+      body: {result: {isError: {$exists: false}, content: [{type: text, text: '{"ok":true}'}]}}
+  - note: 2.9 floors to 2; side not old/new falls back to new (add row hello world, not del row hello)
+    http: {tool: annotate, args: {file: README.md, line: 2.9, side: middle, text: floored new}}
+    expect: {body: {result: {content: [{type: text, text: '{"ok":true}'}]}}}
+  - note: line 0 -> 1 on the old side (context row old 1)
+    http: {tool: annotate, args: {file: README.md, line: 0, side: old, text: min one}}
+    expect: {result: {ok: true}}
+  - http: {tool: annotate, args: {file: README.md, line: -7, text: negative}}
+    expect: {result: {ok: true}}
+  - http: {tool: annotate, args: {file: src/c.tsx, line: 1, text: other file note}}
+    expect: {result: {ok: true}}
+  - expectScreen:
+      notContains: ['other file note', 'saved · not asked']
+      matches:
+        - '   1    1   # Title\n╭─+╮\n│ sent  agent note L1 +│\n│ min one +│\n╰─+╯\n╭─+╮\n│ sent  agent note L1 +│\n│ negative +│\n╰─+╯\n   2      -[▶ ]hello *…?\n        2 \+[▶ ]hello world *…?\n╭─+╮\n│ sent  agent note L2 +│\n│ floored new +│\n╰─+╯\n        3 \+[▶ ]more *…?\n╭─+╮\n│ sent  agent note L3 +│\n│ on more +│\n╰─+╯'
+  - note: the other file's note shows when that file is shown
+    keys: <S-Tab><S-Tab>
+  - expectScreen:
+      line: {row: 0, matches: '\] src/c\.tsx '}
+      notContains: ['on more', 'floored new']
+      matches: '╭─+╮\n│ sent  agent note L1 +│\n│ other file note +│\n╰─+╯'
+  - note: annotate on the file currently open in browse shows there at once
+    keys: Fjson<Enter>
+  - expectScreen: {line: {row: 0, matches: '^\[browse\] .*package\.json$'}, notContains: 'agent note'}
+  - http: {tool: annotate, args: {file: package.json, line: 1, text: browse note}}
+    expect: {result: {ok: true}}
+  - expectScreen:
+      line: {row: 0, matches: '^\[browse\] .*package\.json$'}
+      matches: '╭─+╮\n│ sent  agent note L1 +│\n│ browse note +│\n╰─+╯'

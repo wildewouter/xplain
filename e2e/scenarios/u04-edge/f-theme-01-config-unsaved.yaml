@@ -1,0 +1,12 @@
+id: F-THEME-01
+title: t starts from configured theme and does not write the config file
+files:
+  ${CONFIG}/xplain/config.json: {theme: colorblind}
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[colorblind\] \[mcp: off\] '}}
+  - keys: t
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[light\] \[mcp: off\] '}}
+  - keys: t
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] '}}
+  - expectFile: {path: '${CONFIG}/xplain/config.json', json: {theme: colorblind}}
+  - expectFile: {path: '${CONFIG}/xplain/config.json', contains: colorblind, notContains: [solarized, light]}

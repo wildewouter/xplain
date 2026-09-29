@@ -1,0 +1,41 @@
+id: F-CURSOR-04
+title: 'h/l/Left/Right with count, clamped to 0..len-1; Left/Right never switch file'
+# h.txt untracked: L1 "abcdef". Second file z.txt so a file switch would show.
+fixture: empty
+size: 80x12
+files:
+  h.txt: "abcdef\n"
+  z.txt: "zzz\n"
+steps:
+  - expectScreen: {line: {row: 0, contains: '[1/2] [cursor L1:C1] h.txt'}}
+  - keys: l
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C2] h.txt'}}
+  - expectCell: {at: {row: 3, col: 13}, chars: 'b', inverse: true}
+  - expectCell: {at: {row: 3, col: 12}, chars: 'a', inverse: false}
+  - keys: <Right>
+  - expectScreen: {line: {row: 0, contains: '[1/2] [cursor L1:C3] h.txt'}}
+  - keys: h
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C2] h.txt'}}
+  - keys: <Left>
+  - expectScreen: {line: {row: 0, contains: '[1/2] [cursor L1:C1] h.txt'}}
+  - keys: h<Left>
+  - note: clamped at col 1, no file switch
+    expectScreen: {line: {row: 0, contains: '[1/2] [cursor L1:C1] h.txt'}}
+  - expectCell: {at: {row: 3, col: 12}, chars: 'a', inverse: true}
+  - keys: 3l
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C4] h.txt'}}
+  - expectCell: {at: {row: 3, col: 15}, chars: 'd', inverse: true}
+  - keys: 10l
+  - note: clamped to last char
+    expectScreen: {line: {row: 0, contains: '[cursor L1:C6] h.txt'}}
+  - expectCell: {at: {row: 3, col: 17}, chars: 'f', inverse: true}
+  - keys: l<Right>
+  - expectScreen: {line: {row: 0, contains: '[1/2] [cursor L1:C6] h.txt'}}
+  - keys: 2<Left>
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C4] h.txt'}}
+  - keys: 2<Right>
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C6] h.txt'}}
+  - keys: 2h
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C4] h.txt'}}
+  - keys: 99h
+  - expectScreen: {line: {row: 0, contains: '[1/2] [cursor L1:C1] h.txt'}}

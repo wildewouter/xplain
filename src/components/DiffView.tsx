@@ -207,7 +207,6 @@ export function DiffView({
 	col = 0,
 	sel,
 	hoff = 0,
-	skip = 0,
 	askSel,
 	sent,
 	side = 'new',
@@ -225,7 +224,6 @@ export function DiffView({
 	col?: number; // char cursor column (0-based, clamped by caller)
 	sel?: Sel; // visual selection
 	hoff?: number; // horizontal scroll (code text only)
-	skip?: number; // lines of the first row block (row + boxes) hidden above the viewport
 	askSel?: AskSel;
 	sent?: Map<number, SentQ[]>; // submitted questions by anchor row
 	side?: PaneSide; // split: pane carrying the char cursor
@@ -235,7 +233,7 @@ export function DiffView({
 	const w = Math.floor((cols - 1) / 2);
 	// rows that fit, counting inline boxes (sent questions, ask box under the cursor row)
 	const vis: {r: Row | SRow; ri: number}[] = [];
-	let used = -skip; // lines of the first row block scrolled off the top
+	let used = 0;
 	for (let ri = offset; ri < rows.length; ri++) {
 		const h = 1 + (sent?.get(ri) ?? []).reduce((n, q) => n + sentH(q), 0) + (ask && ri === cur ? askH(askSel) : 0);
 		if (used >= height) break;
@@ -324,7 +322,7 @@ export function DiffView({
 				})();
 				const bw = Math.max(10, cols - 1);
 				return (
-					<Box key={i} flexDirection="column" flexShrink={0} marginTop={i === 0 ? -skip : 0}>
+					<Box key={i} flexDirection="column" flexShrink={0}>
 						{el}
 						{(sent?.get(ri) ?? []).map((q, k) => (
 							<SentBox key={`sent${k}`} q={q} width={bw} name={name} />

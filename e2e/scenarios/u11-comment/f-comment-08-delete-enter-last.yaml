@@ -1,0 +1,27 @@
+id: F-COMMENT-08
+title: 'Enter confirms delete too; deleting the last comment in file unfocuses, cursor stays'
+size: 120x40
+steps:
+  - keys: <Tab>
+  - keys: ':10<Enter>ac1<Enter>'
+  - keys: ':20<Enter>ac2<Enter>'
+  - keys: K
+  - expectScreen: {matches: '▸ sent  line L20[^\n]*\n┃ c2 '}
+  - keys: D
+  - expectScreen: {contains: 'Delete comment? (y/n)'}
+  - keys: <Enter>
+  - note: no comment after c2 - unfocused, cursor stays on L20
+    expectScreen:
+      notContains: ['Delete comment?', 'line L20', '▸']
+      contains: 'sent  line L10'
+      line:
+        - {row: 0, contains: '[cursor L20:C1] src/big.ts'}
+        - {row: -1, matches: '^comment deleted \| \(\d+-\d+/62\) hjkl move'}
+  - keys: JD<Enter>
+  - expectScreen:
+      notContains: ['sent  line', '▸']
+      line:
+        - {row: 0, contains: '[cursor L10:C1] src/big.ts'}
+        - {row: -1, matches: '^comment deleted \| '}
+  - keys: J
+  - expectScreen: {line: {row: -1, matches: '^no comments \| '}}

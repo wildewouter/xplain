@@ -1,0 +1,7 @@
+id: F-CONFIG-01
+title: XPLAIN_CONFIG empty, app reads the XDG file
+env: {XPLAIN_CONFIG: ''}
+files:
+  ${CONFIG}/xplain/config.json: {theme: vibrant}
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[vibrant\] \[mcp: off\] '}}

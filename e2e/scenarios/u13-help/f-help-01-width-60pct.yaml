@@ -1,0 +1,9 @@
+id: F-HELP-01
+title: 'width floor(cols*0.6) = 38 at 64 cols when content is wider; description wraps'
+size: 64x40
+steps:
+  - keys: '??'
+  - expectScreen:
+      matches: '│  PgDn/PgUp page down/up \(space: *│$\n^[^\n]*│ +down\) *│$'
+      notContains: '(space: down)'
+      line: {row: -2, matches: '^ {26}╰─{36}╯$'}

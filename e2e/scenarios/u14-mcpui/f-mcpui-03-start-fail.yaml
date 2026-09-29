@@ -1,0 +1,29 @@
+id: F-MCPUI-03
+title: 'start fail (token file not writable): stays off, error row kept until next start attempt'
+files:
+  # state dir path is a regular file: token file write fails
+  ${STATE}/xplain: 'not a dir'
+steps:
+  - keys: M<Enter>
+  - expectScreen:
+      matches: '^ +│> ○ off +│\n +│ \S[^\n]*│\n +│ clients 0 pending 0 delivered 0 +│$'
+      line: {row: 0, contains: '[mcp: off]'}
+  - keys: jk<Esc>M
+  - note: error row survives moves and modal reopen
+    expectScreen:
+      matches: '^ +│> ○ off +│\n +│ \S[^\n]*│\n +│ clients 0 pending 0 delivered 0 +│$'
+  - removeFile: '${STATE}/xplain'
+  - keys: <Enter>
+  - expectScreen:
+      matches: '^ +│> ● on  127\.0\.0\.1:${PORT} +│\n +│ clients 0 pending 0 delivered 0 +│$'
+      line: {row: 0, contains: '[mcp: on]'}
+  - expectFile: {path: '${STATE}/xplain/mcp.json', json: {token: {$exists: true}}}
+  - note: stop, then another process holds the port - start fails with the port-busy message
+    keys: <Enter>
+  - expectScreen: {line: {row: 0, contains: '[mcp: off]'}}
+  - holdPort: {port: '${PORT}'}
+  - keys: <Enter>
+  - expectScreen:
+      # modal width cuts the row; the visible prefix of the message is checked
+      matches: '^ +│> ○ off +│\n +│ MCP port ${PORT} is already in use on 127\.0\.0\.1\. Stop the othe\S*│\n +│ clients 0 pending 0 delivered 0 +│$'
+      line: {row: 0, contains: '[mcp: off]'}

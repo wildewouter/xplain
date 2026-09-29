@@ -1,0 +1,13 @@
+id: F-MCPSRV-01
+title: existing state dir keeps its mode; new token file still gets 0600
+files:
+  ${STATE}/xplain/other.txt: "keep\n"
+steps:
+  - chmod: {path: '${STATE}/xplain', mode: '755'}
+  - keys: M<Enter>
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - expectFile: {path: '${STATE}/xplain/mcp.json', json: {token: {$matches: '^[A-Za-z0-9_-]{43}$'}}}
+  - note: dir mode only applied when the app creates the dir
+    expectFile: {path: '${STATE}/xplain', mode: '755'}
+  - expectFile: {path: '${STATE}/xplain/mcp.json', mode: '600'}
+  - expectFile: {path: '${STATE}/xplain/other.txt', equals: "keep\n"}

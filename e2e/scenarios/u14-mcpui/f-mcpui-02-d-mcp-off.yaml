@@ -1,0 +1,14 @@
+id: F-MCPUI-02
+title: 'd works with MCP off when row known registered'
+shims:
+  claude: [{match: [mcp, get], exit: 0}]
+steps:
+  - keys: M<Enter>
+  - expectScreen: {matches: '^ +│  Claude Code registered'}
+  - keys: <Enter>
+  - expectScreen: {matches: '^ +│> ○ off'}
+  - keys: jd
+  - expectScreen: {contains: 'Remove Claude Code registration? (y/n)'}
+  - keys: y
+  - expectShimCall: {name: claude, args: [mcp, remove, xplain, -s, local], count: 1}
+  - expectScreen: {contains: 'Removed xplain from Claude Code'}

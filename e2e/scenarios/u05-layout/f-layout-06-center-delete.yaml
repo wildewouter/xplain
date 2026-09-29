@@ -1,0 +1,13 @@
+id: F-LAYOUT-06
+title: 'delete comment modal (25x3) centered at 81x25'
+size: 81x25
+steps:
+  - keys: ahi<Enter>
+  - keys: J
+  - expectScreen: {notContains: 'Delete comment?'}
+  - keys: D
+  - expectScreen:
+      line:
+        - {row: 11, matches: '^.{28}╭─{23}╮'}
+        - {row: 12, matches: '^.{28}│ Delete comment\? \(y/n\) │$'}
+        - {row: 13, matches: '^.{28}╰─{23}╯'}

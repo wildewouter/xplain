@@ -1,0 +1,24 @@
+id: F-MCPSRV-02
+title: Origin present with non-loopback or unparseable hostname gives 403 forbidden; loopback origins pass
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+  ${STATE}/xplain/mcp.json: {token: e2e-known-token-0123456789}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http: {method: ping, headers: {origin: 'http://evil.example'}}
+    expect:
+      status: 403
+      headers: {content-type: {$matches: '^application/json'}}
+      body: {error: forbidden}
+  - note: unparseable origin counts as bad
+    http: {method: ping, headers: {origin: 'not a url'}}
+    expect: {status: 403, body: {error: forbidden}}
+  - note: 403 wins over missing auth
+    http: {method: ping, headers: {origin: 'https://evil.example:8443'}, auth: false}
+    expect: {status: 403, body: {error: forbidden}}
+  - http: {method: ping, headers: {origin: 'http://localhost:3000'}}
+    expect: {status: 200, body: {id: 4, result: {}}}
+  - http: {method: ping, headers: {origin: 'http://127.0.0.1:${PORT}'}}
+    expect: {status: 200, body: {id: 5, result: {}}}
+  - http: {method: ping, headers: {origin: 'http://[::1]:9999'}}
+    expect: {status: 200, body: {id: 6, result: {}}}

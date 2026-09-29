@@ -1,0 +1,20 @@
+id: F-VISUAL-03
+title: rows without number use `r<row+1>` labels (hunk row = r1); line and char forms
+fixture: empty
+size: 80x30
+files:
+  f.txt: "alpha beta\ntwo words here\n"
+steps:
+  - keys: g
+  - expectScreen: {line: {row: 0, matches: '\[cursor r1:C1\] f\.txt '}}
+  - keys: Vj
+  - expectScreen: {line: {row: 0, matches: '\[visual L1:C1\] f\.txt '}}
+  - keys: <Enter>
+  - expectScreen: {contains: '│ selection r1-1 '}
+  - keys: <Esc><Esc>gvjll
+  - expectScreen: {line: {row: 0, matches: '\[visual L1:C3\] f\.txt '}}
+  - keys: <Enter>
+  - expectScreen: {contains: '│ selection r1:C1-L1:C3 '}
+  - keys: <Esc><Esc>gV
+  - keys: <Enter>
+  - expectScreen: {contains: '│ selection r1 ', notContains: 'selection r1-'}

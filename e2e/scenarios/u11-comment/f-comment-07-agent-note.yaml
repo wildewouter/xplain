@@ -1,0 +1,18 @@
+id: F-COMMENT-07
+title: 'agent note with a single turn is editable: e prefills the note text, Enter changes it'
+size: 120x30
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http: {tool: annotate, args: {file: README.md, line: 1, text: 'agent said'}}
+    expect: {result: {ok: true}}
+  - expectScreen: {matches: 'sent  agent note L1[^\n]*\n│ agent said '}
+  - keys: J
+  - expectScreen: {contains: '▸ sent  agent note L1'}
+  - keys: e
+  - expectScreen: {matches: '│ edit agent note L1 +│\n│ agent said  +│\n│ enter send  esc cancel +│'}
+  - keys: ' twice<Enter>'
+  - expectScreen:
+      matches: 'sent  agent note L1[^\n]*\n[│┃] agent said twice '
+      line: {row: -1, matches: '^comment updated \| '}

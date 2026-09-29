@@ -1,0 +1,22 @@
+id: F-COMMENT-07
+title: 'comment with an answer (single turn) is editable; the answer is kept'
+size: 120x30
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - keys: awhy this<Enter>
+  - http: {tool: next_question, args: {wait_seconds: 1}}
+    expect: {result: {status: question, turn: 1}}
+    capture: {T: result.thread_id}
+  - http: {tool: answer, args: {thread_id: '${T}', text: 'because reasons'}}
+    expect: {result: {ok: true}}
+  - expectScreen: {contains: 'because reasons'}
+  - keys: J
+  - keys: e
+  - expectScreen: {matches: '│ edit line L2 +│\n│ why this  +│'}
+  - keys: <BS><BS><BS><BS>that<Enter>
+  - expectScreen:
+      matches: 'sent  line L2[^\n]*\n[│┃] why that +[│┃]\n[│┃]─ answer · [^\n]*done[^\n]*\n[│┃] because reasons '
+      notContains: 'why this'
+      line: {row: -1, matches: '^comment updated \| '}

@@ -1,0 +1,29 @@
+id: F-MCPSRV-01
+title: token file created on first start (not on launch), 2-space JSON, 43-char base64url token, dir 0700 file 0600
+size: 80x24
+steps:
+  - note: launch alone does not create the state dir or token file
+    expectFile: {path: '${STATE}/xplain', exists: false}
+  - note: not listening before start
+    expectRefused: '${PORT}'
+  - expectScreen: {line: {row: 0, contains: '[mcp: off]'}}
+  - keys: M<Enter>
+  - expectScreen:
+      line: {row: 0, contains: '[mcp: on]'}
+      contains: '● on  127.0.0.1:${PORT}'
+  - expectFile:
+      path: '${STATE}/xplain/mcp.json'
+      # 2-space indented JSON + trailing newline; fields besides token not asserted (UNSPEC-15)
+      matches: ['^\{\n  "', '^  "token": "[A-Za-z0-9_-]{43}",?$', '\n\}\n$']
+      json: {token: {$matches: '^[A-Za-z0-9_-]{43}$'}}
+  - note: dir created with mode 0700
+    expectFile: {path: '${STATE}/xplain', mode: '700'}
+  - note: file mode 0600
+    expectFile: {path: '${STATE}/xplain/mcp.json', mode: '600'}
+  - note: the server listens on 127.0.0.1:<port>/mcp and accepts the token from the file
+    http: {method: ping}
+    expect: {status: 200, body: {jsonrpc: '2.0', id: 1, result: {}}}
+  - note: stop (modal still open) - listens only while started
+    keys: <Space>
+  - expectScreen: {line: {row: 0, contains: '[mcp: off]'}}
+  - expectRefused: '${PORT}'

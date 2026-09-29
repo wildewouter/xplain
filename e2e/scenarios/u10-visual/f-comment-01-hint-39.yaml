@@ -1,0 +1,12 @@
+id: F-COMMENT-01
+title: new-comment hint at cols 39 - falls back to `enter send  esc cancel`
+fixture: empty
+size: 39x16
+files:
+  f.txt: "alpha\n"
+steps:
+  - keys: a
+  - expectScreen:
+      line:
+        - {row: 4, matches: '^╭─+╮$'}
+        - {row: 6, matches: '^│ enter send  esc cancel +│$'}

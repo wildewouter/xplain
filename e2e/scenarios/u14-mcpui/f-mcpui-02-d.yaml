@@ -1,0 +1,16 @@
+id: F-MCPUI-02
+title: 'd: OpenCode copy-paste note; not registered note; registered -> remove confirm'
+shims:
+  claude: [{match: [mcp, get], exit: 0}]
+  codex: [{match: [mcp, get], exit: 1}]
+steps:
+  - keys: M<Enter>jj
+  - expectScreen: {matches: '^ +│> Codex not registered'}
+  - keys: d
+  - expectScreen: {contains: 'not registered', matches: '^ +│ not registered +│$', notContains: '(y/n)'}
+  - keys: jd
+  - expectScreen: {contains: 'copy-paste only: c copies the snippet', notContains: '(y/n)'}
+  - keys: kkd
+  - expectScreen: {contains: 'Remove Claude Code registration? (y/n)'}
+  - keys: n
+  - expectShimCall: {name: claude, argsPrefix: [mcp, remove], count: 0}

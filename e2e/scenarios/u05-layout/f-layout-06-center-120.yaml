@@ -1,0 +1,12 @@
+id: F-LAYOUT-06
+title: 'picker centered at 120x40: width floor(120*0.7)=84 at col 18, height 8 at row 16'
+size: 120x40
+steps:
+  - keys: f
+  - expectScreen:
+      line:
+        - {row: 15, notContains: ['╭', '╰', '│']}
+        - {row: 16, matches: '^.{18}╭─{82}╮'}
+        - {row: 17, matches: '^.{18}│ Files \(1/4\) +│$'}
+        - {row: 23, matches: '^.{18}╰─{82}╯'}
+        - {row: 24, notContains: ['╭', '╰', '│']}

@@ -1,0 +1,20 @@
+id: F-COMMENT-05
+title: box visible in browse of the same path, on the row with that line number
+fixture: empty
+size: 80x24
+files:
+  f.txt: "one\ntwo\nthree\n"
+steps:
+  - keys: jadiffnote<Enter>
+  - expectScreen: {line: [{row: 4, matches: '^        2 \+▶two'}, {row: 7, matches: '^│ diffnote +│$'}]}
+  - keys: F
+  - keys: f.txt<Enter>
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[browse\] .*\[cursor L1:C1\] f\.txt'}
+        - {row: 2, matches: '^   1  ▶one'}
+        - {row: 3, equals: '   2   two'}
+        - {row: 4, matches: '^╭─+╮$'}
+        - {row: 5, matches: '^│ sent  line L2 '}
+        - {row: 6, matches: '^│ diffnote +│$'}
+        - {row: 8, equals: '   3   three'}

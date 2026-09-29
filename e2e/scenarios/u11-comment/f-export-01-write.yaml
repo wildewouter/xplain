@@ -1,0 +1,24 @@
+id: F-EXPORT-01
+title: 'E writes <abs cwd>/xplain-review-YYYYMMDD-HHMMSS.md; note exported 1 comment -> <path>, then 2 comments (plural)'
+size: 250x20
+steps:
+  - keys: aone<Enter>
+  - keys: E
+  - expectScreen:
+      line: {row: -1, matches: '^exported 1 comment -> ${REPO}/xplain-review-\d{8}-\d{6}\.md \| \(1-5/5\) '}
+  - git: {args: [ls-files, --others, --error-unmatch, 'xplain-review-*.md'], code: 0}
+  - note: the path in the note is the one export file
+    captureScreen: {row: -1, matches: '^exported 1 comment -> (?<OUT1>\S+) '}
+  - expectFile: {glob: xplain-review-*.md, count: 1}
+  - expectFile:
+      path: ${OUT1}
+      contains: ["- repo: `${REPO}`\n", "- comments: 1\n", "> one\n"]
+  - removeFile: ${OUT1}
+  - keys: jatwo<Enter>
+  - keys: E
+  - expectScreen:
+      line: {row: -1, matches: '^exported 2 comments -> ${REPO}/xplain-review-\d{8}-\d{6}\.md \| '}
+  - expectFile:
+      glob: xplain-review-*.md
+      name: {matches: '^xplain-review-\d{8}-\d{6}\.md$'}
+      contains: ["- comments: 2\n", "> one\n", "> two\n"]

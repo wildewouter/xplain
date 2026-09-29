@@ -1,0 +1,9 @@
+id: F-CLI-04
+title: 'config path extra is not the subcommand - all three words go to git and the UI starts'
+args: [config, path, extra]
+shims: [git]
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[mcp: off\] No changes '}}
+  - expectShimCall: {name: git, args: [diff, --no-color, --no-ext-diff, -U1000000, config, path, extra]}
+  - keys: <C-c>
+  - expectExit: 0

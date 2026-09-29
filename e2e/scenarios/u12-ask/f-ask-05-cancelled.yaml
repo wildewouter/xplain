@@ -1,0 +1,31 @@
+id: F-ASK-05
+title: MCP stop turns pending and streaming answers into cancelled with text MCP stopped; done answers stay
+size: 40x40
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - keys: a
+  - keys: one<Enter>
+  - keys: j
+  - keys: a
+  - keys: two<Enter>
+  - keys: j
+  - keys: a
+  - keys: three<Enter>
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+    expect: {result: {thread_id: q1}}
+  - http: {tool: answer, args: {thread_id: q1, text: first answer}}
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+    expect: {result: {thread_id: q2}}
+  - expectScreen:
+      matches:
+        - '│ one +│\n│─ answer · agent · done ─+│\n│ first answer +│'
+        - '│ two +│\n│─ answer · agent · streaming… ─+│\n│ . agent working… +│'
+        - '│ three +│\n│─ answer · agent · waiting… ─+│\n│ ⠿ waiting for agent… +│'
+  - keys: M<Enter><Esc>
+  - expectScreen:
+      matches:
+        - '│ one +│\n│─ answer · agent · done ─{13}│\n│ first answer +│'
+        - '│ two +│\n│─ answer · agent · cancelled ─{8}│\n│ MCP stopped +│\n╰'
+        - '│ three +│\n│─ answer · agent · cancelled ─{8}│\n│ MCP stopped +│\n╰'
+      notContains: ['streaming…', 'waiting…', 'agent working', 'waiting for agent']

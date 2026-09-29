@@ -1,0 +1,26 @@
+id: F-HELP-01
+title: 'opening a text input keeps the panel open and switches it to that context; closing returns to Diff view'
+size: 120x40
+steps:
+  - keys: '?'
+  - expectScreen: {matches: '│ Help · Diff view *│$\n^[^\n]*│ Find *│$'}
+  - keys: /
+  - expectScreen: {contains: 'Help · Find in file', line: {row: -1, matches: '^/█'}}
+  - keys: <Esc>
+  - expectScreen:
+      {
+        matches: '│ Help · Diff view *│$\n^[^\n]*│ Find *│$',
+        line: {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'},
+      }
+  - keys: ':'
+  - expectScreen: {contains: 'Help · Go to line', line: {row: -1, matches: '^:█'}}
+  - keys: <Esc>
+  - expectScreen: {matches: '│ Help · Diff view *│$\n^[^\n]*│ Find *│$'}
+  - keys: F
+  - expectScreen: {contains: ['Help · File search', 'Search (1/6)']}
+  - keys: <Esc>
+  - expectScreen: {matches: '│ Help · Diff view *│$\n^[^\n]*│ Find *│$', notContains: 'Search ('}
+  - keys: a
+  - expectScreen: {contains: ['Help · Editor', '[save] enter send']}
+  - keys: <Esc>
+  - expectScreen: {matches: '│ Help · Diff view *│$\n^[^\n]*│ Find *│$', notContains: 'enter send'}

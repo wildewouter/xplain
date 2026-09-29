@@ -1,0 +1,23 @@
+id: F-VISUAL-03
+title: del + add row both numbered L2 in unified give the single label `L2` / `L2:C1-C3`
+fixture: empty
+size: 80x30
+steps:
+  - writeFile: {path: f.txt, content: "# Title\nhello\n"}
+  - git: add -A
+  - git: commit -qm base
+  - writeFile: {path: f.txt, content: "# Title\nhello world\nmore\n"}
+  - keys: r
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L2:C1\] f\.txt \+2 -1$'}
+        - {row: 4, matches: '^   2      -▶hello'}
+        - {row: 5, equals: '        2 + hello world'}
+  - keys: Vj
+  - expectScreen: {line: {row: 0, matches: '\[visual L2:C1\] f\.txt '}}
+  - keys: a
+  - expectScreen: {contains: '│ selection L2 ', notContains: 'selection L2-'}
+  - keys: <Esc><Esc>kvjll
+  - expectScreen: {line: {row: 0, matches: '\[visual L2:C3\] f\.txt '}}
+  - keys: <Enter>
+  - expectScreen: {contains: '│ selection L2:C1-C3 ', notContains: 'selection L2:C1-L2'}

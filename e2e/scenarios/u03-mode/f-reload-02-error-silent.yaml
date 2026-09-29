@@ -1,0 +1,17 @@
+id: F-RELOAD-02
+title: agent reload with failing diff load - errors ignored, no note, no error screen, old diff kept
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen:
+      {line: {row: 0, equals: '[all] [full] [unified] [solarized] [mcp: on] [1/4] [cursor L2:C1] README.md +2 -1'}}
+  - writeFile: {path: .git/refs/heads/bogus, content: "0123456789012345678901234567890123456789\n"}
+  - git: symbolic-ref HEAD refs/heads/bogus
+  - http: {tool: files_changed, args: {paths: [README.md]}}
+    expect: {result: {ok: true}}
+  - expectScreen:
+      line:
+        - {row: 0, equals: '[all] [full] [unified] [solarized] [mcp: on] [1/4] [cursor L2:C1] README.md +2 -1'}
+        - {row: 4, matches: '^   2      -▶hello'}
+        - {row: -1, equals: '(1-5/5) hjkl move  enter ask  J/K comments  ? help'}
+      notContains: [fatal, reloaded]

@@ -1,0 +1,27 @@
+id: F-EXPORT-02
+title: 'files sorted by path in code-unit order; comments by line numerically (row index for hunk rows), ties in creation order; n across doc'
+size: 250x40
+steps:
+  - note: browse package.json via file search and comment on its line 1
+    keys: Fpackage.json<Enter>
+  - expectScreen: {line: {row: 0, matches: '^\[browse\] .*package\.json'}}
+  - keys: ap1<Enter><Esc>
+  - expectScreen: {line: {row: 0, matches: '^\[all\] .*README\.md'}}
+  - keys: Gar3<Enter>
+  - keys: gjar1<Enter>
+  - note: row 1 is the hunk row (row index 0)
+    keys: gah0<Enter>
+  - keys: <Tab>
+  - expectScreen: {line: {row: 0, contains: 'src/big.ts'}}
+  - keys: ':10<Enter>ab10<Enter>'
+  - keys: ':9<Enter>ab9<Enter>'
+  - keys: ':30<Enter>ab30<Enter>'
+  - keys: ':10<Enter>ab10z<Enter>'
+  - keys: E
+  - expectScreen: {line: {row: -1, matches: '^exported 8 comments -> '}}
+  - note: README.md < package.json < src/big.ts by code unit (uppercase first); 9 < 10 < 30 numerically
+    expectFile:
+      glob: xplain-review-*.md
+      contains: "- comments: 8\n"
+      matches:
+        - "## `README\\.md`\n\n### 1\\. new side, row 1\n[\\s\\S]*\n> h0\n\n### 2\\. new side, line 1\n[\\s\\S]*\n> r1\n\n### 3\\. new side, line 3\n[\\s\\S]*\n> r3\n\n## `package\\.json`\n\n### 4\\. new side, line 1\n[\\s\\S]*\n> p1\n\n## `src/big\\.ts`\n\n### 5\\. new side, line 9\n[\\s\\S]*\n> b9\n\n### 6\\. new side, line 10\n[\\s\\S]*\n> b10\n\n### 7\\. new side, line 10\n[\\s\\S]*\n> b10z\n\n### 8\\. new side, line 30\n[\\s\\S]*\n> b30\n(?![\\s\\S])"

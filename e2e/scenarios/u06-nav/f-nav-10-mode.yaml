@@ -1,0 +1,23 @@
+id: F-NAV-10
+title: m landing on the same path keeps the cursor and resets top then follows
+# README.md restored and src/big.ts fully staged: src/big.ts is file 1 in all mode and the only file in staged mode,
+# with identical rows.
+# SPEC-MISMATCH: same flow with src/big.ts as file 2 in all mode (README.md still changed): spec F-MODE-03 says
+# path same as before m -> cursor kept; app places cursor on first change (L30) as if another file. Not asserted.
+size: 96x12
+steps:
+  - git: checkout -- README.md
+  - git: add src/big.ts
+  - keys: r
+  - expectScreen: {line: {row: 0, matches: '^\[all\] .*\[1/3\] .*src/big\.ts '}}
+  - keys: G10k
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] .*\[1/3\] \[cursor L50:C1\] src/big\.ts'}
+        - {row: -1, matches: '(^|\| )\(50-58/62\) '}
+  - keys: m
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[staged\] .*\[1/1\] \[cursor L50:C1\] src/big\.ts'}
+        - {row: 8, matches: '^  50   50  ▶const v50'}
+        - {row: -1, matches: '(^|\| )\(46-54/62\) '}

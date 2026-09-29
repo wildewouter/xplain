@@ -1,0 +1,33 @@
+id: F-MCPSRV-02
+title: body that is not JSON gives 400 JSON-RPC parse error with id null
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+  ${STATE}/xplain/mcp.json: {token: e2e-known-token-0123456789}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http: {raw: 'not json'}
+    expect:
+      status: 400
+      headers: {content-type: {$matches: '^application/json'}}
+      body: {jsonrpc: '2.0', id: null, error: {code: -32700, message: Parse error}, result: {$exists: false}}
+  - http: {raw: '{"jsonrpc":"2.0","id":1,"method":"ping"'}
+    expect: {status: 400, body: {jsonrpc: '2.0', id: null, error: {code: -32700, message: Parse error}}}
+  - http: {raw: ''}
+    expect: {status: 400, body: {jsonrpc: '2.0', id: null, error: {code: -32700, message: Parse error}}}
+  - note: body of exactly 1048576 bytes is read (then fails to parse)
+    http: {raw: 'x', bodyRepeat: 1048576}
+    expect: {status: 400, body: {jsonrpc: '2.0', id: null, error: {code: -32700, message: Parse error}}}
+  - note: body over 1048576 bytes - 413, connection closed
+    http: {raw: 'x', bodyRepeat: 1048577}
+    expect:
+      {
+        status: 413,
+        headers: {connection: close, content-type: {$matches: '^application/json'}},
+        body: {error: body too large},
+      }
+  - note: parse check comes after the auth check
+    http: {raw: 'not json', auth: false}
+    expect: {status: 401, body: {error: unauthorized}}
+  - note: the server still works afterwards
+    http: {method: ping}
+    expect: {status: 200, body: {result: {}}}

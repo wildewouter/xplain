@@ -1,0 +1,59 @@
+id: F-EXPORT-02
+title: 'state and answer blocks: answered (+ follow-up and its answer), streaming, pending, saved; cancelled after MCP stop'
+size: 250x50
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - note: an initialized MCP session, so delivered answers carry its client name
+    http:
+      {
+        method: initialize,
+        params: {protocolVersion: '2025-06-18', capabilities: {}, clientInfo: {name: statebot, version: '1'}},
+      }
+    expect: {status: 200}
+    capture: {SID: headers.mcp-session-id}
+  - note: c1 on L1, asked and answered, then a follow-up answered
+    keys: kaq one<Enter>
+  - http: {tool: next_question, args: {wait_seconds: 1}, headers: {mcp-session-id: '${SID}'}}
+    expect: {result: {status: question, turn: 1}}
+    capture: {T1: result.thread_id}
+  - http: {tool: answer, args: {thread_id: '${T1}', text: "ans one\nsecond line"}, headers: {mcp-session-id: '${SID}'}}
+    expect: {result: {ok: true}}
+  - keys: Ja
+  - keys: more please<Enter>
+  - expectScreen: {line: {row: -1, matches: '^follow-up queued \| '}}
+  - http: {tool: next_question, args: {wait_seconds: 1}, headers: {mcp-session-id: '${SID}'}}
+    expect: {result: {status: question, turn: 2, follow_up: true}}
+  - http: {tool: answer, args: {thread_id: '${T1}', text: 'ans two'}, headers: {mcp-session-id: '${SID}'}}
+    expect: {result: {ok: true}}
+  - note: c2 on the del row L2, delivered, no answer (streaming)
+    keys: <Esc>jaq two<Enter>
+  - http: {tool: next_question, args: {wait_seconds: 1}, headers: {mcp-session-id: '${SID}'}}
+    expect: {result: {status: question, turn: 1, question: {$contains: 'q two'}}}
+  - note: c3 on L3 queued, not delivered (pending); c4 on L3 saved
+    keys: Gaq three<Enter>
+  - keys: a<Tab>q four<Enter>
+  - expectScreen: {line: {row: -1, matches: '^question saved \(4\) \| '}}
+  - keys: E
+  - expectScreen: {line: {row: -1, matches: '^exported 4 comments -> '}}
+  - expectFile:
+      glob: xplain-review-*.md
+      capturePath: OUT1
+      notContains: "\n\n\n"
+      matches:
+        - "### 1\\. new side, line 1\n\n- origin: human\n- state: answered\n\nLine:[\\s\\S]*?\\*\\*Comment:\\*\\*\n\n> q one\n\n\\*\\*Answer \\(statebot\\) - done\\*\\*\n\n> ans one\n> second line\n\n\\*\\*Follow-up 1:\\*\\*\n\n> more please\n\n\\*\\*Answer \\(statebot\\) - done\\*\\*\n\n> ans two\n\n### 2\\. "
+        - "### 2\\. new side, line 2\n\n- origin: human\n- state: streaming\n\nLine:\n\n```\nhello\n```\n[\\s\\S]*?\\*\\*Comment:\\*\\*\n\n> q two\n\n\\*\\*Answer \\(statebot\\) - streaming\\*\\*\n"
+        - "### 3\\. new side, line 3\n\n- origin: human\n- state: pending\n\n[\\s\\S]*?\\*\\*Comment:\\*\\*\n\n> q three\n\n\\*\\*Answer - pending\\*\\*\n"
+        - "### 4\\. new side, line 3\n\n- origin: human\n- state: saved\n\n[\\s\\S]*?\\*\\*Comment:\\*\\*\n\n> q four\n(?![\\s\\S])"
+  - removeFile: ${OUT1}
+  - note: stop MCP - the delivered question is cancelled (agent name after stop not asserted - sessions end with the server)
+    keys: M<Space><Esc>
+  - expectScreen: {line: {row: 0, contains: '[mcp: off]'}}
+  - keys: E
+  - expectScreen: {line: {row: -1, matches: '^exported 4 comments -> '}}
+  - expectFile:
+      glob: xplain-review-*.md
+      matches:
+        - "### 1\\. new side, line 1\n\n- origin: human\n- state: answered\n"
+        - "### 2\\. new side, line 2\n\n- origin: human\n- state: cancelled\n[\\s\\S]*?\n> q two\n\n\\*\\*Answer( \\(statebot\\))? - cancelled\\*\\*\n\n> MCP stopped\n\n### 3\\. "

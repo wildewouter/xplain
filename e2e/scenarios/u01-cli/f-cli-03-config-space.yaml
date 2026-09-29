@@ -1,0 +1,9 @@
+id: F-CLI-03
+title: '--config <f> reads that file instead of the default config'
+args: [--config, '${TMP}/custom.json']
+files:
+  ${TMP}/custom.json: {theme: dull, view: {split: true, full: false}}
+  ${CONFIG}/xplain/config.json: {theme: vibrant}
+steps:
+  - expectScreen:
+      line: {row: 0, matches: '^\[all\] \[changes\] \[split\] \[dull\] \[mcp: off\] '}

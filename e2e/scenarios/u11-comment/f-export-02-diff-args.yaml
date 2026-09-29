@@ -1,0 +1,10 @@
+id: F-EXPORT-02
+title: 'diff line: mode plus git args (all with args)'
+size: 250x20
+args: [HEAD, --, README.md]
+steps:
+  - keys: ac<Enter>E
+  - expectScreen: {line: {row: -1, matches: '^exported 1 comment -> '}}
+  - expectFile:
+      glob: xplain-review-*.md
+      contains: "- repo: `${REPO}`\n- diff: `all HEAD -- README.md`\n- date: "

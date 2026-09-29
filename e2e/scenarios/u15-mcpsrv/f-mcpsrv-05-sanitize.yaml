@@ -1,0 +1,18 @@
+id: F-MCPSRV-05
+title: agent text is sanitized - ANSI escapes and control chars stripped, newline kept
+size: 100x30
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - note: raw, "\e[3D" would move the terminal cursor back and "\b" too, eating chars; stripped they vanish
+    http:
+      {tool: annotate, args: {file: README.md, line: 2, text: "keep\e[3DXYZ\e[31mred\e[0m\x01\x7f\bEND\nsecond line"}}
+    expect: {status: 200, result: {ok: true}}
+  - expectScreen:
+      contains: ['keepXYZredEND', 'second line']
+      notContains: ['[3D', '[31m', '[0m']
+      matches: 'keepXYZredEND *│?\n.*second line'
+  - note: box default text color (modalFg) - a passed-through SGR 31 would turn "red" palette red
+    expectCell: {at: {text: 'keepXYZredEND', offset: 7}, chars: r, fg: '#93a1a1'}
+  - expectCell: {at: {text: 'keepXYZredEND', offset: 10}, chars: E, fg: '#93a1a1'}

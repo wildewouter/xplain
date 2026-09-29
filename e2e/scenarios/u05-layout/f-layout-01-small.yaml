@@ -1,0 +1,18 @@
+id: F-LAYOUT-01
+title: 'frame at 80x8: rule 79 dashes, viewport H=5 (rows 2..6), footer on row 7'
+size: 80x8
+steps:
+  - keys: <Tab>g
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] '}
+        - {row: 1, matches: '^─{79}$'}
+        - {row: 2, matches: '^@@ '}
+        - {row: 6, matches: '^   4    4   const v4 = 1;$'}
+        - {row: 7, matches: '^\(1-5/62\) hjkl move  enter ask  J/K comments  \? help$'}
+  - keys: G
+  - expectScreen:
+      line:
+        - {row: 2, matches: '^  56   56   const v56 = 1;$'}
+        - {row: 6, matches: '^  60   60  ▶const v60 = 1; '}
+        - {row: 7, matches: '^\(58-62/62\) '}

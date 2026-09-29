@@ -1,0 +1,16 @@
+id: F-CONFIG-03
+title: view as array warns once (no per-key lines); app.confirmQuit and mcp.autostart bad values
+size: 160x30
+files:
+  ${CONFIG}/xplain/config.json:
+    view: [{mode: bogus, split: 1}]
+    app: {confirmQuit: 0}
+    mcp: {autostart: null}
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] '}}
+  - keys: q
+  - expectScreen: {contains: 'Quit xplain? (y/n)'}
+  - keys: y
+  - expectExit: 0
+  - expectScreen:
+      matches: '^xplain: config: view must be an object; using defaults\nxplain: config: invalid app\.confirmQuit 0 \(boolean\); using true\nxplain: config: invalid mcp\.autostart null \(boolean\); using false\n\s*$'

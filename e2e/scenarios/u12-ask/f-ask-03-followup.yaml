@@ -1,0 +1,32 @@
+id: F-ASK-03
+title: follow-up Enter queues turn 2, closes the editor, shows the follow-up line; agent gets it with previous turns
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - httpStart: {id: poll, tool: next_question, args: {wait_seconds: 60}}
+  - keys: a
+  - keys: why?<Enter>
+  - httpAwait: poll
+    expect: {result: {thread_id: q1, turn: 1}}
+  - http: {tool: answer, args: {thread_id: q1, text: because}}
+  - keys: K
+  - keys: a
+  - keys: and?
+  - expectScreen: {contains: ['│ follow-up ', ' and?', 'enter send  esc cancel'], notContains: 'follow-up: and?'}
+  - keys: <Enter>
+  - expectScreen:
+      line: {row: -1, contains: 'follow-up queued'}
+      notContains: ['enter send', '│ follow-up ']
+      matches: 'because +┃\n┃ follow-up: and\? +┃\n┃─ answer · agent · waiting… ─+┃\n┃ ⠿ waiting for agent… +┃'
+  - http: {tool: get_questions}
+    expect: {result: {questions: [{thread_id: q1, turn: 2, follow_up: true}]}}
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+    expect:
+      result:
+        status: question
+        thread_id: q1
+        turn: 2
+        follow_up: true
+        previous: [{turn: 1, question: why?, answer: because}]
+        question: 'Follow-up to your earlier answer (thread q1, turn 2): and?'
+  - expectScreen: {matches: 'follow-up: and\? +┃\n┃─ answer · agent · streaming… ─+┃'}

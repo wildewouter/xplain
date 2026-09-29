@@ -1,0 +1,48 @@
+id: F-MCPSRV-05
+title: tools/call with unknown or non-string tool name gives -32602 Unknown tool (name cut to 100 chars)
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http: {body: {jsonrpc: '2.0', id: 1, method: tools/call, params: {name: no_such_tool, arguments: {}}}}
+    expect:
+      {
+        status: 200,
+        body:
+          {
+            jsonrpc: '2.0',
+            id: 1,
+            error: {code: -32602, message: 'Unknown tool: no_such_tool'},
+            result: {$exists: false},
+          },
+      }
+  - http: {body: {jsonrpc: '2.0', id: 2, method: tools/call, params: {name: 5}}}
+    expect: {status: 200, body: {id: 2, error: {code: -32602, message: 'Unknown tool: '}}}
+  - http: {body: {jsonrpc: '2.0', id: 3, method: tools/call, params: {arguments: {}}}}
+    expect: {status: 200, body: {id: 3, error: {code: -32602, message: 'Unknown tool: '}}}
+  - http:
+      {
+        body:
+          {
+            jsonrpc: '2.0',
+            id: 4,
+            method: tools/call,
+            params:
+              {
+                name: 'nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn',
+              },
+          },
+      }
+    expect:
+      {
+        status: 200,
+        body:
+          {
+            id: 4,
+            error:
+              {
+                code: -32602,
+                message: 'Unknown tool: nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn',
+              },
+          },
+      }

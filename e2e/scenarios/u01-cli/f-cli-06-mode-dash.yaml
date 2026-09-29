@@ -1,0 +1,11 @@
+id: F-CLI-06
+title: '--mode --staged takes --staged as the mode value and fails "invalid mode: --staged"'
+tui: false
+args: [--mode, --staged]
+steps:
+  - expectExit: 1
+  - expectStdout: {equals: ''}
+  - expectStderr:
+      {
+        matches: '(?<![\s\S])xplain: invalid mode: --staged\nusage: xplain \[--cwd dir\][\s\S]*C config, q quits\n(?![\s\S])',
+      }

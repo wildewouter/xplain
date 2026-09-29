@@ -1,0 +1,38 @@
+id: F-SEARCH-01
+title: F does not open search while picker, find, goto or comment editor is open (typed into text inputs)
+size: 80x24
+steps:
+  - keys: f
+  - expectScreen: {contains: ' Files (1/4)', notContains: 'Search ('}
+  - keys: F
+  - note: picker ignores F
+    expectScreen: {contains: ' Files (1/4)', notContains: 'Search ('}
+  - keys: <Esc>
+  - expectScreen: {notContains: [' Files (', 'Search (']}
+  - keys: /
+  - expectScreen: {line: {row: -1, matches: '^/█'}}
+  - keys: F
+  - expectScreen:
+      notContains: 'Search ('
+      line: {row: -1, matches: '^/F█'}
+  - keys: <Esc>
+  - keys: ':'
+  - expectScreen: {line: {row: -1, matches: '^:█'}}
+  - keys: F
+  - expectScreen:
+      notContains: 'Search ('
+      line: {row: -1, matches: '^:F█'}
+  - keys: <Esc>
+  - expectScreen: {line: {row: -1, matches: '^\(1-5/5\) '}}
+  - keys: a
+  - expectScreen: {contains: 'enter send', notContains: 'Search ('}
+  - keys: F
+  - note: editor input row shows typed F
+    expectScreen:
+      notContains: 'Search ('
+      matches: '│ F +│'
+  - keys: <Esc>
+  - expectScreen: {notContains: ['enter send', 'Search (']}
+  - keys: F
+  - note: with nothing open, F opens search
+    expectScreen: {contains: ' Search (1/6)'}

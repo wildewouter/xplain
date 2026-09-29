@@ -1,0 +1,7 @@
+id: F-CLI-05
+title: 'Ctrl+C on the no-changes screen exits 0'
+fixture: empty
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[mcp: off\] No changes '}}
+  - keys: <C-c>
+  - expectExit: 0

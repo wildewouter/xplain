@@ -1,0 +1,26 @@
+id: F-LAYOUT-04
+title: 's at cols < 100: split setting on but unified rendering, rows unchanged, cursor kept, footer too narrow'
+size: 99x24
+steps:
+  - keys: G
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L3:C1] README.md'}
+        - {row: 6, matches: '^        3 \+▶more'}
+  - keys: s
+  # chip [split]/[unified] at cols < 100 is UNSPEC-3, not asserted
+  - expectScreen:
+      notContains: '│'
+      line:
+        - {row: 0, contains: '[cursor L3:C1] README.md'}
+        - {row: 3, matches: '^   1    1   # Title$'}
+        - {row: 4, matches: '^   2      - hello$'}
+        - {row: 5, matches: '^        2 \+ hello world$'}
+        - {row: 6, matches: '^        3 \+▶more'}
+        - {row: -1, matches: '^too narrow for split \| \(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}
+  - keys: s
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[unified\] .*\[cursor L3:C1\] README\.md'}
+        - {row: 6, matches: '^        3 \+▶more'}
+        - {row: -1, matches: '^\(1-5/5\) hjkl move'}

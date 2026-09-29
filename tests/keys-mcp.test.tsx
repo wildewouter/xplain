@@ -735,6 +735,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 			const m = mkt(props);
 			await tick();
 			if (name === 'browse') {
+				await m.w(pre);
 				await m.ws('a.ts');
 				await m.w('\r');
 				await tick();

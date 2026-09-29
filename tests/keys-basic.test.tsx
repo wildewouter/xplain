@@ -30,15 +30,20 @@ await pr('?');
 ok('help opens', f().includes('Help \u00b7 Diff view') && f().includes('[2/'));
 const hl = f().split('\n');
 ok('help fits terminal', hl.length <= 24);
-ok('normal help shows i, footer lacks i cursor', /i\s+enter cursor mode/.test(f()) && !f().includes('i cursor'));
-ok('normal footer: j/k scroll  d/u half page  ? help', f().includes('j/k scroll  d/u half page  ? help'));
+ok('help has no cursor mode toggle', !f().includes('cursor mode') && !/\bi\s+(enter|exit)/.test(f()));
+ok('footer: hjkl move  enter ask  J/K comments  ? help', f().includes('hjkl move  enter ask  J/K comments  ? help'));
 ok(
 	'help core keys, no motions',
 	f().includes(']/[') &&
 		f().includes('export comments') &&
 		!f().includes('Move') &&
-		!/j\/k\s+line down/.test(f()) &&
-		!/g\/G\s+top/.test(f()),
+		!f().includes('w/b/e') &&
+		!/g\/G\s+first/.test(f()),
+);
+ok(
+	'help lists former diff view keys',
+	['/ n/N', 'tab/S-tab', 'f/F', 's/c/m', 't/r', 'M/C', ')/(', 'v/V'].every((k) => f().includes(k)) &&
+		/q\s+quit/.test(f()),
 );
 {
 	const hi = hl.findIndex((l) => l.includes('Help · Diff view'));
@@ -46,10 +51,7 @@ ok(
 	const bw = top.lastIndexOf('╮') - top.indexOf('╭') + 1;
 	ok(
 		'help single column, fits content at 100 cols',
-		hl.some((l) => /│ Find\s+│/.test(l)) &&
-			hl.some((l) => /│ View\s+│/.test(l)) &&
-			top.includes('╭') &&
-			bw < 50,
+		hl.some((l) => /│ Find\s+│/.test(l)) && hl.some((l) => /│ General\s+│/.test(l)) && top.includes('╭') && bw < 50,
 	);
 }
 ok('help fits without overflow at 24 rows', !/\u2026 \d+ more/.test(f()));
@@ -59,34 +61,35 @@ ok(
 	'2nd ? shows motions, minus footer ones',
 	f().includes('Help \u00b7 Diff view') &&
 		f().includes('Move') &&
-		!/j\/k\s+line down/.test(f()) &&
-		!/d\/u\s+half page dn/.test(f()) &&
-		/g\/G\s+top/.test(f()) &&
+		!/h\/j\/k\/l\s+char/.test(f()) &&
+		/d\/u\s+half page down/.test(f()) &&
+		/g\/G\s+first/.test(f()) &&
 		f().includes('? close') &&
 		!f().includes('? move keys'),
 );
 await pr('?');
 ok('3rd ? closes help', !f().includes('Help \u00b7'));
 await pr('?');
-const top = () => Number(/\((\d+)-/.exec(f())?.[1]);
+const pos = () => /\[cursor ([^\]]+)\]/.exec(f())?.[1];
 await pr('g');
-const t0 = top();
+const p0 = pos();
 await pr('j');
-ok('j scrolls main view while help open', top() === t0 + 1 && f().includes('Help \u00b7 Diff view'));
+ok('j moves cursor while help open', !!p0 && !!pos() && pos() !== p0 && f().includes('Help \u00b7 Diff view'));
+const p1 = pos();
 await pr('\x1b');
-ok('esc does not close help', f().includes('Help \u00b7 Diff view'));
+ok('esc does not close help, no-op', f().includes('Help \u00b7 Diff view') && pos() === p1);
 await pr('i');
-ok('help label follows cursor mode', f().includes('Help \u00b7 Cursor mode'));
+ok('i is a no-op', f().includes('Help \u00b7 Diff view') && pos() === p1);
 ok(
 	'cursor core: full v/V, no w/b/e',
 	/v\/V\s+select chars\/lines/.test(f()) && !f().includes('w/b/e') && f().includes('? move keys'),
 );
 await pr('?');
-ok('cursor 2nd ?: w/b/e', f().includes('Help \u00b7 Cursor mode') && f().includes('w/b/e') && f().includes('? close'));
+ok('cursor 2nd ?: w/b/e', f().includes('Help \u00b7 Diff view') && f().includes('w/b/e') && f().includes('? close'));
 await pr('?');
 await pr('?');
 await pr('\x1b');
-ok('esc exits cursor, help stays', f().includes('Help \u00b7 Diff view'));
+ok('esc keeps cursor, help stays', f().includes('Help \u00b7 Diff view') && pos() === p1);
 await pr('f');
 ok('f opens picker while help open', f().includes('Files (') && f().includes('Help \u00b7 File picker'));
 await pr('\x1b');
@@ -143,25 +146,16 @@ ok('s -> unified', f().includes('[unified]') && !f().includes('│'));
 	const g = () => r.lastFrame() ?? '';
 	await keyPress(r)('?');
 	ok(
-		'tall help: normal keys only, no overflow, credit',
-		g().includes('Help · Diff view') &&
-			!g().includes('v/V') &&
-			!g().includes('select chars') &&
-			!/… \d+ more/.test(g()) &&
-			g().includes('Made by Wouter de Wild - 2026'),
+		'tall help: no overflow, credit',
+		g().includes('Help · Diff view') && !/… \d+ more/.test(g()) && g().includes('Made by Wouter de Wild - 2026'),
 	);
-	ok('tall help: normal lists global keys', g().includes('M/C') && g().includes('t/r'));
-	await keyPress(r)('i');
+	ok('tall help: lists global keys', g().includes('M/C') && g().includes('t/r'));
+	ok('tall help: shows full v/V entry', /v\/V\s+select chars\/lines/.test(g()));
+	ok('tall help: footer lacks v select', g().includes('hjkl move  enter ask') && !g().includes('v select'));
 	ok(
-		'tall help: cursor shows full v/V entry',
-		g().includes('Help · Cursor mode') && /v\/V\s+select chars\/lines/.test(g()),
+		'tall help: )/( in help, J/K only in footer',
+		/\)\/\(\s+numbered, any file/.test(g()) && !/J\/K\s+next\/prev in file/.test(g()) && g().includes('J/K comments'),
 	);
-	ok('tall help: cursor footer lacks v select', g().includes('hjkl move  enter ask') && !g().includes('v select'));
-	ok(
-		'tall help: cursor shows J/K and )/( comment jumps',
-		/J\/K\s+next\/prev in file/.test(g()) && /\)\/\(\s+numbered, any file/.test(g()),
-	);
-	ok('tall help: cursor omits global keys', !g().includes('M/C') && !g().includes('t/r'));
 	r.unmount();
 }
 const nar = render(<App args={[]} cwd={cwd} split />);
@@ -182,9 +176,9 @@ ok('narrow fallback', (nar.lastFrame() ?? '').includes('too narrow for split'));
 	ok('g top, far line shown', g().includes('v1 = 1') && !g().includes('v30 = 2'));
 	const total = Number(/\/(\d+)\)/.exec(g())?.[1]);
 	await keyPress(r)(']');
-	ok('] next change', g().includes('v30 = 2'));
+	ok('] next change', g().includes('v30 = 2') && g().includes('[cursor L30:C1]'));
 	await keyPress(r)('[');
-	ok('[ no earlier change, stays', first() === 28 && g().includes('v30 = 2'));
+	ok('[ no earlier change, stays', g().includes('[cursor L30:C1]') && g().includes('v30 = 2'));
 	await keyPress(r)('c');
 	const t2 = Number(/\/(\d+)\)/.exec(g())?.[1]);
 	ok(

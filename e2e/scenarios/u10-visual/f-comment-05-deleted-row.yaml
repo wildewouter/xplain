@@ -1,0 +1,33 @@
+id: F-COMMENT-05
+title: comment on an unpaired unified del row shows in split under the row with empty right side and left old no
+fixture: empty
+size: 120x30
+steps:
+  - writeFile: {path: f.txt, content: "a\nb\nc\n"}
+  - git: add -A
+  - git: commit -qm base
+  - writeFile: {path: f.txt, content: "a\nc\n"}
+  - keys: r
+  # unified: 3 ctx a (1 1), 4 del b (old 2), 5 ctx c (old 3 new 2)
+  - expectScreen: {line: [{row: 0, matches: '\[cursor L2:C1\] '}, {row: 4, matches: '^   2      -▶b'}]}
+  - keys: adelnote<Enter>
+  - expectScreen:
+      line:
+        - {row: 5, matches: '^╭─+╮$'}
+        - {row: 7, matches: '^│ delnote +│$'}
+        - {row: 9, matches: '^   3    2   c'}
+  - keys: s
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[split]'}
+        - {row: 4, matches: '^   2 -.b\s+…?│\s*$'}
+        - {row: 5, matches: '^╭─+╮$'}
+        - {row: 6, matches: '^│ sent  line L2 '}
+        - {row: 7, matches: '^│ delnote +│$'}
+        - {row: 9, matches: '^   3   c\s+│   2   c'}
+  - keys: s
+  - expectScreen:
+      line:
+        - {row: 4, matches: '^   2      -.b'}
+        - {row: 7, matches: '^│ delnote +│$'}
+        - {row: 9, matches: '^   3    2   c'}

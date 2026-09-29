@@ -1,0 +1,6 @@
+id: F-CLI-03
+title: 'several mode flags - last one wins (--unstaged, --mode=all, --staged gives staged)'
+args: [--unstaged, --mode=all, --staged]
+steps:
+  - expectScreen:
+      line: {row: 0, matches: '^\[staged\] \[mcp: off\] No changes '}

@@ -1,0 +1,11 @@
+id: F-EXPORT-01
+title: 'write error: note export failed: <message>'
+size: 200x20
+steps:
+  - keys: ac<Enter>
+  - note: cwd (the repo) made read-only
+    chmod: {path: '${REPO}', mode: '555'}
+  - keys: E
+  - expectScreen: {line: {row: -1, matches: '^export failed: \S'}}
+  - chmod: {path: '${REPO}', mode: '755'}
+  - git: {args: [ls-files, --others, --error-unmatch, 'xplain-review-*'], code: 1}

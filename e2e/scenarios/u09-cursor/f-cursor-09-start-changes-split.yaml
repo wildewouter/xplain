@@ -1,0 +1,16 @@
+id: F-CURSOR-09
+title: 'start - changes scope: first row (hunk row) col 1; split: pane new'
+size: 120x24
+args: [--changes-only, --split]
+steps:
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] \[changes\] \[split\] .*\[1/4\] \[cursor new r1:C1\] README\.md \+2 -1$'}
+        - {row: 2, matches: '^@@ -1,2 \+1,3 @@'}
+      notContains: '▶'
+  - expectCell: {at: {row: 2, col: 0}, chars: '@', bg: '#22586b'}
+  - keys: 2j
+  - note: pane new - char cursor in right pane
+    expectScreen: {line: {row: 0, contains: '[cursor new L2:C1] README.md'}}
+  - expectCell: {at: {row: 4, col: 67}, chars: 'h', inverse: true}
+  - expectCell: {at: {row: 4, col: 7}, chars: 'h', inverse: false}

@@ -1,0 +1,7 @@
+id: F-CLI-05
+title: 'Ctrl+C in the find input exits 0'
+steps:
+  - keys: /ab
+  - expectScreen: {line: {row: -1, contains: '/ab█'}}
+  - keys: <C-c>
+  - expectExit: 0

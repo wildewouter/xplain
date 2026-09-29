@@ -1,0 +1,13 @@
+id: F-CLI-01
+title: '--help after valid flags and git args still prints usage only (exit 0, no UI, no git run)'
+tui: false
+args: [--staged, --split, --theme, dull, some-rev, --help, other-arg]
+shims: [git]
+steps:
+  - expectExit: 0
+  - expectStdout:
+      matches: '(?<![\s\S])usage: xplain \[--cwd dir\][\s\S]*C config, q quits\n(?![\s\S])'
+      notContains: "\x1b"
+  - expectStderr: {equals: ''}
+  - note: no UI means no diff load, so git is never run
+    expectShimCall: {name: git, count: 0}

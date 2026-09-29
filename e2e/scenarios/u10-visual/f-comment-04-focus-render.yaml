@@ -1,0 +1,47 @@
+id: F-COMMENT-04
+title: comment box - dim round border, accent head ` sent  <head>` + dim `saved · not asked`; focused - bold accent border, ` ▸ ` bold head, hint row
+fixture: empty
+size: 80x20
+# Focused border: spec says "bold border accent"; oracle draws heavy box chars (┏━┓┃). Tests accept either line style, assert accent fg only.
+files:
+  f.txt: "alpha beta\ntwo words here\n"
+steps:
+  - keys: ahello<Enter>
+  - expectScreen:
+      line:
+        - {row: 4, equals: '╭─────────────────────────────────────────────────────────────────────────────╮'}
+        - {row: 5, matches: '^│ sent  line L1  saved · not asked +│$'}
+        - {row: 6, matches: '^│ hello +│$'}
+        - {row: 7, equals: '╰─────────────────────────────────────────────────────────────────────────────╯'}
+        - {row: 8, equals: '        2 + two words here'}
+  - expectCell: {at: {row: 4, col: 0}, chars: '╭', fg: '#586e75', bold: false}
+  - expectCell: {at: {row: 4, col: 78}, chars: '╮', fg: '#586e75'}
+  - expectCell: {at: {row: 5, col: 0}, chars: '│', fg: '#586e75'}
+  - expectCell: {at: {row: 5, col: 2}, chars: s, fg: '#cb4b16', bold: false}
+  - expectCell: {at: {text: 'line L1', row: 5}, fg: '#cb4b16'}
+  - expectCell: {at: {text: 'saved', row: 5}, fg: '#586e75'}
+  - keys: J
+  - note: focused - accent border (heavier than the dim round one), head with ▸ bold, hint row adds one row
+    expectScreen:
+      line:
+        - {row: 4, matches: '^.[─━]+.$'}
+        - {row: 5, matches: '^. ▸ sent  line L1  saved · not asked +.$'}
+        - {row: 6, matches: '^. hello +.$'}
+        - {row: 7, matches: '^. e edit  D delete  a ask  esc back +.$'}
+        - {row: 8, matches: '^.[─━]+.$'}
+        - {row: 9, equals: '        2 + two words here'}
+        - {row: -1, contains: 'e edit  D delete  a ask/follow up  j/k scroll'}
+      notContains: '╭'
+  - expectCell: {at: {row: 4, col: 0}, fg: '#cb4b16'}
+  - expectCell: {at: {row: 8, col: 78}, fg: '#cb4b16'}
+  - expectCell: {at: {row: 6, col: 0}, fg: '#cb4b16'}
+  - expectCell: {at: {text: '▸ sent', row: 5}, fg: '#cb4b16', bold: true}
+  - expectCell: {at: {text: 'line L1', row: 5}, fg: '#cb4b16', bold: true}
+  - keys: <Esc>
+  - expectScreen:
+      line:
+        - {row: 5, matches: '^│ sent  line L1  saved · not asked +│$'}
+        - {row: 7, matches: '^╰─+╯$'}
+        - {row: 8, equals: '        2 + two words here'}
+      notContains: 'e edit'
+  - expectCell: {at: {row: 4, col: 0}, chars: '╭', fg: '#586e75', bold: false}

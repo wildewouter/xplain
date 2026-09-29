@@ -1,0 +1,10 @@
+id: F-INTEG-02
+title: 'check: JSON url equal -> registered, different -> stale'
+shims:
+  claude: [{match: [mcp, get], exit: 0, stdout: "xplain:\n  Type: http\n  URL: http://127.0.0.1:${PORT}/mcp\n"}]
+  codex: [{match: [mcp, get], exit: 0, stdout: '{"name": "xplain", "url": "http://127.0.0.1:${PORT}/mcp"}'}]
+  copilot: [{match: [mcp, get], exit: 0, stdout: '{"name": "xplain", "url": "http://127.0.0.1:1/mcp"}'}]
+steps:
+  - keys: M<Enter>
+  - expectScreen:
+      matches: ['^ +│  Claude Code registered', '^ +│  Codex registered', '^ +│  Copilot stale']

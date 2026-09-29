@@ -1,0 +1,20 @@
+id: F-EDGE-06
+title: adding the final newline gives marker only on the del side
+fixture: empty
+steps:
+  - writeFile: {path: f.txt, content: "a\nb"}
+  - git: add -A
+  - git: commit -qm base
+  - writeFile: {path: f.txt, content: "a\nb\n"}
+  - expectScreen: {line: {row: 0, contains: 'No changes'}}
+  - keys: r
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[1/1\] \[cursor L2:C1\] f\.txt \+1 -1$'}
+        - {row: 2, matches: '^@@ -1,2 \+1,2 @@'}
+        - {row: 3, equals: '   1    1   a'}
+        - {row: 4, matches: '^   2      -▶b'}
+        - {row: 5, equals: '   2      -  No newline at end of file'}
+        - {row: 6, equals: '        2 + b'}
+        - {row: 7, equals: ''}
+        - {row: -1, matches: '\(1-5/5\) '}

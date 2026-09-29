@@ -1,0 +1,28 @@
+id: F-EDGE-03
+title: modified tracked binary file shows one dim note row "Binary file", +0 -0, status M
+fixture: empty
+steps:
+  - writeFile: {path: bin.dat, content: "a\0b\n"}
+  - writeFile: {path: t.txt, content: "t1\n"}
+  - git: add -A
+  - git: commit -qm base
+  - writeFile: {path: bin.dat, content: "a\0c\n"}
+  - writeFile: {path: t.txt, content: "t2\n"}
+  - expectScreen: {line: {row: 0, contains: 'No changes'}}
+  - keys: r
+  - expectScreen:
+      line:
+        - {
+            row: 0,
+            matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/2\] \[cursor r1:C1\] bin\.dat \+0 -0$',
+          }
+        - {row: 2, matches: '^Binary file'}
+        - {row: 3, equals: ''}
+        - {row: -1, matches: '\(1-1/1\) '}
+      notContains: ['@@', 'differ']
+  - expectCell: {at: {text: 'Binary file', row: 2}, fg: '#586e75'}
+  - keys: f
+  - expectScreen:
+      matches:
+        - '│>M bin\.dat \+0 -0 \*\s+│'
+        - '│ M t\.txt \+1 -1\s+│'

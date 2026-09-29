@@ -18,10 +18,8 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 	{
 		const {r, g, w, qs} = mk();
 		await tick();
-		await w('\r');
-		ok('enter outside cursor mode: no box', !g().includes('enter send'));
-		await w('a');
 		await w('i');
+		ok('i no-op: no box, cursor on', !g().includes('enter send') && g().includes('[cursor'));
 		await w('j');
 		await w('\r');
 		ok('enter opens box', g().includes('enter send  tab save/ask  esc cancel') && g().includes('[cursor'));
@@ -338,7 +336,10 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 			ok('focus: J stops at last', hd().includes('L3'));
 			await w('\x1b');
 			ok('focus: esc unfocuses, stays cursor', !g().includes('▸') && g().includes('[cursor'));
-			ok('footer: cursor', g().includes('hjkl move  enter ask  J/K comments') && !g().includes('v select') && !g().includes('i cursor'));
+			ok(
+				'footer: cursor',
+				g().includes('hjkl move  enter ask  J/K comments') && !g().includes('v select') && !g().includes('i cursor'),
+			);
 			await w('v');
 			ok('footer: visual', g().includes('v/esc end  enter ask'));
 			await w('\x1b');
@@ -442,7 +443,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 			ok('footer: ask open', g().includes(') enter send  tab save/ask  esc cancel'));
 			await ws('sp');
 			await w('\r');
-			ok('footer: split cursor p pane', g().includes('p pane  esc exit'));
+			ok('footer: split cursor p pane', g().includes('p pane  ? help'));
 			await w('J');
 			ok('split: focus', g().includes('[split]') && g().includes('▸'));
 			await w('e');

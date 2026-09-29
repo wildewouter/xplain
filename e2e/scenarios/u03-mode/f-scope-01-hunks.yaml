@@ -1,0 +1,37 @@
+id: F-SCOPE-01
+title: full scope shows the whole file as one hunk, --changes-only shows git's default context hunks; chip [full]/[changes]
+size: 120x40
+files:
+  src/big.ts: "const v1 = 1;\nconst v2 = 1;\nconst v3 = 1;\nconst v4 = 1;\nconst v5 = 5;\nconst v6 = 1;\nconst v7 = 1;\nconst v8 = 1;\nconst v9 = 1;\nconst v10 = 1;\nconst v11 = 1;\nconst v12 = 1;\nconst v13 = 1;\nconst v14 = 1;\nconst v15 = 1;\nconst v16 = 1;\nconst v17 = 1;\nconst v18 = 1;\nconst v19 = 1;\nconst v20 = 1;\nconst v21 = 1;\nconst v22 = 1;\nconst v23 = 1;\nconst v24 = 1;\nconst v25 = 1;\nconst v26 = 1;\nconst v27 = 1;\nconst v28 = 1;\nconst v29 = 1;\nconst v30 = 2;\nconst v31 = 1;\nconst v32 = 1;\nconst v33 = 1;\nconst v34 = 1;\nconst v35 = 1;\nconst v36 = 1;\nconst v37 = 1;\nconst v38 = 1;\nconst v39 = 1;\nconst v40 = 1;\nconst v41 = 1;\nconst v42 = 1;\nconst v43 = 1;\nconst v44 = 1;\nconst v45 = 1;\nconst v46 = 1;\nconst v47 = 1;\nconst v48 = 1;\nconst v49 = 1;\nconst v50 = 1;\nconst v51 = 1;\nconst v52 = 1;\nconst v53 = 1;\nconst v54 = 1;\nconst v55 = 5;\nconst v56 = 1;\nconst v57 = 1;\nconst v58 = 1;\nconst v59 = 1;\nconst v60 = 1;\n"
+args: [--changes-only]
+steps:
+  - keys: <Tab>
+  - note: three separate changes (lines 5, 30, 55) -> three hunks with 3 context lines each
+    expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] \[changes\] \[unified\] .*\[2/4\] \[cursor r1:C1\] src/big\.ts \+3 -3$'}
+        - {row: 2, matches: '^@@ -2,7 \+2,7 @@'}
+        - {row: 3, matches: '^   2    2  .const v2 = 1;'}
+        - {row: 11, matches: '^@@ -27,7 \+27,7 @@'}
+        - {row: 20, matches: '^@@ -52,7 \+52,7 @@'}
+        - {row: -1, matches: '^\(1-27/27\) '}
+      notContains: ['   1    1 ', '  60   60 ', '@@ -1,60']
+  - keys: c
+  - note: full scope - one hunk covering all 60 lines (60 + 3 del rows + hunk row)
+    expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] \[full\] \[unified\] .*\[2/4\] \[cursor L5:C1\] src/big\.ts \+3 -3$'}
+        - {row: 5, matches: '^   5      -▶const v5 = 1;'}
+        - {row: -1, matches: '^\(3-39/64\) '}
+  - keys: g
+  - expectScreen:
+      line:
+        - {row: 2, matches: '^@@ -1,60 \+1,60 @@'}
+        - {row: 3, matches: '^   1    1   const v1 = 1;'}
+        - {row: -1, matches: '^\(1-37/64\) '}
+  - keys: G
+  - expectScreen:
+      line:
+        - {row: -2, matches: '^  60   60  ▶const v60 = 1;'}
+        - {row: -1, matches: '^\(28-64/64\) '}
+      notContains: '@@ -52,7'

@@ -1,0 +1,15 @@
+id: F-HELP-03
+title: 'Go to line entries verbatim: [Go to line] type, backspace, Enter, esc; no hint, credit only'
+size: 120x40
+steps:
+  - keys: '?'
+  - expectScreen:
+      {
+        contains: 'Help · Diff view',
+        line: {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'},
+      }
+  - keys: ':'
+  - expectScreen:
+      line: {row: -1, matches: '^:█'}
+      matches: '^(?=.{120}$)[^\n]*│ Help · Go to line *│$\n^[^\n]*│ Go to line *│$\n^[^\n]*│  type      line number *│$\n^[^\n]*│  backspace delete char *│$\n^[^\n]*│  Enter     go to line *│$\n^[^\n]*│  esc       cancel *│$\n^[^\n]*│ *Made by Wouter de Wild - 2026 │$\n^(?=.{120}$)[^\n]*╰─+╯$'
+      notContains: ['│  i ', '? move keys', '? close']

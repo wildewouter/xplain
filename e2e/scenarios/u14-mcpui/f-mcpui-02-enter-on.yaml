@@ -1,0 +1,19 @@
+id: F-MCPUI-02
+title: 'integration Enter with MCP on: registered -> already registered; not registered / stale -> confirm'
+shims:
+  claude: [{match: [mcp, get], exit: 0}]
+  codex: [{match: [mcp, get], exit: 1}]
+  copilot: [{match: [mcp, get], exit: 0, stdout: '{"url": "http://127.0.0.1:1/mcp"}'}]
+steps:
+  - keys: M<Enter>
+  - expectScreen: {matches: ['^ +│  Claude Code registered', '^ +│  Codex not registered', '^ +│  Copilot stale']}
+  - keys: j<Enter>
+  - expectScreen: {contains: 'already registered (d to remove)', notContains: '(y/n)'}
+  - keys: j<Enter>
+  - expectScreen: {contains: 'Register Codex MCP server? (y/n)'}
+  - keys: n
+  - expectScreen: {notContains: '(y/n)'}
+  - keys: jj<Enter>
+  - expectScreen: {matches: '^ +│> Copilot stale', contains: 'Register Copilot MCP server? (y/n)'}
+  - keys: n
+  - expectShimCall: {name: copilot, argsPrefix: [mcp, add], count: 0}

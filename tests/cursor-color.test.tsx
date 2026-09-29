@@ -175,16 +175,6 @@ for (const name of ['contrast', 'light', 'solarized', 'vibrant', 'dull', 'colorb
 	ok('clipped comment: box top visible at bottom', out.length === 3 && out.some((l) => l.includes('line L1')));
 }
 {
-	// comment box whose anchor row scrolled off the top renders its visible part
-	const sm = new Map<number, any[]>([[0, [{head: 'line L1', lines: [], body: [{t: 'hi', k: 'msg'}]}]]]);
-	const all = frame('contrast', rows, -1, false, {sent: sm, height: 9});
-	const cut = frame('contrast', rows, -1, false, {sent: sm, height: 9, skip: 2});
-	ok(
-		'top-clipped comment: first lines skipped',
-		cut.length === 9 && cut[0] === all[2] && !cut.join('').includes('const a'),
-	);
-}
-{
 	// search hit highlighted yellow in file viewer (single) mode
 	const out = frame('contrast', rows, -1, true, {find: 'const'}).join('\n');
 	ok('search hit yellow bg in viewer', out.includes('\x1b[43m') || out.includes('\x1b[103m'));

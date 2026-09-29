@@ -1,0 +1,40 @@
+id: F-HELP-02
+title: 'browse = File viewer; overlays over browse win: visual, focused comment, find, goto, search, MCP, config, confirm, editor'
+size: 120x40
+steps:
+  - keys: 'FREADME<Enter>?'
+  - expectScreen: {contains: 'Help · File viewer', line: {row: 0, matches: '^\[browse\] '}}
+  - keys: v
+  - expectScreen: {contains: 'Help · Visual selection', notContains: 'Help · File viewer'}
+  - keys: <Esc>
+  - expectScreen: {contains: 'Help · File viewer', line: {row: 0, matches: '^\[browse\] '}}
+  - keys: /
+  - expectScreen: {contains: 'Help · Find in file'}
+  - keys: <Esc>
+  - keys: ':'
+  - expectScreen: {contains: 'Help · Go to line'}
+  - keys: <Esc>
+  - keys: F
+  - expectScreen: {contains: ['Help · File search', 'Search (']}
+  - keys: <Esc>
+  - keys: M
+  - expectScreen: {contains: ['Help · MCP', 'INTEGRATIONS']}
+  - keys: <Esc>
+  - keys: C
+  - expectScreen: {contains: ['Help · Config', 'mcp on startup']}
+  - keys: <Esc>
+  - keys: q
+  - expectScreen: {contains: ['Help · Confirm', 'Quit xplain? (y/n)']}
+  - keys: n
+  - expectScreen: {contains: 'Help · File viewer', notContains: 'Quit xplain?'}
+  - note: f is a no-op in browse, no picker
+    keys: f
+  - expectScreen: {contains: 'Help · File viewer', notContains: 'Files ('}
+  - keys: a
+  - expectScreen: {contains: 'Help · Editor'}
+  - keys: 'hi<Enter>'
+  - expectScreen: {contains: ['Help · File viewer', 'question saved (1)']}
+  - keys: J
+  - expectScreen: {contains: ['Help · Focused comment', '▸ sent  line L1']}
+  - keys: <Esc>
+  - expectScreen: {contains: 'Help · File viewer', notContains: '▸ sent'}

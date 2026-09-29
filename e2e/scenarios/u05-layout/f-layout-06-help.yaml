@@ -1,0 +1,26 @@
+id: F-LAYOUT-06
+title: 'with help panel open modals start at screen row 3 (0-based 2), still horizontally centered'
+size: 80x24
+steps:
+  - keys: '?'
+  - expectScreen: {contains: 'Help · Diff view'}
+  - keys: f
+  - expectScreen:
+      line:
+        - {row: 2, matches: '^.{12}╭─{54}╮'}
+        - {row: 3, matches: '^.{12}│ Files \(1/4\) +│$'}
+        - {row: 9, matches: '^.{12}╰─{54}╯'}
+  - keys: <Esc>
+  - keys: C
+  - expectScreen:
+      line:
+        - {row: 2, matches: '^.{12}╭─{54}╮'}
+        - {row: 3, matches: '^.{12}│ Config +│$'}
+        - {row: 11, matches: '^.{12}╰─{54}╯'}
+  - keys: <Esc>
+  - keys: q
+  - expectScreen:
+      contains: 'Help · Confirm'
+      line:
+        - {row: 2, matches: '^.{29}╭─{20}╮'}
+        - {row: 3, matches: '^.{29}│ Quit xplain\? \(y/n\) │$'}

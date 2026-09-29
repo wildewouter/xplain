@@ -1,0 +1,14 @@
+id: F-INTEG-04
+title: 'unregister non-zero exit: "<label> unregister failed (exit <code>): <output>", token masked'
+files:
+  ${STATE}/xplain/mcp.json: {token: tok-0123456789abcdefXYZ}
+shims:
+  claude:
+    - {match: [mcp, get], exit: 0}
+    - {match: [mcp, remove], exit: 2, stderr: "boom tok-0123456789abcdefXYZ\n"}
+steps:
+  - keys: M<Enter>jdy
+  - expectShimCall: {name: claude, args: [mcp, remove, xplain, -s, local], count: 1}
+  - expectScreen:
+      matches: '^ +│ Claude Code unregister failed \(exit 2\):[\s│]+boom[\s│]+\*\*\* +│$'
+      notContains: ['tok-0123456789abcdefXYZ', 'Removed xplain']

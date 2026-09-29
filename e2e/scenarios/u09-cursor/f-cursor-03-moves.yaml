@@ -1,0 +1,70 @@
+id: F-CURSOR-03
+title: 'j/k/arrows, d/u half page, Space/PageDown/PageUp (H-1), counts, clamped at both ends'
+# n.txt untracked (60 lines, fully added): row 1 hunk, row k+1 = L<k>. 80x16: H=13, d/u = 6 rows, page = 12 rows.
+fixture: empty
+size: 80x16
+files:
+  n.txt: "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\nline 11\nline 12\nline 13\nline 14\nline 15\nline 16\nline 17\nline 18\nline 19\nline 20\nline 21\nline 22\nline 23\nline 24\nline 25\nline 26\nline 27\nline 28\nline 29\nline 30\nline 31\nline 32\nline 33\nline 34\nline 35\nline 36\nline 37\nline 38\nline 39\nline 40\nline 41\nline 42\nline 43\nline 44\nline 45\nline 46\nline 47\nline 48\nline 49\nline 50\nline 51\nline 52\nline 53\nline 54\nline 55\nline 56\nline 57\nline 58\nline 59\nline 60\n"
+steps:
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L1:C1] n.txt'}
+        - {row: 3, matches: '^        1 \+▶line 1\b'}
+  - keys: j
+  - expectScreen: {line: [{row: 0, contains: '[cursor L2:C1] n.txt'}, {row: 4, matches: '^        2 \+▶line 2\b'}]}
+  - keys: <Down>
+  - expectScreen: {line: {row: 0, contains: '[cursor L3:C1] n.txt'}}
+  - keys: k
+  - expectScreen: {line: {row: 0, contains: '[cursor L2:C1] n.txt'}}
+  - keys: <Up>
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C1] n.txt'}}
+  - keys: 3j
+  - expectScreen: {line: [{row: 0, contains: '[cursor L4:C1] n.txt'}, {row: 6, matches: '^        4 \+▶line 4\b'}]}
+  - keys: 2<Down>
+  - expectScreen: {line: {row: 0, contains: '[cursor L6:C1] n.txt'}}
+  - keys: 2k
+  - expectScreen: {line: {row: 0, contains: '[cursor L4:C1] n.txt'}}
+  - keys: 2<Up>
+  - expectScreen: {line: {row: 0, contains: '[cursor L2:C1] n.txt'}}
+  - keys: d
+  - note: floor(13/2) = 6 rows
+    expectScreen: {line: {row: 0, contains: '[cursor L8:C1] n.txt'}}
+  - keys: 2d
+  - expectScreen: {line: {row: 0, contains: '[cursor L20:C1] n.txt'}}
+  - keys: u
+  - expectScreen: {line: {row: 0, contains: '[cursor L14:C1] n.txt'}}
+  - keys: 2u
+  - expectScreen: {line: {row: 0, contains: '[cursor L2:C1] n.txt'}}
+  - keys: <Space>
+  - note: H-1 = 12 rows
+    expectScreen: {line: {row: 0, contains: '[cursor L14:C1] n.txt'}}
+  - keys: <PageDown>
+  - expectScreen: {line: {row: 0, contains: '[cursor L26:C1] n.txt'}}
+  - keys: <PageUp>
+  - expectScreen: {line: {row: 0, contains: '[cursor L14:C1] n.txt'}}
+  - keys: 2<PageDown>
+  - expectScreen: {line: {row: 0, contains: '[cursor L38:C1] n.txt'}}
+  - keys: 2<PageUp>
+  - expectScreen: {line: {row: 0, contains: '[cursor L14:C1] n.txt'}}
+  - keys: 3<Space>
+  - expectScreen: {line: {row: 0, contains: '[cursor L50:C1] n.txt'}}
+  - keys: 3<PageDown>
+  - note: clamped to last row
+    expectScreen: {line: {row: 0, contains: '[cursor L60:C1] n.txt'}}
+  - keys: j<Down>d<Space>
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L60:C1] n.txt'}
+        - {row: -1, matches: '^\(49-61/61\) '}
+  - keys: 100k
+  - note: clamped to first row (hunk row)
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor r1:C1] n.txt'}
+        - {row: -1, matches: '^\(1-13/61\) '}
+  - keys: k<Up>u<PageUp>
+  - expectScreen: {line: {row: 0, contains: '[cursor r1:C1] n.txt'}}
+  - keys: 3u
+  - expectScreen: {line: {row: 0, contains: '[cursor r1:C1] n.txt'}}
+  - keys: 99999j
+  - expectScreen: {line: {row: 0, contains: '[cursor L60:C1] n.txt'}}

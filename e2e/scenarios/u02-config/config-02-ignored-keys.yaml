@@ -1,0 +1,20 @@
+id: F-CONFIG-02
+title: version, agent, keys and unknown keys are ignored on read (no warning, no effect)
+files:
+  ${CONFIG}/xplain/config.json:
+    version: 99
+    agent: {name: whatever}
+    keys: {q: x, C: z}
+    foo: [1, 2]
+    theme: dull
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[dull\] \[mcp: off\] '}}
+  - note: keys section does not remap; C still opens config
+    keys: C
+  - expectScreen: {contains: ' Config', matches: '│> theme .*\[dull\]'}
+  - keys: <Esc>
+  - keys: q
+  - expectScreen: {contains: 'Quit xplain? (y/n)'}
+  - keys: y
+  - expectExit: 0
+  - expectScreen: {notContains: 'xplain'}

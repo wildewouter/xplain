@@ -1,0 +1,14 @@
+id: F-NAV-06
+title: Tab / S-Tab on the no-changes screen are no-ops
+fixture: empty
+size: 80x24
+steps:
+  - expectScreen:
+      line:
+        - {row: 0, equals: '[all] [mcp: off] No changes (m cycles mode, F search, q quits)'}
+        - {row: -1, matches: '^\(0-0/0\) hjkl move'}
+  - keys: <Tab><S-Tab><Tab>
+  - expectScreen:
+      line:
+        - {row: 0, equals: '[all] [mcp: off] No changes (m cycles mode, F search, q quits)'}
+        - {row: -1, matches: '^\(0-0/0\) hjkl move  enter ask  J/K comments  \? help$'}

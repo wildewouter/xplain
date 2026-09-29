@@ -1,0 +1,7 @@
+id: F-CLI-03
+title: '--mode unstaged (space form) starts in unstaged mode; untracked file not listed (3 files instead of 4)'
+args: [--mode, unstaged]
+steps:
+  - expectScreen:
+      line:
+        {row: 0, matches: '^\[unstaged\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/3\] .*README\.md \+2 -1$'}

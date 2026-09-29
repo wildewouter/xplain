@@ -1,0 +1,40 @@
+id: F-ASK-05
+title: answer divider shows client name and status waiting, streaming, done; padded with rules to width-2 in accent
+size: 40x30
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - keys: a
+  - keys: why?<Enter>
+  - note: pending, no client yet
+    expectScreen:
+      matches:
+        - '^│ why\? +│\n│─ answer · agent · waiting… ─{9}│\n│ ⠿ waiting for agent… +│\n╰'
+  - expectCell: {at: {text: 'answer'}, fg: '#cb4b16'}
+  - expectCell: {at: {text: '─ answer', offset: 0}, fg: '#cb4b16'}
+  - expectCell: {at: {text: 'waiting…', offset: 9}, chars: '─', fg: '#cb4b16'}
+  - note: initialize names the client; next_question in the same batch uses that session
+    http:
+      body:
+        - {
+            jsonrpc: '2.0',
+            id: 1,
+            method: initialize,
+            params: {protocolVersion: '2025-06-18', clientInfo: {name: tester, version: '1.2'}},
+          }
+        - {jsonrpc: '2.0', id: 2, method: tools/call, params: {name: next_question, arguments: {wait_seconds: 5}}}
+    expect:
+      body:
+        - {id: 1, result: {serverInfo: {name: xplain}}}
+        - {id: 2, result: {content: [{text: {$matches: '"status":"question".*"thread_id":"q1"'}}]}}
+  - expectScreen:
+      matches:
+        - '^│ why\? +│\n│─ answer · tester · streaming… ─{6}│\n│ [⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] agent working… +│\n╰'
+      notContains: ['waiting for agent', 'waiting…']
+  - http: {tool: answer, args: {thread_id: q1, text: 'all good'}}
+    expect: {result: {ok: true}}
+  - expectScreen:
+      matches: '^│ why\? +│\n│─ answer · tester · done ─{12}│\n│ all good +│\n╰'
+      notContains: ['agent working', 'streaming…']
+  - expectCell: {at: {text: 'answer'}, fg: '#cb4b16'}
+# NOT-COVERED: status `error` (dels color divider/text): no black-box way to make an answer fail.

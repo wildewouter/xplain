@@ -1,0 +1,28 @@
+id: F-MODE-04
+title: not-a-repo error screen; r in a repo without HEAD still fails and screen stays; after first commit r restores the UI
+fixture: nogit
+size: 120x150
+steps:
+  # SPEC-MISMATCH: spec says outside a repo the screen shows git's `git diff --no-index` usage (git diff stderr
+  # verbatim). App races `git diff` and `git ls-files`: some runs show `usage: git diff --no-index ...`, others
+  # `fatal: not a git repository (or any of the parent directories): .git` (ls-files stderr). Usage-text assertion
+  # dropped; only "error screen, no UI, red text" asserted.
+  - expectScreen:
+      matches: '(usage: git diff --no-index|fatal: not a git repository)'
+      notContains: ['[all]', 'hjkl move', 'No changes', '─']
+  - expectCell: {at: {row: 0, col: 0}, fg: 1}
+  - git: init -q
+  - keys: r
+  - note: repo without HEAD - load fails again, error screen stays (which error text is shown is not pinned)
+    expectScreen:
+      notContains: ['[all]', 'hjkl move', 'No changes']
+  - writeFile: {path: a.txt, content: "one\n"}
+  - git: add a.txt
+  - git: {args: [commit, -qm, first]}
+  - writeFile: {path: a.txt, content: "one\ntwo\n"}
+  - keys: r
+  - expectScreen:
+      line:
+        - {row: 0, equals: '[all] [full] [unified] [solarized] [mcp: off] [1/1] [cursor L2:C1] a.txt +1 -0'}
+        - {row: -1, matches: '^reloaded \| \(1-3/3\) hjkl move  enter ask  J/K comments  \? help$'}
+      notContains: fatal

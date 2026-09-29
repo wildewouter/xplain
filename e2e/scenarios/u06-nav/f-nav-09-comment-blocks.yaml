@@ -1,0 +1,43 @@
+id: F-NAV-09
+title: comment boxes count in the follow; a row block is never cut at the viewport top
+# R=12: H=9, margin 2. Comment box under L1 (row index 1) = 4 lines, so row block 1 = 5 lines.
+size: 80x12
+steps:
+  - keys: <Tab>gj
+  - expectScreen: {line: {row: 0, matches: '\[cursor L1:C1\] src/big\.ts '}}
+  - keys: ahi there<Enter>
+  - expectScreen:
+      contains: 'hi there'
+      line:
+        - {row: 3, matches: '^   1    1  ▶const v1'}
+        - {row: 4, matches: '^╭'}
+  - keys: j
+  - note: rows 0..4 need 1+5+3 = 9 lines - top stays 0
+    expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L2:C1\] src/big\.ts '}
+        - {row: 2, matches: '^@@ '}
+        - {row: -1, matches: '(^|\| )\(1-9/62\) '}
+  - keys: j
+  - note: rows 0..5 need 10 lines - top 1, whole block of row 1 at the top
+    expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L3:C1\] src/big\.ts '}
+        - {row: 2, matches: '^   1    1   const v1'}
+        - {row: 3, matches: '^╭'}
+        - {row: -1, matches: '(^|\| )\(2-10/62\) '}
+  - keys: j
+  - note: rows 1..6 need 10 lines - top skips the whole block of row 1, no partial box at the top
+    expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L4:C1\] src/big\.ts '}
+        - {row: 2, matches: '^   2    2   const v2'}
+        - {row: -1, matches: '(^|\| )\(3-11/62\) '}
+  - keys: k
+  - note: cursor row 3 above top+margin - top = 1
+    expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L3:C1\] src/big\.ts '}
+        - {row: 2, matches: '^   1    1   const v1'}
+        - {row: 3, matches: '^╭'}
+        - {row: -1, matches: '(^|\| )\(2-10/62\) '}

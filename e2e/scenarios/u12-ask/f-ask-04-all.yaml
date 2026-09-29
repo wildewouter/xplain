@@ -1,0 +1,50 @@
+id: F-ASK-04
+title: A on a focused comment queues every askable comment of the current file only
+steps:
+  - expectScreen: {line: {row: 0, matches: '\[mcp: off\] \[1/4\] .* README\.md '}}
+  - note: q1 saved on L2 (old), q2 saved on L3
+    keys: a
+  - keys: s one<Enter>
+  - keys: jj
+  - keys: a
+  - keys: s two<Enter>
+  - expectScreen: {line: {row: -1, contains: 'question saved (2)'}}
+  - note: q3 saved in another file
+    keys: <Tab>
+  - expectScreen: {line: {row: 0, contains: '[2/4]'}}
+  - keys: a
+  - keys: other file<Enter>
+  - expectScreen: {line: {row: -1, contains: 'question saved (3)'}}
+  - keys: <S-Tab>
+  - expectScreen: {line: {row: 0, matches: '\[1/4\] .* README\.md '}}
+  - keys: M<Enter><Esc>
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - note: q4 asked directly on L2 (new)
+    keys: gjjj
+  - expectScreen: {line: {row: 0, contains: '[cursor L2:C1]'}}
+  - keys: a
+  - keys: asked<Enter>
+  - expectScreen: {line: {row: -1, contains: 'question sent to agent'}}
+  - http: {tool: get_questions}
+    expect: {result: {questions: [{thread_id: q4}]}}
+  - keys: J
+  - expectScreen: {contains: '▸ sent  line L2'}
+  - keys: A
+  - expectScreen:
+      line: {row: -1, contains: 'queued 2 questions'}
+      notContains: 'saved · not asked'
+  - http: {tool: get_questions}
+    expect:
+      body: {result: {content: [{text: {$matches: '^(?![\s\S]*"q3")'}}]}}
+      result:
+        questions:
+          - {thread_id: {$matches: '^q[124]$'}, turn: 1, follow_up: false}
+          - {thread_id: {$matches: '^q[124]$'}, turn: 1, follow_up: false}
+          - {thread_id: {$matches: '^q[124]$'}, turn: 1, follow_up: false}
+  - http: {tool: get_questions}
+    expect: {result: {questions: {$contains: {thread_id: q1, preview: s one}}}}
+  - http: {tool: get_questions}
+    expect: {result: {questions: {$contains: {thread_id: q2, preview: s two}}}}
+  - note: the other file's comment is still only saved
+    keys: <Esc><Tab>
+  - expectScreen: {line: {row: 0, contains: '[2/4]'}, contains: 'saved · not asked'}

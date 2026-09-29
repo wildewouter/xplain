@@ -1,0 +1,11 @@
+id: F-LAYOUT-02
+title: 'footer (a-b/n): a=top+1, b=min(n, top+H), n=rows of view'
+size: 80x10
+steps:
+  - note: H=7; README.md has 5 rows, b clamps to n
+    expectScreen: {line: {row: -1, matches: '^\(1-5/5\) '}}
+  - keys: <Tab>g
+  - expectScreen: {line: {row: -1, matches: '^\(1-7/62\) '}}
+  - keys: 10j
+  - note: cursor row 11, margin 2 keeps row 13 visible, top 6
+    expectScreen: {line: {row: -1, matches: '^\(7-13/62\) '}}

@@ -1,5 +1,4 @@
 export type HelpCtx =
-	| 'normal'
 	| 'cursor'
 	| 'visual'
 	| 'comment'
@@ -13,7 +12,7 @@ export type HelpCtx =
 	| 'dialog'
 	| 'browse';
 // group, keys, description, contexts where the key applies.
-// Keys that work the same everywhere are listed only in 'normal'; other contexts list what differs.
+// Keys that work the same everywhere are listed only in 'cursor'; other contexts list what differs.
 // vim: standard vim motion, hidden from help unless motions are shown
 // bar: footer item documenting this key; when the context's footer always shows it, help drops the entry
 // or, with rest, shows only the part the footer leaves out
@@ -27,12 +26,16 @@ export type Key = {
 	rest?: {k: string; d: string};
 };
 export const KEYS: Key[] = [
-	{g: 'Move', k: 'j/k', d: 'line down / up', c: ['normal', 'browse'], vim: true, bar: 'scroll'},
-	{g: 'Move', k: 'd/u', d: 'half page dn/up', c: ['normal', 'browse'], vim: true, bar: 'half'},
-	{g: 'Move', k: 'g/G', d: 'top / bottom', c: ['normal', 'browse'], vim: true},
-	{g: 'Find', k: ']/[', d: 'next/prev change', c: ['normal']},
-	{g: 'Find', k: '/ n/N', d: 'find, next/prev', c: ['normal']},
-	{g: 'Find', k: ':', d: 'go to line', c: ['normal']},
+	{g: 'Move', k: 'h/j/k/l', d: 'char / line', c: ['cursor', 'browse'], vim: true, bar: 'move'},
+	{g: 'Move', k: 'w/b/e', d: 'word fwd/back/end', c: ['cursor', 'browse'], vim: true},
+	{g: 'Move', k: '0/^/$', d: 'start/nonblank/end', c: ['cursor', 'browse'], vim: true},
+	{g: 'Move', k: 'd/u', d: 'half page down/up', c: ['cursor', 'browse'], vim: true},
+	{g: 'Move', k: 'PgDn/PgUp', d: 'page down/up (space: down)', c: ['cursor', 'browse'], vim: true},
+	{g: 'Move', k: 'g/G', d: 'first / last line', c: ['cursor', 'browse'], vim: true},
+	{g: 'Move', k: '1-9', d: 'count (5j, 12G)', c: ['cursor', 'browse'], vim: true},
+	{g: 'Find', k: ']/[', d: 'next/prev change', c: ['cursor']},
+	{g: 'Find', k: '/ n/N', d: 'find, next/prev', c: ['cursor']},
+	{g: 'Find', k: ':', d: 'go to line', c: ['cursor']},
 	{g: 'Find', k: 'type', d: 'search text', c: ['find']},
 	{g: 'Find', k: 'backspace', d: 'delete char', c: ['find']},
 	{g: 'Find', k: 'Enter', d: 'jump to match', c: ['find']},
@@ -41,32 +44,35 @@ export const KEYS: Key[] = [
 	{g: 'Go to line', k: 'backspace', d: 'delete char', c: ['goto']},
 	{g: 'Go to line', k: 'Enter', d: 'go to line', c: ['goto']},
 	{g: 'Go to line', k: 'esc', d: 'cancel', c: ['goto']},
-	{g: 'Files', k: 'tab/S-tab', d: 'next / prev file', c: ['normal']},
-	{g: 'Files', k: 'f/F', d: 'picker / search', c: ['normal']},
+	{g: 'Find', k: 'tab/S-tab', d: 'next / prev file', c: ['cursor']},
+	{g: 'Find', k: 'f/F', d: 'file picker / search', c: ['cursor']},
 	{g: 'File viewer', k: 'esc', d: 'back to diff', c: ['browse']},
 	{g: 'File viewer', k: 's/c/m/f', d: 'diff-only, no-op', c: ['browse']},
-	{g: 'View', k: 's/c/m', d: 'split, full, staged', c: ['normal']},
-	{g: 'View', k: 't/r', d: 'theme / reload', c: ['normal']},
-	{g: 'Move', k: 'h/j/k/l', d: 'char / line', c: ['cursor'], vim: true, bar: 'move'},
-	{g: 'Move', k: 'w/b/e', d: 'word fwd/back/end', c: ['cursor'], vim: true},
-	{g: 'Move', k: '0/^/$', d: 'start/nonblank/end', c: ['cursor'], vim: true},
-	{g: 'Move', k: 'd/u', d: 'half page down/up', c: ['cursor'], vim: true},
-	{g: 'Move', k: 'g/G', d: 'first / last line', c: ['cursor'], vim: true},
-	{g: 'Move', k: '1-9', d: 'count (5j, 12G)', c: ['cursor'], vim: true},
-	{g: 'Cursor', k: ']/[', d: 'next / prev change', c: ['cursor']},
-	{g: 'Cursor', k: 'v/V', d: 'select chars/lines', c: ['cursor']},
-	{g: 'Cursor', k: 'Enter/a', d: 'comment on line', c: ['cursor'], bar: 'ask', rest: {k: 'a', d: 'comment on line'}},
-	{g: 'Cursor', k: 'p', d: 'old/new pane', c: ['cursor'], bar: 'pane'},
-	{g: 'Cursor', k: 'esc/i', d: 'exit cursor mode', c: ['cursor'], bar: 'exit', rest: {k: 'i', d: 'exit cursor mode'}},
+	{g: 'Comments', k: 'v/V', d: 'select chars/lines', c: ['cursor', 'browse']},
+	{
+		g: 'Comments',
+		k: 'Enter/a',
+		d: 'comment on line',
+		c: ['cursor', 'browse'],
+		bar: 'ask',
+		rest: {k: 'a', d: 'comment on line'},
+	},
+	{g: 'General', k: 's/c/m', d: 'split, full, staged', c: ['cursor']},
+	{g: 'General', k: 't/r', d: 'theme / reload', c: ['cursor']},
+	{g: 'General', k: 'p', d: 'old/new pane', c: ['cursor'], bar: 'pane'},
 	{g: 'Move', k: 'hjkl…', d: 'extend selection', c: ['visual'], vim: true, bar: 'move'},
 	{g: 'Selection', k: 'v/V', d: 'chars/lines, end', c: ['visual'], bar: 'end', rest: {k: 'V', d: 'lines, end'}},
 	{g: 'Selection', k: 'Enter/a', d: 'comment on it', c: ['visual'], bar: 'ask', rest: {k: 'a', d: 'comment on it'}},
 	{g: 'Selection', k: 'esc', d: 'end selection', c: ['visual'], bar: 'end'},
-	{g: 'Selection', k: 'i', d: 'exit cursor mode', c: ['visual']},
-	{g: 'Comments', k: 'i', d: 'enter cursor mode', c: ['normal', 'browse']},
-	{g: 'Comments', k: 'J/K', d: 'next/prev in file', c: ['cursor', 'visual', 'comment']},
-	{g: 'Comments', k: ')/(', d: 'numbered, any file', c: ['normal', 'cursor', 'visual', 'comment']},
-	{g: 'Comments', k: 'E', d: 'export comments', c: ['normal']},
+	{
+		g: 'Comments',
+		k: 'J/K',
+		d: 'next/prev in file',
+		c: ['cursor', 'browse', 'visual', 'comment'],
+		bar: 'comments',
+	},
+	{g: 'Comments', k: ')/(', d: 'numbered, any file', c: ['cursor', 'browse', 'visual', 'comment']},
+	{g: 'Comments', k: 'E', d: 'export comments', c: ['cursor']},
 	{
 		g: 'Move',
 		k: 'j/k d/u',
@@ -90,7 +96,6 @@ export const KEYS: Key[] = [
 	{g: 'Comments', k: 'up/down', d: 'pick block to copy', c: ['comment']},
 	{g: 'Comments', k: 'hjkl…', d: 'motion unfocuses', c: ['comment']},
 	{g: 'Comments', k: 'esc', d: 'unpick / unfocus', c: ['comment'], bar: 'back'},
-	{g: 'Comments', k: 'i', d: 'exit cursor mode', c: ['comment']},
 	{g: 'Editor', k: 'type', d: 'comment text', c: ['editor']},
 	{g: 'Editor', k: 'Enter', d: 'send', c: ['editor'], bar: 'send'},
 	{g: 'Editor', k: 'tab', d: 'save / ask agent', c: ['editor'], bar: 'save'},
@@ -120,9 +125,9 @@ export const KEYS: Key[] = [
 	{g: 'Config (C)', k: 'esc/q/C', d: 'close', c: ['config']},
 	{g: 'Dialogs', k: 'y/Enter', d: 'confirm', c: ['dialog']},
 	{g: 'Dialogs', k: 'n/esc', d: 'cancel (q: quit)', c: ['dialog']},
-	{g: 'General', k: 'M/C', d: 'MCP / config', c: ['normal']},
-	{g: 'General', k: '?', d: 'help/more/close', c: ['normal'], bar: 'help'},
-	{g: 'General', k: 'q', d: 'quit', c: ['normal']},
+	{g: 'General', k: 'M/C', d: 'MCP / config', c: ['cursor']},
+	{g: 'General', k: '?', d: 'help/more/close', c: ['cursor'], bar: 'help'},
+	{g: 'General', k: 'q', d: 'quit', c: ['cursor']},
 ];
 export type HelpState = {
 	ask?: boolean;
@@ -134,7 +139,6 @@ export type HelpState = {
 	config?: boolean;
 	picker?: boolean;
 	browse?: boolean;
-	cursor?: boolean;
 	visual?: boolean;
 	focused?: boolean;
 };
@@ -150,13 +154,11 @@ export const helpCtx = (s: HelpState): HelpCtx => {
 	if (s.picker) return 'picker';
 	if (s.focused) return 'comment';
 	if (s.visual) return 'visual';
-	if (s.cursor) return 'cursor';
 	if (s.browse) return 'browse';
-	return 'normal';
+	return 'cursor';
 };
 export const CTX_LABEL: Record<HelpCtx, string> = {
-	normal: 'Diff view',
-	cursor: 'Cursor mode',
+	cursor: 'Diff view',
 	visual: 'Visual selection',
 	comment: 'Focused comment',
 	editor: 'Editor',
@@ -172,13 +174,11 @@ export const CTX_LABEL: Record<HelpCtx, string> = {
 // footer items, rendered as `k d`
 const BAR = {
 	scroll: 'j/k scroll',
-	half: 'd/u half page',
 	help: '? help',
 	move: 'hjkl move',
 	ask: 'enter ask',
 	comments: 'J/K comments',
 	pane: 'p pane',
-	exit: 'esc exit',
 	end: 'v/esc end',
 	edit: 'e edit',
 	delete: 'D delete',
@@ -189,11 +189,10 @@ const BAR = {
 	cancel: 'esc cancel',
 } as const;
 export type BarId = keyof typeof BAR;
-type Bar = 'normal' | 'cursor' | 'split' | 'visual' | 'comment' | 'ask' | 'edit';
+type Bar = 'cursor' | 'split' | 'visual' | 'comment' | 'ask' | 'edit';
 const BARS: Record<Bar, BarId[]> = {
-	normal: ['scroll', 'half', 'help'],
-	cursor: ['move', 'ask', 'comments', 'exit', 'help'],
-	split: ['move', 'ask', 'comments', 'pane', 'exit', 'help'],
+	cursor: ['move', 'ask', 'comments', 'help'],
+	split: ['move', 'ask', 'comments', 'pane', 'help'],
 	visual: ['end', 'ask', 'move', 'help'],
 	comment: ['edit', 'delete', 'follow', 'scroll', 'back', 'help'],
 	ask: ['send', 'save', 'cancel'],
@@ -201,9 +200,8 @@ const BARS: Record<Bar, BarId[]> = {
 };
 // footers that can show in each help context; modals and text inputs keep the view's footer, which doesn't describe their keys
 const CTX_BARS: Partial<Record<HelpCtx, Bar[]>> = {
-	normal: ['normal'],
-	browse: ['normal'],
 	cursor: ['cursor', 'split'],
+	browse: ['cursor'],
 	visual: ['visual'],
 	comment: ['comment'],
 	editor: ['ask', 'edit'],
@@ -215,7 +213,6 @@ export const keysFor = (c: HelpCtx, motions = false): Key[] =>
 	);
 export const hasMotions = (c: HelpCtx) => keysFor(c, true).some((k) => k.vim);
 export type FooterState = {
-	cursor?: boolean;
 	visual?: boolean;
 	split?: boolean;
 	focused?: boolean;
@@ -225,7 +222,6 @@ export type FooterState = {
 const barFor = (s: FooterState): Bar => {
 	if (s.ask && s.edit) return 'edit';
 	if (s.ask) return 'ask';
-	if (!s.cursor) return 'normal';
 	if (s.focused) return 'comment';
 	if (s.visual) return 'visual';
 	return s.split ? 'split' : 'cursor';

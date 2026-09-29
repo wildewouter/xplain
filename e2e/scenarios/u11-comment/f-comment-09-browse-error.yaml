@@ -1,0 +1,15 @@
+id: F-COMMENT-09
+title: 'numbered note on a file that cannot be opened: note shows the read error, view unchanged'
+size: 120x30
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http: {tool: annotate, args: {file: nope.txt, line: 1, text: ghost, number: 1}}
+    expect: {result: {ok: true}}
+  - keys: )
+  - expectScreen:
+      notContains: '[browse]'
+      line:
+        - {row: 0, matches: '^\[all\] .*\[1/4\] \[cursor L2:C1\] README\.md'}
+        - {row: -1, matches: "^ENOENT: no such file or directory, open 'nope\\.txt' \\| "}

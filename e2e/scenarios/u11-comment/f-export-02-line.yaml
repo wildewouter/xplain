@@ -1,0 +1,44 @@
+id: F-EXPORT-02
+title: 'markdown of one human line comment: whole document exact (header, file section, Line, Context, Comment, single trailing newline)'
+size: 250x20
+steps:
+  - keys: kalooks fine<Enter>
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C1] README.md'}}
+  - keys: E
+  - expectScreen: {line: {row: -1, matches: '^exported 1 comment -> '}}
+  - note: (?<![\s\S]) / (?![\s\S]) anchor start / end of file (matches is multiline)
+    expectFile:
+      glob: xplain-review-*.md
+      matches: |-
+        (?<![\s\S])# xplain review
+
+        - repo: `${REPO}`
+        - diff: `all`
+        - date: \d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z
+        - comments: 1
+
+        ## `README\.md`
+
+        ### 1\. new side, line 1
+
+        - origin: human
+        - state: saved
+
+        Line:
+
+        ```
+        # Title
+        ```
+
+        Context:
+
+        ```
+        # Title
+        hello
+        hello world
+        more
+        ```
+
+        \*\*Comment:\*\*
+
+        > looks fine\n(?![\s\S])

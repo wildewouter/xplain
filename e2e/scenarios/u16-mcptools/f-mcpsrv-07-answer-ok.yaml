@@ -1,0 +1,43 @@
+id: F-MCPSRV-07
+title: 'answer ok: exact result text, UI turn done with text inline; second answer appended; answer text sanitized (ANSI / control chars stripped)'
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - keys: a
+  - keys: explain<Enter>
+  - http: {tool: next_question, args: {wait_seconds: 1}}
+    expect: {result: {status: question, thread_id: q1}}
+  - expectScreen: {contains: '─ answer · agent · streaming… ─', notContains: 'first answer'}
+  - http: {tool: answer, args: {thread_id: q1, text: first answer}}
+    expect:
+      status: 200
+      body:
+        result:
+          isError: {$exists: false}
+          content:
+            - {type: text, text: '{"ok":true,"note":"Answer delivered. Call next_question again immediately."}'}
+  - expectScreen:
+      matches: '│─ answer · agent · done ─+│\n│ first answer +│'
+      notContains: ['streaming…', 'agent working']
+  - note: second answer on the done turn, with SGR escapes and a BEL
+    http: {tool: answer, args: {thread_id: q1, text: "second\e[31m red\e[0m\a part"}}
+    expect: {result: {ok: true, note: 'Answer delivered. Call next_question again immediately.'}}
+  - expectScreen:
+      matches: 'first answer +│\n[\s\S]*│ second red part +│'
+      notContains: ['[31m', '[0m']
+  - note: follow-up shows the stored answers of turn 1 - both kept, joined, sanitized
+    keys: K
+  - keys: a
+  - keys: more<Enter>
+  - http: {tool: next_question, args: {wait_seconds: 1}}
+    expect:
+      result:
+        thread_id: q1
+        turn: 2
+        previous: [{turn: 1, question: explain, answer: "first answer\n\nsecond red part"}]
+  - note: answer goes to the latest delivered turn (turn 2)
+    http: {tool: answer, args: {thread_id: q1, text: turn two answer}}
+    expect: {result: {ok: true}}
+  - expectScreen:
+      matches: 'follow-up: more +┃\n┃─ answer · agent · done ─+┃\n┃ turn two answer +┃'

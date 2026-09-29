@@ -1,0 +1,37 @@
+id: F-SEARCH-01
+title: F opens file search over git ls-files (tracked + untracked), sorted; box geometry, title, query row, hint, colors
+size: 80x24
+# standard fixture: tracked README.md package.json src/a.ts src/big.ts src/c.tsx, untracked x.bin.
+# Box width like picker min(80, max(20, floor(80*0.7))) = 56 -> cols 12-67; height min(24, max(8, floor(24*0.7))) = 16,
+# vertically centered -> rows 4-19. List window height-5 = 11 rows.
+steps:
+  - expectScreen:
+      notContains: 'Search ('
+      line: {row: 0, matches: '^\[all\] \[full\] \[unified\] .*\[1/4\] \[cursor L2:C1\] README\.md '}
+  - keys: F
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] \[full\] \[unified\] .*\[1/4\] \[cursor L2:C1\] README\.md '}
+        - {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}
+      region:
+        - {rows: [3, 3], cols: [12, 67], notContains: ['╭', '─']}
+        - {rows: [4, 4], cols: [12, 67], equals: '╭──────────────────────────────────────────────────────╮'}
+        - {rows: [5, 5], cols: [12, 67], matches: '^│ Search \(1/6\) +│$'}
+        - {rows: [6, 6], cols: [12, 67], matches: '^│ > +│$'}
+        - {rows: [7, 7], cols: [12, 67], matches: '^│> README\.md +│$'}
+        - {rows: [8, 8], cols: [12, 67], matches: '^│  package\.json +│$'}
+        - {rows: [9, 9], cols: [12, 67], matches: '^│  src/a\.ts +│$'}
+        - {rows: [10, 10], cols: [12, 67], matches: '^│  src/big\.ts +│$'}
+        - {rows: [11, 11], cols: [12, 67], matches: '^│  src/c\.tsx +│$'}
+        - {rows: [12, 12], cols: [12, 67], matches: '^│  x\.bin +│$'}
+        - {rows: [13, 17], cols: [13, 66], matches: '^ *\n *\n *\n *\n *$'}
+        - {rows: [18, 18], cols: [12, 67], matches: '^│ ↑↓/\^n\^p move enter open esc close +│$'}
+        - {rows: [19, 19], cols: [12, 67], equals: '╰──────────────────────────────────────────────────────╯'}
+        - {rows: [20, 20], cols: [12, 67], notContains: ['╰', '─']}
+  - note: '`> ` of the query row in accent, then inverse-space caret'
+    expectCell: {at: {text: '│ > ', row: 6, offset: 2}, fg: '#cb4b16'}
+  - expectCell: {at: {text: '│ > ', row: 6, offset: 4}, chars: ' ', inverse: true}
+  - note: selected row selBg/selFg
+    expectCell: {at: {text: '> README.md', row: 7, offset: 2}, bg: '#073642', fg: '#93a1a1'}
+  - note: unselected row not in selection colors (modal bg)
+    expectCell: {at: {text: 'package.json', row: 8}, bg: '#002b36'}

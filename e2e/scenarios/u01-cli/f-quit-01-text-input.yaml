@@ -1,0 +1,16 @@
+id: F-QUIT-01
+title: 'q inside a text input is typed, not quit (even with confirmQuit off); after closing the input q quits'
+files:
+  ${CONFIG}/xplain/config.json: {app: {confirmQuit: false}}
+steps:
+  - keys: /
+  - keys: q
+  - expectScreen: {line: {row: -1, contains: '/q█'}}
+  - keys: <Esc>
+  - keys: a
+  - keys: q
+  - expectScreen: {contains: 'enter send', line: {row: 0, matches: '^\[all\] '}}
+  - keys: <Esc>
+  - expectScreen: {notContains: 'enter send'}
+  - keys: q
+  - expectExit: 0

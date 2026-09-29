@@ -1,0 +1,19 @@
+id: F-INTEG-03
+title: 'register result note shown on that row when selected; kept after re-check'
+shims:
+  claude:
+    - {match: [mcp, get], exit: 1}
+    - {match: [mcp, add], exit: 7, stderr: "nope\n"}
+steps:
+  - keys: M<Enter>j<Enter>y
+  - expectScreen: {contains: 'Claude Code register failed (exit 7): nope'}
+  - keys: j
+  - expectScreen: {matches: '^ +│> Codex ', notContains: 'register failed'}
+  - keys: k
+  - expectScreen: {matches: '^ +│> Claude Code ', contains: 'Claude Code register failed (exit 7): nope'}
+  - note: note survived the check that re-ran right after the register
+    expectShimCall: {name: claude, args: [mcp, get, xplain], count: 2}
+  - keys: k
+  - expectScreen: {matches: '^ +│> ● on', notContains: 'register failed'}
+  # busy marker "… " during the CLI run: f-integ-03-busy.yaml
+  # 20 s timeout path ("<label> register failed: <message>") not covered: timing based

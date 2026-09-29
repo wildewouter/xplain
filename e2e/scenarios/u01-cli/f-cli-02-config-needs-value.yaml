@@ -1,0 +1,11 @@
+id: F-CLI-02
+title: '--config as last arg fails with "--config needs a value" + usage, exit 1'
+tui: false
+args: [--config]
+steps:
+  - expectExit: 1
+  - expectStdout: {equals: ''}
+  - expectStderr:
+      {
+        matches: '(?<![\s\S])xplain: --config needs a value\nusage: xplain \[--cwd dir\][\s\S]*C config, q quits\n(?![\s\S])',
+      }

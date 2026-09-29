@@ -1,0 +1,52 @@
+id: F-MODE-02
+title: untracked listed with ls-files --others --exclude-standard -z, each diffed via --no-index against /dev/null, in ls-files order
+files:
+  b.txt: "bee\n"
+  a.txt: "ay\n"
+shims:
+  git:
+    - match: [diff, --no-color, --no-ext-diff]
+      stdout: "diff --git a/t.txt b/t.txt\nindex 1111111..2222222 100644\n--- a/t.txt\n+++ b/t.txt\n@@ -1 +1 @@\n-old\n+new\n"
+    - match: [ls-files, --others, --exclude-standard, -z]
+      stdout: "b.txt\0a.txt\0"
+    - match: [diff, --no-index, --no-color, --no-ext-diff, -U1000000, --, /dev/null, b.txt]
+      exit: 1
+      stdout: "diff --git a/b.txt b/b.txt\nnew file mode 100644\nindex 0000000..1111111\n--- /dev/null\n+++ b/b.txt\n@@ -0,0 +1 @@\n+bee\n"
+    - match: [diff, --no-index, --no-color, --no-ext-diff, -U1000000, --, /dev/null, a.txt]
+      exit: 1
+      stdout: "diff --git a/a.txt b/a.txt\nnew file mode 100644\nindex 0000000..1111111\n--- /dev/null\n+++ b/a.txt\n@@ -0,0 +1 @@\n+ay\n"
+    - match: [diff, --no-index, --no-color, --no-ext-diff, --, /dev/null, a.txt]
+      exit: 1
+      stdout: "diff --git a/a.txt b/a.txt\nnew file mode 100644\nindex 0000000..1111111\n--- /dev/null\n+++ b/a.txt\n@@ -0,0 +1 @@\n+ay\n"
+    - match: [diff, --no-index, --no-color, --no-ext-diff, --, /dev/null, b.txt]
+      exit: 1
+      stdout: "diff --git a/b.txt b/b.txt\nnew file mode 100644\nindex 0000000..1111111\n--- /dev/null\n+++ b/b.txt\n@@ -0,0 +1 @@\n+bee\n"
+steps:
+  - expectScreen: {line: {row: 0, matches: '\[1/3\] \[cursor L1:C1\] t\.txt \+1 -1$'}}
+  - expectShimCall: {name: git, args: [ls-files, --others, --exclude-standard, -z], cwd: '${REPO}', count: 1}
+  - expectShimCall:
+      {
+        name: git,
+        args: [diff, --no-index, --no-color, --no-ext-diff, -U1000000, --, /dev/null, b.txt],
+        cwd: '${REPO}',
+        count: 1,
+      }
+  - expectShimCall:
+      {
+        name: git,
+        args: [diff, --no-index, --no-color, --no-ext-diff, -U1000000, --, /dev/null, a.txt],
+        cwd: '${REPO}',
+        count: 1,
+      }
+  - keys: <Tab>
+  - note: ls-files order kept (b before a), after the tracked file
+    expectScreen:
+      line:
+        - {row: 0, matches: '\[2/3\] \[cursor L1:C1\] b\.txt \+1 -0$'}
+        - {row: 3, matches: '^        1 \+▶bee'}
+  - keys: <Tab>
+  - expectScreen: {line: {row: 0, matches: '\[3/3\] \[cursor L1:C1\] a\.txt \+1 -0$'}}
+  - note: changes scope drops -U1000000 from the untracked diff too
+    keys: c
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[changes\] .*\[3/3\] .*a\.txt \+1 -0$'}}
+  - expectShimCall: {name: git, args: [diff, --no-index, --no-color, --no-ext-diff, --, /dev/null, a.txt], count: 1}

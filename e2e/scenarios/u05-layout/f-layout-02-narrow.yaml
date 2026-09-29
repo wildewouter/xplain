@@ -1,0 +1,10 @@
+id: F-LAYOUT-02
+title: 'footer: too narrow for split only when split setting on and cols < 100; s toggles it'
+size: 99x24
+steps:
+  - expectScreen: {line: {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - keys: s
+  - expectScreen:
+      {line: {row: -1, matches: '^too narrow for split \| \(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - keys: s
+  - expectScreen: {line: {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}

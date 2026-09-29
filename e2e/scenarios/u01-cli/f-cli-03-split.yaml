@@ -1,0 +1,8 @@
+id: F-CLI-03
+title: '--split starts in side-by-side view (chip + split footer hint at 120 cols)'
+args: [--split]
+steps:
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] \[full\] \[split\] \[solarized\] \[mcp: off\] \[1/4\] '}
+        - {row: -1, contains: 'hjkl move  enter ask  J/K comments  p pane  ? help'}

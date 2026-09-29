@@ -1,0 +1,8 @@
+id: F-HELP-02
+title: 'no-changes screen uses Diff view context'
+fixture: empty
+size: 80x24
+steps:
+  - expectScreen: {line: {row: 0, contains: 'No changes'}, notContains: 'Help ·'}
+  - keys: '?'
+  - expectScreen: {contains: 'Help · Diff view', notContains: 'Cursor mode'}

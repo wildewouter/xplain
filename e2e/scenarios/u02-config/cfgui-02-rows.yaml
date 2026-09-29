@@ -1,0 +1,22 @@
+id: F-CFGUI-02
+title: j/k and Down/Up move the selected row, clamped at both ends
+steps:
+  - keys: C
+  - expectScreen: {line: {row: 17, matches: '│> theme '}}
+  - keys: k
+  - expectScreen: {line: [{row: 17, matches: '│> theme '}, {row: 18, matches: '│  mode '}]}
+  - keys: <Up>
+  - expectScreen: {line: {row: 17, matches: '│> theme '}}
+  - keys: j
+  - expectScreen: {line: [{row: 17, matches: '│  theme '}, {row: 18, matches: '│> mode '}]}
+  - keys: <Down>
+  - expectScreen: {line: [{row: 18, matches: '│  mode '}, {row: 19, matches: '│> split '}]}
+  - keys: jjj
+  - expectScreen: {line: [{row: 21, matches: '│  confirm quit '}, {row: 22, matches: '│> mcp on startup '}]}
+  - keys: j<Down>
+  - expectScreen: {line: {row: 22, matches: '│> mcp on startup '}}
+  - note: selection bg follows the row
+    expectCell: {at: {text: '> mcp on startup', row: 22, offset: 2}, bg: '#073642'}
+  - expectCell: {at: {text: '  theme', row: 17, offset: 2}, bg: '#002b36'}
+  - keys: <Up>k
+  - expectScreen: {line: [{row: 20, matches: '│> view '}, {row: 22, matches: '│  mcp on startup '}]}

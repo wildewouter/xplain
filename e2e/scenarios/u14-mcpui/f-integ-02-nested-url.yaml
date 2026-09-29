@@ -1,0 +1,10 @@
+id: F-INTEG-02
+title: 'check: xplain.url and mcpServers.xplain.url; different -> stale'
+shims:
+  claude: [{match: [mcp, get], exit: 0, stdout: '{"xplain": {"type": "http", "url": "http://127.0.0.1:2/mcp"}}'}]
+  codex: [{match: [mcp, get], exit: 0, stdout: '{"mcpServers": {"xplain": {"url": "http://127.0.0.1:${PORT}/mcp"}}}'}]
+  copilot: [{match: [mcp, get], exit: 0, stdout: '{"mcpServers": {"xplain": {"url": "http://localhost:${PORT}/mcp"}}}'}]
+steps:
+  - keys: M<Enter>
+  - expectScreen:
+      matches: ['^ +│  Claude Code stale', '^ +│  Codex registered', '^ +│  Copilot stale']

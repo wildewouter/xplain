@@ -1,0 +1,9 @@
+id: F-HELP-01
+title: 'overflow keeps whole items only: 2-row wrapped item that does not fit is left out entirely (40x13)'
+size: 40x13
+steps:
+  - keys: '??'
+  - expectScreen:
+      matches: '│  d/u       half page down/up *│$\n^[^\n]*│ … 17 more *│$\n^[^\n]*│ \? close *│$\n^[^\n]*╰─+╯$'
+      notContains: ['PgDn', 'down)']
+      line: {row: -1, matches: '^\(1-5/5\) '}

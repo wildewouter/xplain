@@ -5,14 +5,7 @@ cd "$(dirname "$0")/.." || exit 1
 T=$(mktemp -d "${TMPDIR:-/tmp}/xplain-test-XXXXXX") || exit 1
 trap 'rm -rf "$T"' EXIT
 R="$T/repo"
-mkdir -p "$R"
-cp -R tests/fixture/base/. "$R/"
-for x in $(cd "$R" && find . -name '*.fx'); do mv "$R/$x" "$R/${x%.fx}"; done
-git -C "$R" init -q
-git -C "$R" add -A
-git -C "$R" -c user.email=a@b.c -c user.name=x commit -qm init
-cp -R tests/fixture/work/. "$R/"
-for x in $(cd "$R" && find . -name '*.fx'); do mv "$R/$x" "$R/${x%.fx}"; done
+sh e2e/fixture.sh "$R" standard || exit 1
 # Run files concurrently (each has its own out file; tests use mkdtemp/port 0, keys uses keys-* dirs only it owns).
 for f in tests/*.test.ts tests/*.test.tsx; do
 	b=$(basename "$f")

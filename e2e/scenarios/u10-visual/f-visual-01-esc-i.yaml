@@ -1,0 +1,33 @@
+id: F-VISUAL-01
+title: i is a no-op in visual (selection kept, still extendable); Esc ends; Esc again no-op
+fixture: empty
+size: 80x20
+files:
+  f.txt: "alpha beta\ntwo words here\n\nfourth line\nfifth\n"
+steps:
+  - keys: vl
+  - expectScreen: {line: {row: 0, matches: '\[visual L1:C2\] f\.txt '}}
+  - keys: i
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[visual L1:C2\] f\.txt '}
+        - {row: -1, matches: 'v/esc end  enter ask  hjkl move  \? help$'}
+      notContains: '╭'
+  - expectCell: {at: {row: 3, col: 12}, chars: a, bg: '#6b4f00'}
+  - keys: l
+  - expectScreen: {line: {row: 0, matches: '\[visual L1:C3\] f\.txt '}}
+  - expectCell: {at: {row: 3, col: 13}, chars: l, bg: '#6b4f00', inverse: false}
+  - expectCell: {at: {row: 3, col: 14}, chars: p, bg: '#6b4f00', inverse: true}
+  - keys: <Esc>
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L1:C3\] f\.txt \+5 -0$'}
+        - {row: -1, matches: '\(1-6/6\) hjkl move  enter ask  J/K comments  \? help$'}
+  - expectCell: {at: {row: 3, col: 12}, chars: a, bg: '#22586b'}
+  - expectCell: {at: {row: 3, col: 13}, chars: l, bg: '#22586b'}
+  - keys: <Esc>
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L1:C3\] f\.txt \+5 -0$'}
+        - {row: 3, matches: '^        1 \+▶alpha beta'}
+        - {row: -1, matches: '\(1-6/6\) hjkl move  enter ask  J/K comments  \? help$'}

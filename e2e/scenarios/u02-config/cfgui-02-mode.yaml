@@ -1,0 +1,24 @@
+id: F-CFGUI-02
+title: mode select reloads the diff in that mode, file index 1; selecting current mode goes to file 1 too
+steps:
+  - keys: <Tab>
+  - expectScreen: {line: {row: 0, matches: '^\[all\] .* \[2/4\] \[cursor [^\]]+\] src/big\.ts '}}
+  - keys: Cjll<Enter>
+  - expectScreen:
+      contains: ' Config'
+      line:
+        - {
+            row: 0,
+            matches: '^\[unstaged\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/3\] \[cursor [^\]]+\] README\.md ',
+          }
+        - {row: 18, matches: '│> mode +all +staged +\[unstaged\] +│'}
+  - expectFile: {path: '${CONFIG}/xplain/config.json', json: {view: {mode: unstaged}}}
+  - keys: <Esc><Tab>
+  - expectScreen: {line: {row: 0, matches: '^\[unstaged\] .* \[2/3\] \[cursor [^\]]+\] src/big\.ts '}}
+  - note: select the current value (unstaged)
+    keys: Ckj<Enter>
+  - expectScreen: {line: {row: 0, matches: '^\[unstaged\] .* \[1/3\] \[cursor [^\]]+\] README\.md '}}
+  - expectFile: {path: '${CONFIG}/xplain/config.json', json: {view: {mode: unstaged}}}
+  - note: staged has nothing in the fixture -> no-changes header
+    keys: h<Enter>
+  - expectScreen: {line: {row: 0, matches: '^\[staged\] \[mcp: off\] No changes'}}

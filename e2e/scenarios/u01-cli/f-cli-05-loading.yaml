@@ -1,0 +1,16 @@
+id: F-CLI-05
+title: 'first frame before the diff loads is "Loading..." (dim) only; the loaded diff replaces it'
+startWithoutBarrier: true
+shims:
+  git: {passthrough: true, block: true}
+steps:
+  - note: git blocks, so the initial load stays pending; a frame barrier does not wait for it
+    barrier: frame
+  - expectScreen: {matches: '(?<![\s\S])Loading\.\.\.$(?![\s\S]*\S)'}
+  - expectCell: {at: {text: Loading...}, dim: true}
+  - note: release answers the pending idle barrier once the diff is loaded
+    release: git
+  - expectScreen:
+      line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] '}
+      notContains: Loading
+  - expectShimCall: {name: git, argsContain: [diff]}

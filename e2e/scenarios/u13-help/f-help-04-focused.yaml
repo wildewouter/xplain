@@ -1,0 +1,11 @@
+id: F-HELP-04
+title: 'focused comment footer: e edit  D delete  a ask/follow up  j/k scroll  esc back  ? help'
+size: 120x40
+steps:
+  - keys: 'ahi<Enter>'
+  - expectScreen: {line: {row: -1, matches: 'hjkl move  enter ask  J/K comments  \? help$'}}
+  - keys: J
+  - expectScreen:
+      {line: {row: -1, matches: '\(1-5/5\) e edit  D delete  a ask/follow up  j/k scroll  esc back  \? help$'}}
+  - keys: <Esc>
+  - expectScreen: {line: {row: -1, matches: '\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}

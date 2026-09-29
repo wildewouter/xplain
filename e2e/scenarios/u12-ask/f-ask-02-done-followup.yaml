@@ -1,0 +1,25 @@
+id: F-ASK-02
+title: a on an answered question opens the follow-up editor
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - httpStart: {id: poll, tool: next_question, args: {wait_seconds: 60}}
+  - keys: a
+  - keys: why?<Enter>
+  - httpAwait: poll
+    expect: {result: {status: question, thread_id: q1}}
+  - http: {tool: answer, args: {thread_id: q1, text: because}}
+    expect: {result: {ok: true}}
+  - keys: K
+  - expectScreen:
+      contains: ['▸ sent  line L2', '─ answer · agent · done ─', 'because', 'a follow up']
+      notContains: ['enter send']
+  - keys: a
+  - expectScreen:
+      matches: '^│ follow-up +│$'
+      contains: 'enter send  esc cancel'
+      notContains: 'tab save/ask'
+  - keys: <Esc>
+  - expectScreen: {notContains: ['enter send', '│ follow-up'], contains: '▸ sent  line L2'}
+  - http: {tool: get_questions}
+    expect: {result: {questions: []}}

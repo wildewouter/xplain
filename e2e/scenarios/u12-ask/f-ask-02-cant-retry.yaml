@@ -1,0 +1,29 @@
+id: F-ASK-02
+title: a on a human thread whose follow-up was cancelled notes can't retry a follow-up yet
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - httpStart: {id: poll, tool: next_question, args: {wait_seconds: 60}}
+  - keys: a
+  - keys: why?<Enter>
+  - httpAwait: poll
+  - http: {tool: answer, args: {thread_id: q1, text: because}}
+  - keys: K
+  - keys: a
+  - keys: and?<Enter>
+  - expectScreen: {line: {row: -1, contains: 'follow-up queued'}}
+  - note: stop MCP; the queued follow-up becomes cancelled
+    keys: M<Enter><Esc>
+  - expectScreen:
+      {
+        line: {row: 0, contains: '[mcp: off]'},
+        contains: ['follow-up: and?', '─ answer · agent · cancelled ─', 'MCP stopped'],
+      }
+  - note: restart MCP so the MCP-off note cannot be the reason
+    keys: M<Enter><Esc>
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - keys: K
+  - keys: a
+  - expectScreen: {line: {row: -1, contains: "can't retry a follow-up yet"}, notContains: 'enter send'}
+  - http: {tool: get_questions}
+    expect: {result: {questions: []}}

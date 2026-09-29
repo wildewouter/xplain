@@ -1,0 +1,21 @@
+id: F-CONFIG-04
+title: 'invalid-json config file: one warning with path prefix and fixed suffix, all defaults used'
+size: 300x20
+files:
+  ${CONFIG}/xplain/config.json: "{\"theme\": \"dull\",}\n"
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] '}}
+  - keys: q
+  - expectScreen: {contains: 'Quit xplain? (y/n)'}
+  - keys: y
+  - expectExit: 0
+  - note: parser message between prefix and suffix is UNSPEC-29
+    expectScreen:
+      line:
+        {
+          row: 0,
+          contains: 'xplain: config: ${CONFIG}/xplain/config.json: ',
+          matches: '^xplain: config: .+; using defaults, file will not be modified$',
+        }
+      matches: '^[^\n]*\n\s*$'
+  - expectFile: {path: '${CONFIG}/xplain/config.json', equals: "{\"theme\": \"dull\",}\n"}

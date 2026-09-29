@@ -1,0 +1,70 @@
+id: F-THEME-02
+title: contrast theme chrome colors (header chips, rule, hunk, gutter, add/del bg + marks, cursor row, visual, picker, footer)
+args: [--theme, contrast]
+# fixture README.md: rows 2 @@, 3 context L1, 4 del L2 (cursor at start), 5 add L2, 6 add L3; code starts col 12
+steps:
+  - expectScreen:
+      line:
+        - {
+            row: 0,
+            matches: '^\[all\] \[full\] \[unified\] \[contrast\] \[mcp: off\] \[1/4\] \[cursor L2:C1\] README\.md \+2 -1$',
+          }
+        - {row: 2, matches: '^@@ -1,2 \+1,3 @@'}
+        - {row: 3, equals: '   1    1   # Title'}
+        - {row: 4, matches: '^   2      -▶hello'}
+        - {row: 5, equals: '        2 + hello world'}
+  - note: header chips - mode + scope `mode`; layout, theme, mcp `view`; path `file`; +N adds; -N dels; cursor tag accent bold
+    expectCell: {at: {text: '[all]', row: 0}, fg: '#ffff00'}
+  - expectCell: {at: {text: '[full]', row: 0, offset: 1}, fg: '#ffff00'}
+  - expectCell: {at: {text: '[unified]', row: 0, offset: 1}, fg: '#ff00ff'}
+  - expectCell: {at: {text: '[contrast]', row: 0, offset: 1}, fg: '#ff00ff'}
+  - expectCell: {at: {text: '[mcp: off]', row: 0, offset: 1}, fg: '#ff00ff'}
+  - expectCell: {at: {text: '[cursor', row: 0, offset: 1}, fg: '#ffff00', bold: true}
+  - expectCell: {at: {text: 'README.md', row: 0}, fg: '#00ffff'}
+  - expectCell: {at: {text: '+2', row: 0}, fg: '#00ff00'}
+  - expectCell: {at: {text: '-1', row: 0}, fg: '#ff0000'}
+  - note: rule dim, hunk header fg hunk, footer dim
+    expectCell: {at: {row: 1, col: 0}, chars: '─', fg: '#808080'}
+  - expectCell: {at: {row: 2, col: 0}, chars: '@', fg: '#ffffff'}
+  - expectCell: {at: {row: -1, col: 1}, chars: '1', fg: '#808080'}
+  - note: context row - gutter number fg, no bg
+    expectCell: {at: {row: 3, col: 3}, chars: '1', fg: '#808080', bg: default}
+  - note: add row - number + mark cells bg addBg, mark fg addMark bold, code no bg
+    expectCell: {at: {row: 5, col: 0}, bg: '#005f00'}
+  - expectCell: {at: {row: 5, col: 8}, chars: '2', fg: '#808080', bg: '#005f00'}
+  - expectCell: {at: {row: 5, col: 10}, chars: '+', fg: '#ffffff', bg: '#005f00', bold: true}
+  - expectCell: {at: {row: 5, col: 12}, chars: h, bg: default}
+  - note: cursor on del row - whole row bg curBg (numbers, mark, code, padding), del mark still shown
+    expectCell: {at: {row: 4, col: 0}, bg: '#3a3aa8'}
+  - expectCell: {at: {row: 4, col: 3}, chars: '2', bg: '#3a3aa8'}
+  - expectCell: {at: {row: 4, col: 10}, chars: '-', fg: '#ffffff', bg: '#3a3aa8'}
+  - expectCell: {at: {row: 4, col: 11}, chars: '▶', bg: '#3a3aa8'}
+  - expectCell: {at: {row: 4, col: 13}, chars: e, bg: '#3a3aa8'}
+  - expectCell: {at: {row: 4, col: 40}, bg: '#3a3aa8'}
+  - note: cursor up to context row; del row gets delBg gutter, context row gets curBg
+    keys: k
+  - expectScreen: {line: [{row: 0, matches: '\[cursor L1:C1\] README\.md '}, {row: 4, equals: '   2      - hello'}]}
+  - expectCell: {at: {row: 4, col: 0}, bg: '#870000'}
+  - expectCell: {at: {row: 4, col: 3}, chars: '2', fg: '#808080', bg: '#870000'}
+  - expectCell: {at: {row: 4, col: 10}, chars: '-', fg: '#ffffff', bg: '#870000', bold: true}
+  - expectCell: {at: {row: 4, col: 12}, chars: h, bg: default}
+  - expectCell: {at: {row: 3, col: 0}, bg: '#3a3aa8'}
+  - expectCell: {at: {row: 3, col: 40}, bg: '#3a3aa8'}
+  - note: char visual selection over `# T` - selected non-cursor cells bg visBg fg visFg
+    keys: vll
+  - expectScreen: {line: {row: 0, matches: '\[visual L1:C3\] README\.md '}}
+  - expectCell: {at: {row: 3, col: 12}, chars: '#', fg: '#ffffff', bg: '#af5f00'}
+  - expectCell: {at: {row: 3, col: 13}, chars: ' ', fg: '#ffffff', bg: '#af5f00'}
+  - expectCell: {at: {row: 3, col: 16}, chars: t, bg: '#3a3aa8'}
+  - keys: <Esc>
+  - expectScreen: {line: {row: 0, matches: '\[cursor L1:C3\] README\.md '}}
+  - expectCell: {at: {row: 3, col: 12}, chars: '#', bg: '#3a3aa8'}
+  - note: picker - selected row selBg/selFg, border modalBorder, box bg modalBg
+    keys: f
+  - expectScreen: {contains: ' Files (1/4)', matches: '│>M README\.md \+2 -1 \*\s+│'}
+  - expectCell: {at: {text: 'README.md +2 -1 *'}, chars: R, fg: '#000000', bg: '#ffff00'}
+  - expectCell: {at: {text: 'README.md +2 -1 *', offset: 4}, chars: M, fg: '#000000', bg: '#ffff00'}
+  - expectCell: {at: {text: '╭'}, fg: '#ffffff'}
+  - expectCell: {at: {text: 'src/big.ts'}, fg: '#ffffff', bg: '#000000'}
+  - keys: <Esc>
+  - expectScreen: {notContains: 'Files ('}

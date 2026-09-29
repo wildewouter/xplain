@@ -1,0 +1,115 @@
+id: F-MCPSRV-04
+title: tools/list returns the 5 tools in order with verbatim descriptions and input schemas
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http: {body: {jsonrpc: '2.0', id: 'tl', method: tools/list}}
+    expect:
+      status: 200
+      headers: {content-type: {$matches: '^application/json'}}
+      body:
+        jsonrpc: '2.0'
+        id: tl
+        result:
+          tools:
+            - {
+                'name': 'next_question',
+                'description': 'Long-poll for the next question a human asked in the xplain code-review UI. Returns {status:"question", thread_id, turn, follow_up, question}: answer it with the answer tool. If follow_up is true it continues an earlier thread: use `previous` (earlier questions and your answers) for reference and answer with the SAME thread_id. A follow-up can also be the user replying to a note you added with annotate: the question then names the note (file, line, text). If status is "no_question_yet", call next_question again immediately. Keep looping: after every answer, call next_question again immediately, until status is "closed".',
+                'inputSchema':
+                  {
+                    'type': 'object',
+                    'properties':
+                      {
+                        'wait_seconds':
+                          {
+                            'type': 'integer',
+                            'minimum': 1,
+                            'maximum': 120,
+                            'default': 45,
+                            'description': 'Max seconds to wait for a question (1-120).',
+                          },
+                      },
+                    'additionalProperties': false,
+                  },
+              }
+            - {
+                'name': 'answer',
+                'description': 'Send your answer for a question received from next_question, using its thread_id (for a follow-up, the same thread_id as before). Plain text or markdown. Put code samples in markdown fenced blocks (```lang ... ```): xplain highlights them and gives the user a copy button. Then call next_question again immediately.',
+                'inputSchema':
+                  {
+                    'type': 'object',
+                    'properties':
+                      {
+                        'thread_id': {'type': 'string', 'description': 'thread_id from next_question.'},
+                        'text':
+                          {
+                            'type': 'string',
+                            'description': 'The answer text. Put code samples in markdown fenced blocks (```lang ... ```): xplain highlights them and gives the user a copy button.',
+                          },
+                      },
+                    'required': ['thread_id', 'text'],
+                    'additionalProperties': false,
+                  },
+              }
+            - {
+                'name': 'get_questions',
+                'description': 'List questions (and follow-ups, marked follow_up) still waiting to be delivered, without consuming them. Does not replace the next_question loop.',
+                'inputSchema':
+                  {
+                    'type': 'object',
+                    'properties':
+                      {
+                        'thread_id': {'$exists': false},
+                        'wait_seconds': {'$exists': false},
+                        'file': {'$exists': false},
+                        'paths': {'$exists': false},
+                      },
+                    'additionalProperties': false,
+                  },
+              }
+            - {
+                'name': 'annotate',
+                'description': 'Attach a note to a line of a file in the xplain diff view. The user may reply to it; replies arrive via next_question as follow-ups. Then continue the next_question loop.',
+                'inputSchema':
+                  {
+                    'type': 'object',
+                    'properties':
+                      {
+                        'file': {'type': 'string', 'description': 'File path as shown in the diff.'},
+                        'line': {'type': 'number', 'description': '1-based line number.'},
+                        'text':
+                          {
+                            'type': 'string',
+                            'description': 'Annotation text. Put code samples in markdown fenced blocks (```lang ... ```): xplain highlights them and gives the user a copy button.',
+                          },
+                        'side': {'type': 'string', 'enum': ['old', 'new'], 'description': 'Diff side; default new.'},
+                        'number':
+                          {
+                            'type': 'integer',
+                            'description': 'Optional order label shown on the note (e.g. step 1, 2, 3); the user jumps between numbered notes in order.',
+                          },
+                      },
+                    'required': ['file', 'line', 'text'],
+                    'additionalProperties': false,
+                  },
+              }
+            - {
+                'name': 'files_changed',
+                'description': 'REQUIRED after every file change: you MUST call this after each edit, creation, rename or deletion of any file on disk (also right after a batch of edits, before replying). It makes the xplain diff view reload; without it the user sees stale content. Pass the changed paths in `paths`. Then continue the next_question loop.',
+                'inputSchema':
+                  {
+                    'type': 'object',
+                    'properties':
+                      {
+                        'paths':
+                          {
+                            'type': 'array',
+                            'items': {'type': 'string'},
+                            'description': 'Paths of the files you edited, created or deleted (relative to the repo root).',
+                          },
+                      },
+                    'additionalProperties': false,
+                  },
+              }
+          # arrays match element-wise with equal length: exactly 5 tools; inputSchema key lists checked in full

@@ -1,0 +1,16 @@
+id: F-CONFIG-01
+title: --config file is read and is the one saved to; XPLAIN_CONFIG and XDG files untouched
+env: {XPLAIN_CONFIG: '${TMP}/env/cfg.json'}
+args: [--config, '${TMP}/flag/cfg.json']
+files:
+  ${TMP}/flag/cfg.json: {theme: light}
+  ${TMP}/env/cfg.json: "{\"theme\": \"contrast\"}\n"
+  ${CONFIG}/xplain/config.json: "{\"theme\": \"vibrant\"}\n"
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[light\] \[mcp: off\] '}}
+  - note: theme row, one left of light = colorblind, select
+    keys: Ch<Enter>
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[colorblind\] '}}
+  - expectFile: {path: '${TMP}/flag/cfg.json', json: {theme: colorblind}}
+  - expectFile: {path: '${TMP}/env/cfg.json', equals: "{\"theme\": \"contrast\"}\n"}
+  - expectFile: {path: '${CONFIG}/xplain/config.json', equals: "{\"theme\": \"vibrant\"}\n"}

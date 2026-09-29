@@ -1,0 +1,17 @@
+id: F-ASK-08
+title: first Up picks the last button
+size: 60x40
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - keys: a
+  - keys: q<Enter>
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+  - http: {tool: answer, args: {thread_id: q1, text: "```ts\none\n```\n```sh\ntwo\n```\n```py\nthree\n```"}}
+  - keys: K
+  - expectScreen: {contains: '[ copy ] py', notContains: 'enter copy'}
+  - keys: <Up>
+  - expectScreen:
+      {contains: '[ copy ] py  enter copy', notContains: ['[ copy ] ts  enter copy', '[ copy ] sh  enter copy']}
+  - keys: <Enter>
+  - expectOsc52: {equals: three, count: 1}

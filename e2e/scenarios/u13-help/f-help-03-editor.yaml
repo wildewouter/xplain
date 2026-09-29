@@ -1,0 +1,11 @@
+id: F-HELP-03
+title: 'Editor entries verbatim: [Editor] type, tab, left/right, backspace; no hint, credit only'
+size: 120x40
+steps:
+  - keys: '?'
+  - expectScreen: {contains: 'Help · Diff view', notContains: '[save] enter send'}
+  - keys: a
+  - expectScreen:
+      contains: '[save] enter send  tab save/ask  esc cancel'
+      matches: '^(?=.{120}$)[^\n]*│ Help · Editor *│$\n^[^\n]*│ Editor *│$\n^[^\n]*│  type       comment text *│$\n^[^\n]*│  tab        save / ask agent *│$\n^[^\n]*│  left/right move cursor *│$\n^[^\n]*│  backspace  delete char *│$\n^[^\n]*│ *Made by Wouter de Wild - 2026 │$\n^(?=.{120}$)[^\n]*╰─+╯$'
+      notContains: ['│  i ', '? move keys', '? close', 'Help · Diff view']

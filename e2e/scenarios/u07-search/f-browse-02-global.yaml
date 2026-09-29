@@ -1,0 +1,64 @@
+id: F-BROWSE-02
+title: t, C, M, E, F, /, n, N, :, r, q, ? work in browse
+size: 120x30
+files:
+  ${CONFIG}/xplain/config.json: {app: {confirmQuit: true}}
+steps:
+  - keys: Fsbt<Enter>
+  - expectScreen: {line: {row: 0, matches: '^\[browse\] \[solarized\] \[mcp: off\] \[cursor L1:C1\] src/big\.ts$'}}
+  - keys: t
+  - note: theme cycles, browse header chip updates
+    expectScreen: {line: {row: 0, matches: '^\[browse\] \[vibrant\] \[mcp: off\] \[cursor L1:C1\] src/big\.ts$'}}
+  - keys: /v42<Enter>
+  - note: find jumps to the match in browse text
+    expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L42:C7\] src/big\.ts$'}
+        - {row: -1, matches: '^/v42 \| '}
+  - keys: /v5<Enter>
+  - note: Enter jumps to first match row >= cursor, wrapping (v5 at L5 and L50-L59)
+    expectScreen: {line: {row: 0, matches: '\[cursor L50:C7\] src/big\.ts$'}}
+  - keys: n
+  - expectScreen: {line: {row: 0, matches: '\[cursor L51:C7\] src/big\.ts$'}}
+  - keys: N
+  - expectScreen: {line: {row: 0, matches: '\[cursor L50:C7\] src/big\.ts$'}}
+  - keys: ':7<Enter>'
+  - note: goto by browse line number
+    expectScreen: {line: {row: 0, matches: '\[cursor L7:C1\] src/big\.ts$'}}
+  - keys: ':99<Enter>'
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L7:C1\] src/big\.ts$'}
+        - {row: -1, contains: 'line 99 out of range (1-60) | '}
+  - keys: r
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[browse\] .*\[cursor L7:C1\] src/big\.ts$'}
+        - {row: -1, contains: 'reloaded | '}
+  - keys: E
+  - expectScreen: {line: {row: -1, contains: 'no comments to export | '}}
+  - keys: '?'
+  - expectScreen: {contains: 'Help · File viewer'}
+  - keys: '??'
+  - expectScreen: {notContains: 'Help ·'}
+  - keys: C
+  - expectScreen: {contains: ' Config'}
+  - keys: <Esc>
+  - expectScreen: {notContains: ' Config'}
+  - keys: M
+  - expectScreen: {matches: '│ MCP +│', contains: '> ○ off'}
+  - keys: <Esc>
+  - expectScreen: {notContains: '○ off', line: {row: 0, matches: '^\[browse\] .*\[cursor L7:C1\] src/big\.ts$'}}
+  - keys: q
+  - expectScreen: {contains: 'Quit xplain? (y/n)'}
+  - keys: n
+  - expectScreen: {notContains: 'Quit xplain?'}
+  - keys: FREADME<Enter>
+  - note: F from browse opens another file in browse
+    expectScreen:
+      line:
+        - {row: 0, matches: '^\[browse\] \[vibrant\] \[mcp: off\] \[cursor L1:C1\] README\.md$'}
+        - {row: 2, matches: '^   1  ▶# Title'}
+  - keys: q
+  - keys: y
+  - expectExit: 0

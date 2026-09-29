@@ -1,0 +1,31 @@
+id: F-COMMENT-06
+title: 'J/K end an active selection and move the cursor to the comment row'
+size: 120x40
+steps:
+  - keys: ahi<Enter>
+  - keys: vj
+  - expectScreen:
+      notContains: '▸'
+      line:
+        - {row: 0, contains: '[visual L2:C1] README.md'}
+        - {row: -1, contains: 'v/esc end  enter ask'}
+  - keys: K
+  - note: comment on del row L2; selection ended, cursor back on the del row
+    expectScreen:
+      contains: '▸ sent  line L2'
+      notContains: '[visual'
+      line:
+        - {row: 0, contains: '[cursor L2:C1] README.md'}
+        - {row: 4, matches: '^   2      -▶hello'}
+        - {row: -1, contains: 'e edit  D delete'}
+  - keys: <Esc>G
+  - expectScreen: {line: {row: 0, contains: '[cursor L3:C1] README.md'}}
+  - keys: V
+  - expectScreen: {line: {row: 0, contains: '[visual L3:C1] README.md'}}
+  - keys: J
+  - expectScreen:
+      contains: '▸ sent  line L2'
+      notContains: '[visual'
+      line:
+        - {row: 0, contains: '[cursor L2:C1] README.md'}
+        - {row: 4, matches: '^   2      -▶hello'}

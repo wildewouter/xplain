@@ -1,0 +1,15 @@
+id: F-CLI-06
+title: '--cwd=, --split=x, --staged=x, --changes-only=x are not flags - passed to git in order, settings unchanged'
+args: ['--cwd=${HOME}', --split=x, --staged=x, --changes-only=x]
+shims:
+  git:
+    - match: [diff]
+      stdout: "diff --git a/f.txt b/f.txt\nindex 1111111..2222222 100644\n--- a/f.txt\n+++ b/f.txt\n@@ -1 +1 @@\n-old\n+new\n"
+steps:
+  - expectScreen:
+      line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/1\] .*f\.txt \+1 -1$'}
+  - expectShimCall:
+      name: git
+      args: [diff, --no-color, --no-ext-diff, -U1000000, '--cwd=${HOME}', --split=x, --staged=x, --changes-only=x]
+      cwd: '${REPO}'
+  - expectShimCall: {name: git, cwd: '${HOME}', count: 0}

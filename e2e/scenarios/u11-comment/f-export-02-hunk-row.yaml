@@ -1,0 +1,33 @@
+id: F-EXPORT-02
+title: 'comment on a hunk row: where = <side> side, row <row+1>; Line block = hunk text; context = line rows only'
+size: 250x20
+steps:
+  - keys: g
+  - expectScreen: {line: {row: 0, contains: '[cursor r1:C1] README.md'}}
+  - keys: aon hunk<Enter>E
+  - expectScreen: {line: {row: -1, matches: '^exported 1 comment -> '}}
+  - expectFile:
+      glob: xplain-review-*.md
+      contains: |
+        ### 1. new side, row 1
+
+        - origin: human
+        - state: saved
+
+        Line:
+
+        ```
+        @@ -1,2 +1,3 @@
+        ```
+
+        Context:
+
+        ```
+        # Title
+        hello
+        hello world
+        ```
+
+        **Comment:**
+
+        > on hunk

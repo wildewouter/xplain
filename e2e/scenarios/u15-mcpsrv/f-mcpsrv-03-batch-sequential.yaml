@@ -1,0 +1,28 @@
+id: F-MCPSRV-03
+title: batch items run sequentially - a long poll blocks the later annotate until a question arrives
+size: 80x24
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - httpStart:
+      id: batch
+      body:
+        - {jsonrpc: '2.0', id: 1, method: tools/call, params: {name: next_question, arguments: {wait_seconds: 120}}}
+        - {
+            jsonrpc: '2.0',
+            id: 2,
+            method: tools/call,
+            params: {name: annotate, arguments: {file: README.md, line: 2, text: after the poll}},
+          }
+  - note: annotate not applied while the poll waits (it has no question yet)
+    expectScreen: {notContains: 'after the poll'}
+  - keys: a
+  - keys: why?<Enter>
+  - httpAwait: batch
+    expect:
+      status: 200
+      body:
+        - {id: 1, result: {content: [{type: text, text: {$matches: '^\{"status":"question","thread_id":"q1"'}}]}}
+        - {id: 2, result: {content: [{type: text, text: '{"ok":true}'}]}}
+  - expectScreen: {contains: 'after the poll'}

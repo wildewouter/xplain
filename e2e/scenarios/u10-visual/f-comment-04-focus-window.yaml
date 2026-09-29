@@ -1,0 +1,36 @@
+id: F-COMMENT-04
+title: focused body window = H-1-4-(other boxes on row); suffix `↕ from-to/total`, hint gains `j/k scroll`
+fixture: empty
+size: 80x16
+# H = 13; window = 13-1-4 = 8 alone. Focused border drawn with heavy box chars (┏━┓┃┗┛) by the oracle.
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+  f.txt: "alpha\nbeta\n"
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http:
+      {
+        tool: annotate,
+        args:
+          {
+            file: f.txt,
+            line: 1,
+            text: "b1\nb2\nb3\nb4\nb5\nb6\nb7\nb8\nb9\nb10\nb11\nb12\nb13\nb14\nb15\nb16\nb17\nb18\nb19\nb20",
+          },
+      }
+    expect: {result: {ok: true}}
+  - expectScreen: {contains: 'sent  agent note L1'}
+  - keys: J
+  - expectScreen:
+      matches: '        1 \+▶alpha.*\n.[─━]+.\n. ▸ sent  agent note L1  ↕ 1-8/20 +.\n. b1 +.\n. b2 +.\n. b3 +.\n. b4 +.\n. b5 +.\n. b6 +.\n. b7 +.\n. b8 +.\n. e edit  D delete  a follow up  j/k scroll  esc back +.\n.[─━]+.\n'
+      notContains: ['b9', 'more']
+  - expectCell: {at: {text: '↕ 1-8/20'}, fg: '#586e75'}
+  - note: second box on the same row shrinks the window by its height (4)
+    keys: <Esc>a<Tab>other<Enter>
+  - expectScreen: {line: {row: -1, contains: 'question saved (2)'}}
+  - note: K focuses last (human box, below the note, off screen), K again the agent note
+    keys: KK
+  - expectScreen:
+      contains: '▸ sent  agent note L1  ↕ 1-4/20'
+      matches: '. b4 +.\n. e edit  D delete  a follow up  j/k scroll  esc back +.\n'
+      notContains: 'b5'

@@ -1,0 +1,20 @@
+id: F-LAYOUT-02
+title: 'footer order: /<term> | <note> | too narrow for split | (a-b/n) hints'
+size: 99x24
+args: [--split]
+steps:
+  - expectScreen: {line: {row: -1, matches: '^too narrow for split \| \(1-5/5\) hjkl move  enter ask'}}
+  - keys: /zzz<Enter>
+  - expectScreen:
+      {
+        line:
+          {
+            row: -1,
+            matches: '^/zzz \| pattern not found: zzz \| too narrow for split \| \(1-5/5\) hjkl move  enter ask',
+          },
+      }
+  - note: find open replaces term + note, narrow part stays
+    keys: /q
+  - expectScreen: {line: {row: -1, matches: '^/q█too narrow for split \| \(1-5/5\) hjkl move  enter ask'}}
+  - keys: <Esc>:7
+  - expectScreen: {line: {row: -1, matches: '^:7█too narrow for split \| \(1-5/5\) '}}

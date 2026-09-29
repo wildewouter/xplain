@@ -1,0 +1,22 @@
+id: F-LAYOUT-05
+title: 'browse rows: single pane NNNN, mark space, cursor cell, code; no hunk row'
+size: 80x24
+steps:
+  - expectScreen: {line: {row: 2, matches: '^@@ '}}
+  - keys: F
+  - keys: README.md<Enter>
+  - expectScreen:
+      notContains: '@@'
+      line:
+        - {row: 0, matches: '^\[browse\] '}
+        - {row: 2, matches: '^   1  ▶# Title'}
+        - {row: 3, matches: '^   2   hello world$'}
+        - {row: 4, matches: '^   3   more$'}
+        - {row: 5, equals: ''}
+        - {row: -1, matches: '^\(1-3/3\) '}
+  - expectCell: {at: {row: 3, col: 3}, chars: '2', fg: '#586e75'}
+  - keys: j
+  - expectScreen:
+      line:
+        - {row: 2, matches: '^   1   # Title$'}
+        - {row: 3, matches: '^   2  ▶hello world'}

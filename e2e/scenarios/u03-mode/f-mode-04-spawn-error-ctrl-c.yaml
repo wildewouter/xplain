@@ -1,0 +1,10 @@
+id: F-MODE-04
+title: git never ran (missing --cwd dir) shows the spawn error; Ctrl+C exits 0 from the error screen
+args: [--cwd, '${TMP}/does-not-exist']
+steps:
+  - expectScreen:
+      line: {row: 0, contains: 'spawn git ENOENT'}
+      notContains: ['[all]', 'hjkl move']
+  - expectCell: {at: {text: 'spawn git ENOENT'}, fg: 1}
+  - keys: <C-c>
+  - expectExit: 0

@@ -22,6 +22,7 @@ import {useAsk} from './useAsk.js';
 import {exportName, renderReviewMarkdown, type AskController, type Question} from './ask/index.js';
 import {footerFor, hasMotions, helpCtx} from './keys.js';
 import {osc52Copy} from './clipboard.js';
+import {track} from './sync.js';
 import {
 	DiffView,
 	toRows,
@@ -113,7 +114,7 @@ export default function App({
 	onQuestion?: (q: Question) => void; // prompt submitted
 	onQuestionUpdate?: (q: Question) => void; // sent comment edited
 	onQuestionDelete?: (q: Question) => void; // sent comment deleted
-	onCursor?: (c: {index: number; row: Row | SRow | undefined} | undefined) => void; // cursor row hook (prompt anchor)
+	onCursor?: (c: {index: number; row: Row | SRow | undefined}) => void; // cursor row hook (prompt anchor)
 	copy?: (text: string) => void; // clipboard for code block copy buttons
 }) {
 	const [note, setNote] = useState<string>();
@@ -212,7 +213,7 @@ export default function App({
 
 	useEffect(() => {
 		let live = true;
-		loadDiff(mode, args, cwd, full).then(
+		track(loadDiff(mode, args, cwd, full)).then(
 			(f) => {
 				if (!live) return;
 				const k = keep.current;
@@ -252,14 +253,14 @@ export default function App({
 		setSsel(0);
 		setAll([]);
 		setSrch(true);
-		listFiles(cwd).then(setAll, () => {});
+		track(listFiles(cwd)).then(setAll, () => {});
 	};
 	// Reload diff + browsed file from disk. Silent: no state change if nothing differs.
 	const filesRef = useRef(files);
 	filesRef.current = files;
 	const reload = (manual: boolean) => {
 		const bp = browsePath;
-		loadDiff(mode, args, cwd, full).then(
+		track(loadDiff(mode, args, cwd, full)).then(
 			(f) => {
 				const cur = filesRef.current;
 				if (cur && JSON.stringify(cur) === JSON.stringify(f)) return;
@@ -277,7 +278,7 @@ export default function App({
 			(e) => manual && setNote(String(e.message ?? e)),
 		);
 		if (bp !== undefined)
-			readFile(join(cwd ?? '.', bp)).then(
+			track(readFile(join(cwd ?? '.', bp))).then(
 				(buf) => setBrowseText(buf.subarray(0, 8000).includes(0) ? BINARY_MSG : buf.toString('utf8')),
 				() => {},
 			);
@@ -287,7 +288,7 @@ export default function App({
 	reloadRef.current = reload;
 	useEffect(() => mcp.onFilesChanged(() => reloadRef.current(false)), [mcp]);
 	const openBrowse = (p: string) => {
-		readFile(join(cwd ?? '.', p)).then(
+		track(readFile(join(cwd ?? '.', p))).then(
 			(buf) => {
 				const t = buf.subarray(0, 8000).includes(0) ? BINARY_MSG : buf.toString('utf8');
 				setBrowseText(t);
@@ -457,12 +458,11 @@ export default function App({
 	const starts = useMemo(() => changeStarts(rows), [rows]);
 	const CTX = 3;
 	const CTX_WIDE = 15;
-	const [curOn, setCurOn] = useState(false);
 	const [cur, setCur] = useState(0);
 	const pend = useRef(0); // pending count prefix
 	const last = Math.max(0, rows.length - 1);
 	const curI = Math.min(cur, last);
-	const curRow: Row | SRow | undefined = curOn ? rows[curI] : undefined;
+	const curRow: Row | SRow | undefined = rows[curI];
 	// char cursor: `col` is the desired column (vim curswant); shown column is clamped to the row
 	const [col, setCol] = useState(0);
 	const [anchor, setAnchor] = useState<{row: number; col: number}>();
@@ -470,7 +470,7 @@ export default function App({
 	const [hoff, setHoff] = useState(0);
 	// split cursor pane; locked to one side, `p` toggles. Unified/browse: always 'new'
 	const [side0, setSide] = useState<PaneSide>('new');
-	const canSide = eff && browsePath === undefined && curOn;
+	const canSide = eff && browsePath === undefined;
 	const side: PaneSide = canSide ? side0 : 'new';
 	const tx = (i: number) => rowCode(rows[i], side);
 	const clampC = (i: number, c: number) => Math.min(c, Math.max(0, tx(i).length - 1));
@@ -487,7 +487,8 @@ export default function App({
 		// `full` flips before its rows load: rows keep the `full` they were built under
 		prev.current = {rows, key: fkey, full: p && rows === p.rows ? p.full : full, eff};
 		// same file reloaded: keep the cursor on its source line (`cur`/`side` still hold the old values)
-		const o = p && p.key === fkey && p.full === full && p.eff === eff ? p.rows[Math.min(cur, p.rows.length - 1)] : undefined;
+		const o =
+			p && p.key === fkey && p.full === full && p.eff === eff ? p.rows[Math.min(cur, p.rows.length - 1)] : undefined;
 		kept.current = !!o;
 		if (o) {
 			const no = rowNo(o, side);
@@ -523,7 +524,6 @@ export default function App({
 				setOff(0);
 			}
 		} else if (browsePath !== t.file) openBrowse(t.file);
-		setCurOn(true);
 		setNumGo(t.id);
 	};
 	useEffect(() => {
@@ -537,12 +537,12 @@ export default function App({
 	}, [numGo, focusList]);
 	// selection range, ordered, inclusive
 	const vsel: Sel | undefined = useMemo(() => {
-		if (!curOn || !anchor) return undefined;
+		if (!anchor) return undefined;
 		const a = {row: Math.min(anchor.row, last), col: anchor.col};
 		const b = {row: curI, col: ccol};
 		const [p, q] = a.row < b.row || (a.row === b.row && a.col <= b.col) ? [a, b] : [b, a];
 		return {sr: p.row, sc: p.col, er: q.row, ec: q.col, line: vline};
-	}, [curOn, anchor, vline, curI, ccol, last]);
+	}, [anchor, vline, curI, ccol, last]);
 	const selText = (s: Sel) =>
 		Array.from({length: s.er - s.sr + 1}, (_, k) => {
 			const t = tx(s.sr + k);
@@ -640,10 +640,8 @@ export default function App({
 	};
 	// scroll follows cursor, keeping ~2 rows of context
 	useEffect(() => {
-		if (!curOn) return;
 		const ex = ask ? askH(askSel) : 0; // input box under the cursor row
 		const so = ask ? 0 : Math.min(2, Math.floor((height - 1) / 2));
-		setLskip((v) => (v.n ? {row: 0, n: 0} : v)); // cursor follow shows whole row blocks
 		setOff((o) => {
 			if (curI < o + so) o = Math.max(0, curI - so);
 			const end = Math.min(last, curI + so);
@@ -652,20 +650,19 @@ export default function App({
 			while (need > height && o < curI) need -= rowH(o++, o - 1 === curI ? ex : 0);
 			return Math.max(0, Math.min(o, fitOff(height, last, ask ? curI : -1, ex)));
 		});
-	}, [cur, curOn, height, max, ask, askSel?.lines.length, sentAt]);
+	}, [cur, off, height, max, ask, askSel?.lines.length, sentAt]);
 	// horizontal scroll keeps the char cursor visible; code area width excludes the gutter
 	const cw = Math.max(
 		1,
 		eff && browsePath === undefined ? Math.floor((cols - 1) / 2) - 7 : cols - (browsePath !== undefined ? 7 : 12),
 	);
 	useEffect(() => {
-		if (!curOn) return setHoff(0);
 		const m = Math.min(4, Math.floor((cw - 1) / 2));
 		setHoff((h) => (ccol < h + m ? Math.max(0, ccol - m) : ccol > h + cw - 1 - m ? ccol - cw + 1 + m : h));
-	}, [curOn, ccol, cw, curI, rows]);
+	}, [ccol, cw, curI, rows]);
 	useEffect(() => {
-		onCursor?.(curOn ? {index: Math.min(cur, last), row: curRow} : undefined);
-	}, [curOn, cur, rows]);
+		onCursor?.({index: Math.min(cur, last), row: curRow});
+	}, [cur, rows]);
 	// vim-like search: `/` opens the line, Enter confirms, n/N jump between matching rows
 	const [sOpen, setSOpen] = useState(false);
 	const [sText, setSText] = useState('');
@@ -675,20 +672,17 @@ export default function App({
 		[rows, term],
 	);
 	const goRow = (r: number, t = term) => {
-		if (curOn) {
-			setCur(r);
-			const c = findAll(rowCode(rows[r], side), t)[0]?.[0] ?? findAll(searchTexts(rows[r])[0] ?? '', t)[0]?.[0] ?? 0;
-			setCol(c);
-			endVis();
-		} else setOff(Math.min(max, r));
+		setCur(r);
+		const c = findAll(rowCode(rows[r], side), t)[0]?.[0] ?? findAll(searchTexts(rows[r])[0] ?? '', t)[0]?.[0] ?? 0;
+		setCol(c);
+		endVis();
 	};
 	const findNext = (d: 1 | -1, t = term, ms2 = matchRows) => {
 		if (!ms2.length) return setNote(`pattern not found: ${t}`);
-		const from = curOn ? curI : off;
 		const r =
 			d > 0
-				? (ms2.find((x) => x > from) ?? ms2[0]!)
-				: ([...ms2].reverse().find((x) => x < from) ?? ms2[ms2.length - 1]!);
+				? (ms2.find((x) => x > curI) ?? ms2[0]!)
+				: ([...ms2].reverse().find((x) => x < curI) ?? ms2[ms2.length - 1]!);
 		goRow(r);
 	};
 	// vim-like go-to-line: `:` opens the line, Enter jumps to new-side line N (nearest row if not in view)
@@ -704,7 +698,6 @@ export default function App({
 		if ((full || browsePath !== undefined) && n > top) return setNote(`line ${n} out of range (1-${top})`);
 		if (nos[i] !== n) setNote(`line ${n} not in view, nearest L${nos[i]}`);
 		setFocus(undefined);
-		setCurOn(true);
 		setSide('new');
 		setCur(i);
 		setCol(0);
@@ -712,39 +705,10 @@ export default function App({
 	};
 	const mvCur = (n: number) => setCur((c) => Math.min(last, Math.max(0, c + n)));
 	useEffect(() => {
-		// same file reloaded: keep the view (cursor mode: cursor-follow effect already placed it)
-		if (kept.current) {
-			if (!curOn) setOff((o) => Math.min(max, o));
-			return;
-		}
+		// same file reloaded: cursor-follow effect already placed the view
+		if (kept.current) return;
 		setOff(full && starts.length ? Math.min(max, Math.max(0, starts[0]! - CTX)) : 0);
 	}, [rows, full]);
-	const jump = (d: 1 | -1) => {
-		const t = d > 0 ? starts.find((s) => s - CTX > off) : [...starts].reverse().find((s) => s - CTX < off);
-		if (t !== undefined) setOff(Math.min(max, Math.max(0, t - CTX)));
-	};
-	// line-level scroll: a row block (row + comment boxes) may be cut at the top; `skip` belongs to row `row`
-	const [lskip, setLskip] = useState({row: 0, n: 0});
-	const skip = lskip.row === off ? lskip.n : 0;
-	const scroll = (n: number) => {
-		let o = off;
-		let k = skip;
-		for (let i = 0; i < Math.abs(n); i++) {
-			if (n > 0) {
-				if (o >= max) break;
-				if (k + 1 < rowH(o)) k++;
-				else {
-					o++;
-					k = 0;
-				}
-			} else if (k > 0) k--;
-			else if (o > 0) k = rowH(--o) - 1;
-			else break;
-		}
-		if (o >= max) k = 0;
-		setOff(o);
-		setLskip({row: o, n: k});
-	};
 	const sw = (d: number) => {
 		if (!files?.length) return;
 		setIdx((i) => (i + d + files.length) % files.length);
@@ -805,7 +769,7 @@ export default function App({
 		const now = new Date();
 		const path = join(resolve(cwd ?? '.'), exportName(now));
 		const md = renderReviewMarkdown(qs, {cwd: resolve(cwd ?? '.'), mode, args, date: now});
-		writeFile(path, md).then(
+		track(writeFile(path, md)).then(
 			() => setNote(`exported ${qs.length} comment${qs.length === 1 ? '' : 's'} -> ${path}`),
 			(e) => setNote(`export failed: ${e.message ?? e}`),
 		);
@@ -821,7 +785,6 @@ export default function App({
 		config: cmodal,
 		picker: modal,
 		browse: browsePath !== undefined,
-		cursor: curOn,
 		visual: !!anchor,
 		focused: fo >= 0,
 	});
@@ -944,8 +907,7 @@ export default function App({
 					if (!sText) return;
 					const ms2 = rows.flatMap((r, i) => (searchTexts(r).some((t) => findAll(t, sText).length) ? [i] : []));
 					if (!ms2.length) return setNote(`pattern not found: ${sText}`);
-					const from = curOn ? curI : off;
-					goRow(ms2.find((x) => x >= from) ?? ms2[0]!, sText);
+					goRow(ms2.find((x) => x >= curI) ?? ms2[0]!, sText);
 				} else if (key.backspace || key.delete) setSText((t) => t.slice(0, -1));
 				else if (input && !key.ctrl && !key.meta && !key.tab) setSText((t) => t + input.replace(/[\r\n]+/g, ' '));
 				return;
@@ -1103,136 +1065,114 @@ export default function App({
 				setMconfirm(undefined);
 				return setMmodal(true);
 			}
-			if (input === 'i') {
-				pend.current = 0;
-				setFocus(undefined);
-				// cursor on: stale cursor out of view starts at top of view, past the follow margin so the view stays put
-				if (!curOn && (cur < off || cur >= off + height))
-					setCur(Math.min(last, off && off + Math.min(2, Math.floor((height - 1) / 2))));
-				setCurOn(!curOn);
-				setCol(0);
-				setSide('new');
-				endVis();
-				return;
-			}
-			if (curOn) {
-				const c = pend.current;
-				const n = c || 1;
-				pend.current = 0;
-				if (key.escape) {
-					if (bsel !== undefined) return setBtn(undefined);
-					if (fo >= 0) return setFocus(undefined);
-					if (anchor) return endVis();
-					return setCurOn(false);
-				}
-				if (input === 'J' || input === 'K') {
-					if (!focusList.length) return setNote('no comments');
-					const n = focusList.length;
-					return focusTo(
-						focusList[
-							fo < 0 ? (input === 'J' ? 0 : n - 1) : Math.min(n - 1, Math.max(0, fo + (input === 'J' ? 1 : -1)))
-						],
-					);
-				}
-				if (bsel !== undefined && key.return) return copyBtn(bsel);
-				if (ti?.btns.length && (key.upArrow || key.downArrow)) return pickBtn(key.downArrow ? 1 : -1);
-				if (fo >= 0 && (input === 'e' || key.return)) {
-					if (ctl.turns(focus).length > 1) return setNote("can't edit after follow-ups");
-					const m = sent.find((x) => x.id === focus)?.message ?? '';
-					setAskText(m);
-					setAskPos(m.length);
-					setEditId(focus);
-					setAsk(true);
-					return;
-				}
-				if (fo >= 0 && input === 'D') return setDmodal(true);
-				if (fo >= 0 && input === 'a') return askFocused();
-				if (fo >= 0 && input === 'A') return askAll();
-				if (ti && ti.maxOff > 0 && /^[jkdugG]$/.test(input)) {
-					const hv = Math.max(1, Math.floor(ti.v / 2));
-					const want =
-						input === 'j'
-							? ti.off + 1
-							: input === 'k'
-								? ti.off - 1
-								: input === 'd'
-									? ti.off + hv
-									: input === 'u'
-										? ti.off - hv
-										: input === 'g'
-											? 0
-											: ti.maxOff;
-					const o = Math.min(ti.maxOff, Math.max(0, want));
-					const id = focus!;
-					setScrolls((v) => ({
-						...v,
-						[id]: {off: o, follow: input === 'G' ? true : o < ti.off ? false : v[id]?.follow},
-					}));
-					return;
-				}
-				if (
-					fo >= 0 &&
-					(key.leftArrow ||
-						key.rightArrow ||
-						key.upArrow ||
-						key.downArrow ||
-						key.pageUp ||
-						key.pageDown ||
-						/^[hjklwbevVdugG0$^[\] p]$/.test(input))
-				)
-					setFocus(undefined);
-				if (key.return || input === 'a') {
-					setFocus(undefined);
-					setAskText('');
-					setAskPos(0);
-					setAsk(true);
-					return;
-				}
-				if (input && /^[0-9]$/.test(input) && (input !== '0' || c)) {
-					pend.current = Math.min(99999, c * 10 + Number(input));
-					return;
-				}
-				if (input === 'p' && canSide) {
-					endVis(); // toggling pane ends any visual selection (selection stays on one side)
-					return setSide((v) => (v === 'new' ? 'old' : 'new'));
-				}
-				if (input === 'h' || key.leftArrow) return setCol(Math.max(0, ccol - n));
-				if (input === 'l' || key.rightArrow) return setCol(clampC(curI, ccol + n));
-				if (input === '0') return setCol(0);
-				if (input === '$') return setCol(1e9);
-				if (input === '^') return setCol(Math.max(0, tx(curI).search(/\S/)));
-				if (input === 'w' || input === 'b' || input === 'e') return wordMove(input, n);
-				if (input === 'v' || input === 'V') {
-					const line = input === 'V';
-					if (anchor && vline === line) return endVis();
-					if (!anchor) setAnchor({row: curI, col: ccol});
-					setVline(line);
-					return;
-				}
-				if (input === 'j' || key.downArrow) return mvCur(n);
-				if (input === 'k' || key.upArrow) return mvCur(-n);
-				if (input === 'd') return mvCur(half * n);
-				if (input === 'u') return mvCur(-half * n);
-				if (key.pageDown || input === ' ') return mvCur(height - 1);
-				if (key.pageUp) return mvCur(-(height - 1));
-				if (input === 'g') return setCur(0);
-				if (input === 'G') return setCur(c ? Math.min(last, c - 1) : last);
-				if (input === ']') return setCur((x) => starts.find((s) => s > x) ?? x);
-				if (input === '[') return setCur((x) => [...starts].reverse().find((s) => s < x) ?? x);
-			}
-			if (browsePath !== undefined) {
-				if (key.escape) {
+			const c = pend.current;
+			const n = c || 1;
+			pend.current = 0;
+			if (key.escape) {
+				if (bsel !== undefined) return setBtn(undefined);
+				if (fo >= 0) return setFocus(undefined);
+				if (anchor) return endVis();
+				if (browsePath !== undefined) {
 					setBrowsePath(undefined);
 					setBrowseText('');
 					setOff(0);
-					return;
 				}
-				if ('nfpcsm[]'.includes(input) && input) return;
-				if (key.tab || key.leftArrow || key.rightArrow) return;
+				return;
 			}
-			if (input === 'd') scroll(half);
-			else if (input === 'u') scroll(-half);
-			else if (input === 'C') cfgOpen();
+			if (input === 'J' || input === 'K') {
+				if (!focusList.length) return setNote('no comments');
+				const n = focusList.length;
+				return focusTo(
+					focusList[fo < 0 ? (input === 'J' ? 0 : n - 1) : Math.min(n - 1, Math.max(0, fo + (input === 'J' ? 1 : -1)))],
+				);
+			}
+			if (bsel !== undefined && key.return) return copyBtn(bsel);
+			if (ti?.btns.length && (key.upArrow || key.downArrow)) return pickBtn(key.downArrow ? 1 : -1);
+			if (fo >= 0 && (input === 'e' || key.return)) {
+				if (ctl.turns(focus).length > 1) return setNote("can't edit after follow-ups");
+				const m = sent.find((x) => x.id === focus)?.message ?? '';
+				setAskText(m);
+				setAskPos(m.length);
+				setEditId(focus);
+				setAsk(true);
+				return;
+			}
+			if (fo >= 0 && input === 'D') return setDmodal(true);
+			if (fo >= 0 && input === 'a') return askFocused();
+			if (fo >= 0 && input === 'A') return askAll();
+			if (ti && ti.maxOff > 0 && /^[jkdugG]$/.test(input)) {
+				const hv = Math.max(1, Math.floor(ti.v / 2));
+				const want =
+					input === 'j'
+						? ti.off + 1
+						: input === 'k'
+							? ti.off - 1
+							: input === 'd'
+								? ti.off + hv
+								: input === 'u'
+									? ti.off - hv
+									: input === 'g'
+										? 0
+										: ti.maxOff;
+				const o = Math.min(ti.maxOff, Math.max(0, want));
+				const id = focus!;
+				setScrolls((v) => ({
+					...v,
+					[id]: {off: o, follow: input === 'G' ? true : o < ti.off ? false : v[id]?.follow},
+				}));
+				return;
+			}
+			if (
+				fo >= 0 &&
+				(key.leftArrow ||
+					key.rightArrow ||
+					key.upArrow ||
+					key.downArrow ||
+					key.pageUp ||
+					key.pageDown ||
+					/^[hjklwbevVdugG0$^[\] p]$/.test(input))
+			)
+				setFocus(undefined);
+			if (key.return || input === 'a') {
+				setFocus(undefined);
+				setAskText('');
+				setAskPos(0);
+				setAsk(true);
+				return;
+			}
+			if (input && /^[0-9]$/.test(input) && (input !== '0' || c)) {
+				pend.current = Math.min(99999, c * 10 + Number(input));
+				return;
+			}
+			if (input === 'p' && canSide) {
+				endVis(); // toggling pane ends any visual selection (selection stays on one side)
+				return setSide((v) => (v === 'new' ? 'old' : 'new'));
+			}
+			if (input === 'h' || key.leftArrow) return setCol(Math.max(0, ccol - n));
+			if (input === 'l' || key.rightArrow) return setCol(clampC(curI, ccol + n));
+			if (input === '0') return setCol(0);
+			if (input === '$') return setCol(1e9);
+			if (input === '^') return setCol(Math.max(0, tx(curI).search(/\S/)));
+			if (input === 'w' || input === 'b' || input === 'e') return wordMove(input, n);
+			if (input === 'v' || input === 'V') {
+				const line = input === 'V';
+				if (anchor && vline === line) return endVis();
+				if (!anchor) setAnchor({row: curI, col: ccol});
+				setVline(line);
+				return;
+			}
+			if (input === 'j' || key.downArrow) return mvCur(n);
+			if (input === 'k' || key.upArrow) return mvCur(-n);
+			if (input === 'd') return mvCur(half * n);
+			if (input === 'u') return mvCur(-half * n);
+			if (key.pageDown || input === ' ') return mvCur((height - 1) * n);
+			if (key.pageUp) return mvCur(-(height - 1) * n);
+			if (input === 'g') return setCur(0);
+			if (input === 'G') return setCur(c ? Math.min(last, c - 1) : last);
+			if (input === ']') return setCur((x) => starts.find((s) => s > x) ?? x);
+			if (input === '[') return setCur((x) => [...starts].reverse().find((s) => s < x) ?? x);
+			if (browsePath !== undefined && (key.tab || (input && 'fcsm'.includes(input)))) return; // diff-only
+			if (input === 'C') cfgOpen();
 			else if (input === 't') setTheme((v) => THEME_NAMES[(THEME_NAMES.indexOf(v) + 1) % THEME_NAMES.length]!);
 			else if (input === 's') {
 				setSplit((v) => !v);
@@ -1241,9 +1181,7 @@ export default function App({
 				keep.current = file?.path;
 				setFull((v) => !v);
 				setOff(0);
-			} else if (input === ']') jump(1);
-			else if (input === '[') jump(-1);
-			else if (input === 'm') {
+			} else if (input === 'm') {
 				setMode((m) => MODES[(MODES.indexOf(m) + 1) % MODES.length]!);
 				setIdx(0);
 				setOff(0);
@@ -1253,14 +1191,7 @@ export default function App({
 			} else if (input === 'q') {
 				if (confirmQuit) setQmodal(true);
 				else quit();
-			} else if ((key.tab && !key.shift) || key.rightArrow) sw(1);
-			else if ((key.tab && key.shift) || key.leftArrow) sw(-1);
-			else if (input === 'j' || key.downArrow) scroll(1);
-			else if (input === 'k' || key.upArrow) scroll(-1);
-			else if (key.pageDown || input === ' ') scroll(height - 1);
-			else if (key.pageUp) scroll(-(height - 1));
-			else if (input === 'g') setOff(0);
-			else if (input === 'G') setOff(max);
+			} else if (key.tab) sw(key.shift ? -1 : 1);
 		},
 		{isActive: !!isRawModeSupported},
 	);
@@ -1269,19 +1200,17 @@ export default function App({
 	if (!files) return <Text dimColor>Loading...</Text>;
 
 	const cn = rowNo(curRow, side);
-	const curTag = curOn ? (
+	const curTag = (
 		<Text color={th.accent} bold>
 			[{vsel ? 'visual' : 'cursor'}
 			{canSide ? ` ${side}` : ''} {cn !== undefined ? `L${cn}` : `r${curI + 1}`}:C{ccol + 1}]{' '}
 		</Text>
-	) : null;
+	);
 	const mcpChip = <Text color={th.view}>[mcp: {ms.running ? 'on' : 'off'}] </Text>;
 	const rowsT = height + 3;
 	const mw = Math.min(cols, Math.max(20, Math.floor(cols * 0.7)));
 	const mh = Math.min(rowsT, Math.max(5, Math.min(files.length + 4, Math.floor(rowsT * 0.6))));
-	const ov = help
-		? ({alignItems: 'flex-start', paddingTop: 2} as const)
-		: ({alignItems: 'center'} as const);
+	const ov = help ? ({alignItems: 'flex-start', paddingTop: 2} as const) : ({alignItems: 'center'} as const);
 
 	return (
 		<ThemeContext value={th}>
@@ -1330,13 +1259,12 @@ export default function App({
 					cols={cols}
 					name={theme}
 					single={browsePath !== undefined}
-					cur={curOn ? Math.min(cur, last) : -1}
+					cur={Math.min(cur, last)}
 					ask={ask ? {text: askText, pos: askPos, mode: editId || fuId ? undefined : sendMode} : undefined}
 					askSel={askSel}
 					col={ccol}
 					sel={vsel}
 					hoff={hoff}
-					skip={skip}
 					sent={sentAt}
 					side={side}
 					find={term}
@@ -1348,7 +1276,6 @@ export default function App({
 					{split && !eff ? 'too narrow for split | ' : ''}({Math.min(rows.length, off + 1)}-
 					{Math.min(rows.length, off + height)}/{rows.length}){' '}
 					{footerFor({
-						cursor: curOn,
 						visual: !!anchor,
 						split: canSide,
 						focused: fo >= 0,
@@ -1405,7 +1332,15 @@ export default function App({
 					</Box>
 				)}
 				{help > 0 && (
-					<Box position="absolute" width="100%" height="100%" alignItems="flex-end" justifyContent="flex-end" paddingTop={2} paddingBottom={1}>
+					<Box
+						position="absolute"
+						width="100%"
+						height="100%"
+						alignItems="flex-end"
+						justifyContent="flex-end"
+						paddingTop={2}
+						paddingBottom={1}
+					>
 						<HelpPanel
 							ctx={hctx}
 							motions={help === 2}

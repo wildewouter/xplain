@@ -1,0 +1,9 @@
+id: F-QUIT-01
+title: 'q with confirmQuit on (default) opens "Quit xplain? (y/n)"; y quits with exit 0'
+steps:
+  - expectScreen: {notContains: 'Quit xplain?', line: {row: 0, matches: '^\[all\] '}}
+  - keys: q
+  - expectScreen: {contains: 'Quit xplain? (y/n)', line: {row: 0, matches: '^\[all\] '}}
+  - keys: y
+  - expectExit: 0
+  - expectScreen: {notContains: ['Quit xplain?', '[mcp: off]']}

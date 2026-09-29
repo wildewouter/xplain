@@ -1,0 +1,22 @@
+id: F-RELOAD-02
+title: successful agent reload replaces the git error screen with the normal UI (F-MODE-04)
+args: [nosuchrev]
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectFile: {path: '${STATE}/xplain/mcp.json', json: {token: {$exists: true}}}
+  - expectScreen:
+      line: {row: 0, matches: "^fatal: ambiguous argument 'nosuchrev'"}
+      notContains: ['[all]', 'hjkl move']
+  - http: {tool: files_changed, args: {}}
+    expect: {result: {ok: true}}
+  - note: still failing - error screen stays
+    expectScreen: {line: {row: 0, matches: "^fatal: ambiguous argument 'nosuchrev'"}}
+  - git: branch nosuchrev
+  - http: {tool: files_changed, args: {paths: [README.md]}}
+    expect: {result: {ok: true}}
+  - expectScreen:
+      line:
+        - {row: 0, equals: '[all] [full] [unified] [solarized] [mcp: on] [1/3] [cursor L2:C1] README.md +2 -1'}
+        - {row: -1, equals: '(1-5/5) hjkl move  enter ask  J/K comments  ? help'}
+      notContains: fatal

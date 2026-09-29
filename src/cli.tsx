@@ -3,6 +3,7 @@ import App from './app.js';
 import {MODES, type Mode} from './diff/load.js';
 import {THEME_NAMES, isTheme, type ThemeName} from './theme.js';
 import {configPath, loadConfig, resolve} from './config.js';
+import {createSync} from './sync.js';
 
 const usage = `usage: xplain [--cwd dir] [--config file] [--mode all|staged|unstaged | --staged | --unstaged] [git diff args...]
   --mode <m>   all (git diff HEAD, default), staged (--cached), unstaged
@@ -63,4 +64,6 @@ if (rest[0] === 'config' && rest[1] === 'path' && rest.length === 2) {
 	process.exit(0);
 }
 const v = resolve(loadConfig(path).config, {theme, mode, split, full});
-render(<App args={rest} cwd={cwd} {...v} configPath={path} />, {alternateScreen: true});
+const sync = createSync(); // XPLAIN_SYNC=1 only
+const ink = render(<App args={rest} cwd={cwd} {...v} configPath={path} />, {alternateScreen: true, ...sync?.options});
+sync?.attach(ink);

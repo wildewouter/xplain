@@ -1,0 +1,16 @@
+id: F-HELP-03
+title: 'File viewer entries verbatim: L1 [File viewer] esc, s/c/m/f + [Comments]; L2 [Move] (6 as Diff view) first'
+size: 120x40
+steps:
+  - keys: 'FREADME<Enter>'
+  - expectScreen:
+      notContains: 'Help ·'
+      line: {row: 0, matches: '^\[browse\] .*\[cursor L1:C1\] README\.md$'}
+  - keys: '?'
+  - expectScreen:
+      matches: '^(?=.{120}$)[^\n]*│ Help · File viewer *│$\n^[^\n]*│ File viewer *│$\n^[^\n]*│  esc     back to diff *│$\n^[^\n]*│  s/c/m/f diff-only, no-op *│$\n^[^\n]*│ Comments *│$\n^[^\n]*│  v/V     select chars/lines *│$\n^[^\n]*│  a       comment on line *│$\n^[^\n]*│  \)/\(     numbered, any file *│$\n^[^\n]*│ \? move keys +Made by Wouter de Wild - 2026 │$\n^(?=.{120}$)[^\n]*╰─+╯$'
+      notContains: ['│  i ', '│  J/K', 'Move', 'Find', 'General']
+  - keys: '?'
+  - expectScreen:
+      matches: '^(?=.{120}$)[^\n]*│ Help · File viewer *│$\n^[^\n]*│ Move *│$\n^[^\n]*│  w/b/e     word fwd/back/end *│$\n^[^\n]*│  0/\^/\$     start/nonblank/end *│$\n^[^\n]*│  d/u       half page down/up *│$\n^[^\n]*│  PgDn/PgUp page down/up \(space: down\) *│$\n^[^\n]*│  g/G       first / last line *│$\n^[^\n]*│  1-9       count \(5j, 12G\) *│$\n^[^\n]*│ File viewer *│$\n^[^\n]*│  esc       back to diff *│$\n^[^\n]*│  s/c/m/f   diff-only, no-op *│$\n^[^\n]*│ Comments *│$\n^[^\n]*│  v/V       select chars/lines *│$\n^[^\n]*│  a         comment on line *│$\n^[^\n]*│  \)/\(       numbered, any file *│$\n^[^\n]*│ \? close +Made by Wouter de Wild - 2026 │$\n^(?=.{120}$)[^\n]*╰─+╯$'
+      notContains: ['│  i ', '│  J/K', '? move keys']

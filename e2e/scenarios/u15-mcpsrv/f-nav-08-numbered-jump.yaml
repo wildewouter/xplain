@@ -1,0 +1,21 @@
+id: F-NAV-08
+title: numbered jump `)` to a note in another file places like a file switch - top = firstChange-3, col 1, then follow to the note row
+# src/big.ts: 62 rows, first change start = row 30 (del v30), so top = 27. Note on new line 34 (row 35) is already in
+# view with margin, so top stays 27 (keeping README's top 0 and following would give top 22 instead).
+size: 80x24
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http: {tool: annotate, args: {file: src/big.ts, line: 34, text: look here, number: 1}}
+    expect: {status: 200, result: {ok: true}}
+  - keys: 2l
+  - expectScreen: {line: {row: 0, matches: '\[1/4\] \[cursor L2:C3\] README\.md'}}
+  - keys: )
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[2/4\] \[cursor L34:C1\] src/big\.ts '}
+        - {row: 2, matches: '^  27   27   const v27 = 1;'}
+        - {row: 10, matches: '^  34   34  ▶const v34 = 1;'}
+        - {row: 12, contains: '#1 agent note L34'}
+        - {row: -1, matches: '^\(28-48/62\) '}

@@ -1,0 +1,22 @@
+id: F-LAYOUT-06
+title: 'MCP (64 wide, 11 high) and quit (22x3) modals centered at 80x25'
+size: 80x25
+steps:
+  - keys: M
+  - expectScreen:
+      line:
+        - {row: 6, notContains: ['╭', '╰', '│']}
+        - {row: 7, matches: '^.{8}╭─{62}╮'}
+        - {row: 8, matches: '^.{8}│ MCP +│$'}
+        - {row: 17, matches: '^.{8}╰─{62}╯'}
+        - {row: 18, notContains: ['╭', '╰', '│']}
+  - keys: <Esc>
+  - expectScreen: {notContains: 'MCP'}
+  - keys: q
+  - expectScreen:
+      line:
+        - {row: 10, notContains: ['╭', '╰', '│']}
+        - {row: 11, matches: '^.{29}╭─{20}╮'}
+        - {row: 12, matches: '^.{29}│ Quit xplain\? \(y/n\) │$'}
+        - {row: 13, matches: '^.{29}╰─{20}╯'}
+        - {row: 14, notContains: ['╭', '╰', '│']}

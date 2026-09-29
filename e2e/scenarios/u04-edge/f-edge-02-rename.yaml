@@ -1,0 +1,37 @@
+id: F-EDGE-02
+title: rename with content change shows old -> new in header and picker with status R
+fixture: empty
+steps:
+  - writeFile: {path: old.txt, content: "one\ntwo\nthree\nfour\nfive\n"}
+  - writeFile: {path: a0.txt, content: "x\n"}
+  - git: add -A
+  - git: commit -qm base
+  - git: mv old.txt new.txt
+  - writeFile: {path: new.txt, content: "one\ntwo\nthree\nfour\nFIVE\n"}
+  - writeFile: {path: a0.txt, content: "y\n"}
+  - expectScreen: {line: {row: 0, contains: 'No changes'}, notContains: [old.txt]}
+  - keys: r
+  - expectScreen: {line: {row: 0, matches: '\[1/2\] \[cursor L1:C1\] a0\.txt \+1 -1$'}}
+  - keys: f
+  - expectScreen:
+      contains: ' Files (1/2)'
+      matches:
+        - '│>M a0\.txt \+1 -1 \*\s+│'
+        - '│ R old\.txt -> new\.txt \+1 -1\s+│'
+  - note: picker status R in mode color (unselected row)
+    expectCell: {at: {text: ' R old.txt', offset: 1}, chars: R, fg: '#b58900'}
+  - keys: <Esc><Tab>
+  - expectScreen:
+      line:
+        - {
+            row: 0,
+            matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[2/2\] \[cursor L5:C1\] old\.txt -> new\.txt \+1 -1$',
+          }
+        - {row: 2, matches: '^@@ -1,5 \+1,5 @@'}
+        - {row: 3, equals: '   1    1   one'}
+        - {row: 7, matches: '^   5      -▶five'}
+        - {row: 8, equals: '        5 + FIVE'}
+      notContains: [Renamed, 'No textual changes']
+  - note: header path colored as file path (whole old -> new)
+    expectCell: {at: {text: 'old.txt -> new.txt', row: 0}, fg: '#268bd2'}
+  - expectCell: {at: {text: 'old.txt -> new.txt', row: 0, offset: 11}, chars: n, fg: '#268bd2'}

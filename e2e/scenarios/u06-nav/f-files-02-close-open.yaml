@@ -1,0 +1,55 @@
+id: F-FILES-02
+title: picker Esc / q / f close without change; other and Ctrl keys ignored; ? toggles help; Enter opens the file
+size: 80x24
+steps:
+  - expectScreen:
+      {
+        line:
+          {
+            row: 0,
+            matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] \[cursor L2:C1\] README\.md',
+          },
+      }
+  - keys: fj
+  - expectScreen: {contains: ' Files (2/4)', matches: '│>M src/big\.ts \+1 -1 +│'}
+  - keys: <Esc>
+  - expectScreen:
+      notContains: 'Files ('
+      line: {row: 0, matches: '\[1/4\] \[cursor L2:C1\] README\.md'}
+  - note: reopening selects the current file again
+    keys: f
+  - expectScreen: {contains: ' Files (1/4)', matches: '│>M README\.md \+2 -1 \* +│'}
+  - keys: jq
+  - expectScreen:
+      notContains: 'Files ('
+      line: {row: 0, matches: '\[1/4\] \[cursor L2:C1\] README\.md'}
+  - keys: fjjf
+  - expectScreen:
+      notContains: 'Files ('
+      line: {row: 0, matches: '\[1/4\] \[cursor L2:C1\] README\.md'}
+  - keys: fj
+  - expectScreen: {contains: ' Files (2/4)'}
+  - note: diff-view keys do nothing inside the picker
+    keys: xtscmgGvai/:F]<Space>
+  - expectScreen:
+      contains: ' Files (2/4)'
+      matches: '│>M src/big\.ts \+1 -1 +│'
+      notContains: ['Search (', 'Config']
+      line:
+        - {
+            row: 0,
+            matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] \[cursor L2:C1\] README\.md',
+          }
+        - {row: -1, equals: '(1-5/5) hjkl move  enter ask  J/K comments  ? help'}
+  - keys: <C-d><C-u><C-n><C-p><C-t>
+  - expectScreen: {contains: ' Files (2/4)', matches: '│>M src/big\.ts \+1 -1 +│'}
+  - keys: '?'
+  - expectScreen: {contains: [' Files (2/4)', 'Help · File picker']}
+  - note: picker keys still work with help open
+    keys: j
+  - expectScreen: {contains: [' Files (3/4)', 'Help · File picker'], matches: '│>M src/c\.tsx \+1 -1 +│'}
+  - keys: <Enter>
+  - expectScreen:
+      notContains: 'Files ('
+      matches: '^   1      -▶export const C'
+      line: {row: 0, matches: '\[3/4\] \[cursor L1:C1\] src/c\.tsx'}

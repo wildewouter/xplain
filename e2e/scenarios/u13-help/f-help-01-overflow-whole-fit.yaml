@@ -1,0 +1,8 @@
+id: F-HELP-01
+title: 'overflow keeps whole items only: one more row lets the 2-row wrapped item in (40x14)'
+size: 40x14
+steps:
+  - keys: '??'
+  - expectScreen:
+      matches: '│  PgDn/PgUp page down/up \(space: *│$\n^[^\n]*│ +down\) *│$\n^[^\n]*│ … 16 more *│$\n^[^\n]*│ \? close *│$'
+      notContains: 'first / last line'

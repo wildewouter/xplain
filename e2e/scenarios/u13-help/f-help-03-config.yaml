@@ -1,0 +1,16 @@
+id: F-HELP-03
+title: 'Config entries verbatim: L1 [Config (C)] h/l, ⏎/space, esc/q/C; L2 [Move] j/k first'
+size: 120x40
+steps:
+  - keys: C
+  - expectScreen: {contains: 'mcp on startup', notContains: 'Help ·'}
+  - keys: '?'
+  - expectScreen:
+      contains: 'mcp on startup'
+      matches: '^(?=.{120}$)[^\n]*│ Help · Config *│$\n^[^\n]*│ Config \(C\) *│$\n^[^\n]*│  h/l     change value *│$\n^[^\n]*│  ⏎/space toggle / apply *│$\n^[^\n]*│  esc/q/C close *│$\n^[^\n]*│ \? move keys +Made by Wouter de Wild - 2026 │$\n^(?=.{120}$)[^\n]*╰─+╯$'
+      notContains: ['│  i ', 'Move']
+  - keys: '?'
+  - expectScreen:
+      contains: 'mcp on startup'
+      matches: '^(?=.{120}$)[^\n]*│ Help · Config *│$\n^[^\n]*│ Move *│$\n^[^\n]*│  j/k     select setting *│$\n^[^\n]*│ Config \(C\) *│$\n^[^\n]*│  h/l     change value *│$\n^[^\n]*│  ⏎/space toggle / apply *│$\n^[^\n]*│  esc/q/C close *│$\n^[^\n]*│ \? close +Made by Wouter de Wild - 2026 │$\n^(?=.{120}$)[^\n]*╰─+╯$'
+      notContains: ['│  i ', '? move keys']

@@ -1,0 +1,8 @@
+id: F-CLI-05
+title: 'Ctrl+C in the comment editor (text input) exits 0 instead of being typed or ignored'
+steps:
+  - keys: a
+  - keys: hello
+  - expectScreen: {contains: [hello, 'enter send']}
+  - keys: <C-c>
+  - expectExit: 0

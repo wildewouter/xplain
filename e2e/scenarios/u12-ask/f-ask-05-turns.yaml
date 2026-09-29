@@ -1,0 +1,23 @@
+id: F-ASK-05
+title: thread body order - message, kept answers, follow-up line (accent, wrapped with its prefix), its answer
+size: 40x40
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - keys: a
+  - keys: why?<Enter>
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+  - http: {tool: answer, args: {thread_id: q1, text: ans one}}
+  - http: {tool: answer, args: {thread_id: q1, text: ans two}}
+  - keys: K
+  - keys: a
+  - keys: aaaa bbbb cccc dddd eeee ffff gggg<Enter>
+  - expectScreen: {line: {row: -1, contains: 'follow-up queued'}}
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+    expect: {result: {thread_id: q1, turn: 2, previous: [{turn: 1, answer: "ans one\n\nans two"}]}}
+  - http: {tool: answer, args: {thread_id: q1, text: ans three}}
+  - expectScreen:
+      matches: >-
+        ┃ why\? +┃\n┃─ answer · agent · done ─+┃\n┃ ans one +┃\n┃─ answer · agent · done ─+┃\n┃ ans two +┃\n┃ follow-up: aaaa bbbb cccc dddd eeee +┃\n┃ ffff gggg +┃\n┃─ answer · agent · done ─+┃\n┃ ans three +┃\n┃ e edit
+  - expectCell: {at: {text: 'follow-up: aaaa'}, fg: '#cb4b16'}
+  - expectCell: {at: {text: 'ffff gggg'}, fg: '#cb4b16'}

@@ -1,0 +1,8 @@
+id: F-EXPORT-01
+title: 'E without comments: note no comments to export, no file written'
+size: 120x20
+steps:
+  - keys: E
+  - expectScreen: {line: {row: -1, matches: '^no comments to export \| \(1-5/5\) '}}
+  - note: no untracked xplain-review-* file in the repo
+    git: {args: [ls-files, --others, --error-unmatch, 'xplain-review-*'], code: 1}

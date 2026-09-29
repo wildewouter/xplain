@@ -1,0 +1,10 @@
+id: F-MCPUI-02
+title: 'c/w with MCP off: note start MCP first, nothing copied'
+steps:
+  - keys: Mj
+  - keys: c
+  - expectScreen: {contains: 'start MCP first', notContains: 'copied'}
+  - expectOsc52: {count: 0}
+  - keys: jjw
+  - expectScreen: {contains: 'start MCP first', notContains: 'copied'}
+  - expectOsc52: {count: 0}

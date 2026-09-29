@@ -1,0 +1,16 @@
+id: F-LAYOUT-02
+title: 'footer: find input open shows /<text>█ glued to (a-b/n); after Enter the active term shows as /<term> | '
+size: 80x24
+steps:
+  - expectScreen: {line: {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - keys: /
+  - expectScreen: {line: {row: -1, matches: '^/█\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - keys: hel
+  - expectScreen: {line: {row: -1, matches: '^/hel█\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - keys: <Enter>
+  - expectScreen: {line: {row: -1, matches: '^/hel \| \(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - note: while find is open again the term part is replaced by the input
+    keys: /x
+  - expectScreen: {line: {row: -1, matches: '^/x█\(1-5/5\) hjkl move'}}
+  - keys: <Esc>
+  - expectScreen: {line: {row: -1, matches: '^/hel \| \(1-5/5\) hjkl move'}}

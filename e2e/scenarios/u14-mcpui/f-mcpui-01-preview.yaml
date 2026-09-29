@@ -1,0 +1,16 @@
+id: F-MCPUI-01
+title: 'preview: dim label, max 3 wrapped lines (width-4), cut with …; blank 3rd line gives " …"'
+steps:
+  - keys: M<Enter>jjj
+  - expectScreen: {matches: '^ +│> OpenCode copy-paste only', notContains: 'copied'}
+  - keys: c
+  - note: 'first line (67 chars) wraps at 60 at last space, 3rd line blank'
+    expectScreen:
+      matches: '^ +│> OpenCode copy-paste only +│\n +│  Copilot [^\n]*│\n +│ register command \(copied\): +│\n +│ Add to opencode\.json \(project\) or +│\n +│ ~/\.config/opencode/opencode\.json: +│\n +│ … +│\n +│ j/k  enter register'
+  - expectCell: {at: {text: 'register command (copied):'}, fg: '#586e75'}
+  - keys: kk
+  - expectScreen: {matches: '^ +│> Claude Code', notContains: 'copied'}
+  - keys: w
+  - expectScreen:
+      matches: '^ +│ watch prompt \(copied\): +│\n +│ Loop forever: call the `next_question` tool from the +│\n +│ `xplain` MCP server with wait_seconds=100\. +│\n +│ - If status is `no_question_yet`, call `next_question` ag[a-z]*… +│\n +│ j/k  enter register'
+  - expectCell: {at: {text: 'watch prompt (copied):'}, fg: '#586e75'}

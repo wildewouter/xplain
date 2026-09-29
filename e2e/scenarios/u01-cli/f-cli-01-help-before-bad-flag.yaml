@@ -1,0 +1,8 @@
+id: F-CLI-01
+title: '-h before a bad flag wins (flags parsed left to right)'
+tui: false
+args: [-h, --mode, bogus]
+steps:
+  - expectExit: 0
+  - expectStdout: {matches: '(?<![\s\S])usage: xplain [\s\S]*q quits\n(?![\s\S])'}
+  - expectStderr: {equals: ''}

@@ -1,0 +1,16 @@
+id: F-BROWSE-01
+title: read error (tracked file deleted from worktree) -> note with error message, browse not opened
+size: 120x24
+steps:
+  - removeFile: package.json
+  - keys: Fjson
+  - expectScreen: {line: {row: 7, matches: '│> package\.json +│'}}
+  - keys: <Enter>
+  - expectScreen:
+      notContains: 'Search ('
+      line:
+        - {row: 0, matches: '^\[all\] \[full\] \[unified\] .*\[1/4\] \[cursor L2:C1\] README\.md '}
+        - {
+            row: -1,
+            matches: "^ENOENT: no such file or directory, open 'package\\.json' \\| \\(1-5/5\\) hjkl move  enter ask  J/K comments  \\? help$",
+          }

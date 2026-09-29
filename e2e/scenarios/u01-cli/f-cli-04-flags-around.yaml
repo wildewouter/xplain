@@ -1,0 +1,8 @@
+id: F-CLI-04
+title: 'config path is matched after flags are removed (flags before and between the two words)'
+tui: false
+args: [--staged, config, --theme, dull, --split, path]
+steps:
+  - expectExit: 0
+  - expectStdout: {equals: "${CONFIG}/xplain/config.json\n"}
+  - expectStderr: {equals: ''}

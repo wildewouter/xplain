@@ -1,0 +1,11 @@
+id: F-MCPSRV-01
+title: empty XDG_STATE_HOME falls back to $HOME/.local/state/xplain for the token file
+env: {XDG_STATE_HOME: ''}
+steps:
+  - writeFile: {path: '${HOME}/.local/state/xplain/mcp.json', content: '{"token":"home-fallback-token-1"}'}
+  - keys: M<Enter>
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - expectFile: {path: '${HOME}/.local/state/xplain/mcp.json', equals: '{"token":"home-fallback-token-1"}'}
+  - expectFile: {path: '${STATE}/xplain', exists: false}
+  - http: {method: ping, auth: 'Bearer home-fallback-token-1'}
+    expect: {status: 200, body: {id: 1, result: {}}}

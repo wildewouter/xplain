@@ -1,0 +1,12 @@
+id: F-COMMENT-04
+title: focused hint at cols 36 - drops `esc back`
+fixture: empty
+size: 36x16
+files:
+  f.txt: "alpha\n"
+steps:
+  - keys: ahi<Enter>J
+  - expectScreen:
+      line:
+        - {row: 5, matches: '^. ▸ sent'}
+        - {row: 7, matches: '^. e edit  D delete  a ask +.$'}

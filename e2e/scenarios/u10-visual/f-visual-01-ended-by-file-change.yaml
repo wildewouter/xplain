@@ -1,0 +1,23 @@
+id: F-VISUAL-01
+title: file switch (Tab) ends the selection; coming back shows no selection
+fixture: empty
+size: 80x20
+files:
+  a.txt: "one\ntwo\nthree\n"
+  b.txt: "four\nfive\n"
+steps:
+  - expectScreen: {line: {row: 0, matches: '\[1/2\] \[cursor L1:C1\] a\.txt '}}
+  - keys: Vj
+  - expectScreen: {line: {row: 0, matches: '\[1/2\] \[visual L2:C1\] a\.txt '}}
+  - expectCell: {at: {row: 3, col: 12}, chars: o, bg: '#6b4f00'}
+  - keys: <Tab>
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[2/2\] \[cursor L1:C1\] b\.txt '}
+        - {row: -1, matches: 'hjkl move  enter ask  J/K comments  \? help$'}
+  - keys: j
+  - expectCell: {at: {row: 3, col: 12}, chars: f, bg: default}
+  - keys: <S-Tab>
+  - expectScreen: {line: {row: 0, matches: '\[1/2\] \[cursor L1:C1\] a\.txt '}}
+  - expectCell: {at: {row: 3, col: 13}, chars: n, bg: '#22586b'}
+  - expectCell: {at: {row: 4, col: 12}, chars: t, bg: default}

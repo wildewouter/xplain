@@ -1,0 +1,9 @@
+id: F-MCPUI-02
+title: 'integration Enter with MCP off: start MCP first; OpenCode: copy-paste note; no CLI run'
+shims: [claude, codex, copilot]
+steps:
+  - keys: Mj<Enter>
+  - expectScreen: {contains: 'start MCP first', notContains: '(y/n)'}
+  - keys: jj<Enter>
+  - expectScreen: {contains: 'copy-paste only: c copies the snippet', notContains: '(y/n)'}
+  - expectShimCall: {name: claude, count: 0}

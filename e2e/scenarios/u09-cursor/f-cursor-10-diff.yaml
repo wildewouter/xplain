@@ -1,0 +1,77 @@
+id: F-CURSOR-10
+title: 'Esc chain in diff - nothing to undo: no-op, no note; ends selection (cursor kept); unfocuses comment; help panel does not eat Esc'
+fixture: empty
+size: 120x16
+files:
+  f.txt: "alpha beta\ngamma\ndelta\n"
+steps:
+  - keys: jl
+  - expectScreen:
+      line:
+        - {
+            row: 0,
+            matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/1\] \[cursor L2:C2\] f\.txt \+3 -0$',
+          }
+        - {row: -1, equals: '(1-4/4) hjkl move  enter ask  J/K comments  ? help'}
+  - keys: <Esc>
+  - note: nothing to undo - no state change, no note
+    expectScreen:
+      line:
+        - {
+            row: 0,
+            matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/1\] \[cursor L2:C2\] f\.txt \+3 -0$',
+          }
+        - {row: 4, matches: '^        2 \+▶gamma'}
+        - {row: -1, equals: '(1-4/4) hjkl move  enter ask  J/K comments  ? help'}
+  - expectCell: {at: {row: 4, col: 13}, chars: 'a', inverse: true}
+  - keys: vl
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[visual L2:C3] f.txt'}
+        - {row: -1, equals: '(1-4/4) v/esc end  enter ask  hjkl move  ? help'}
+  - expectCell: {at: {row: 4, col: 13}, chars: 'a', bg: '#6b4f00'}
+  - keys: <Esc>
+  - note: selection ended, cursor stays
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L2:C3] f.txt'}
+        - {row: -1, equals: '(1-4/4) hjkl move  enter ask  J/K comments  ? help'}
+  - expectCell: {at: {row: 4, col: 13}, chars: 'a', bg: '#22586b'}
+  - expectCell: {at: {row: 4, col: 14}, chars: 'm', inverse: true}
+  - keys: <Esc>
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L2:C3] f.txt'}
+        - {row: -1, equals: '(1-4/4) hjkl move  enter ask  J/K comments  ? help'}
+  - keys: '?vl'
+  - expectScreen:
+      contains: 'Help · Visual selection'
+      line: {row: 0, contains: '[visual L2:C4] f.txt'}
+  - keys: <Esc>
+  - note: help open - Esc goes to the chain (ends selection), panel stays open
+    expectScreen:
+      contains: 'Help · Diff view'
+      line: {row: 0, contains: '[cursor L2:C4] f.txt'}
+  - keys: '??'
+  - expectScreen: {notContains: 'Help ·'}
+  - keys: ac1<Enter>kJ
+  - note: J focuses the comment and moves the cursor to its row
+    expectScreen:
+      contains: '▸ sent  line L2'
+      line:
+        - {row: 0, contains: '[cursor L2:C4] f.txt'}
+        - {row: -1, matches: 'e edit  D delete  a ask/follow up  j/k scroll  esc back  \? help$'}
+  - keys: <Esc>
+  - note: comment unfocused, cursor stays
+    expectScreen:
+      contains: ' sent  line L2'
+      notContains: '▸ sent'
+      line:
+        - {row: 0, contains: '[cursor L2:C4] f.txt'}
+        - {row: -1, matches: 'hjkl move  enter ask  J/K comments  \? help$'}
+  - keys: <Esc>
+  - expectScreen:
+      notContains: '▸ sent'
+      line:
+        - {row: 0, matches: '^\[all\] .*\[cursor L2:C4\] f\.txt'}
+        - {row: -1, matches: 'hjkl move  enter ask  J/K comments  \? help$'}

@@ -1,0 +1,12 @@
+id: F-MCPUI-01
+title: 'box width min(cols, 64): 60 cols gives full-width box'
+size: 60x30
+steps:
+  - keys: M
+  - expectScreen:
+      matches:
+        - '^╭─{58}╮$'
+        - '^│ MCP +│$'
+        - '^│> ○ off +│$'
+        - '^│ j/k  enter register  d remove  c/w copy  R refresh  esc +│$'
+        - '^╰─{58}╯$'

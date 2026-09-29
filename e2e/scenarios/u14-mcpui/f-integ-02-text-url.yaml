@@ -1,0 +1,17 @@
+id: F-INTEG-02
+title: 'check: first http(s) URL in text, ends at whitespace, quote or comma'
+shims:
+  claude:
+    [
+      {
+        match: [mcp, get],
+        exit: 0,
+        stdout: "server xplain url='http://127.0.0.1:${PORT}/mcp', other http://127.0.0.1:3/mcp\n",
+      },
+    ]
+  codex: [{match: [mcp, get], exit: 0, stdout: "xplain -> \"http://127.0.0.1:${PORT}/mcp\" (http)\n"}]
+  copilot: [{match: [mcp, get], exit: 0, stdout: "xplain https://127.0.0.1:${PORT}/mcp,enabled\n"}]
+steps:
+  - keys: M<Enter>
+  - expectScreen:
+      matches: ['^ +│  Claude Code registered', '^ +│  Codex registered', '^ +│  Copilot stale']

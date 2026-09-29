@@ -1,0 +1,25 @@
+id: F-HELP-01
+title: 'spec example 80x24 Diff view L1: bottom-right, bottom border row above footer, last row hint + credit; colors (solarized)'
+size: 80x24
+steps:
+  - keys: '?'
+  - expectScreen:
+      line:
+        - {row: 2, matches: '^(?=.{80}$).*╭─+╮$'}
+        - {row: 3, matches: '^(?=.{80}$).*│ Help · Diff view +│$'}
+        - {row: 21, matches: '^(?=.{80}$).*│ \? move keys +Made by Wouter de Wild - 2026 │$'}
+        - {row: 22, matches: '^(?=.{80}$).*╰─+╯$'}
+        - {row: 23, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}
+  - note: round border in modalBorder (border cell bg not pinned by spec)
+    expectCell: {at: {text: '╰', row: 22}, fg: '#268bd2'}
+  - expectCell: {at: {text: '╮', row: 2}, fg: '#268bd2'}
+  - note: title bold
+    expectCell: {at: {text: 'Help ·', row: 3}, bold: true, bg: '#002b36'}
+  - note: group title accent
+    expectCell: {at: {text: 'Find', row: 4}, fg: '#cb4b16', bg: '#002b36'}
+  - note: key column mode color, description modal fg
+    expectCell: {at: {text: ']/[', row: 5}, fg: '#b58900', bg: '#002b36'}
+  - expectCell: {at: {text: 'next/prev change', row: 5}, fg: '#93a1a1', bg: '#002b36'}
+  - note: hint and credit dim
+    expectCell: {at: {text: '? move keys', row: 21}, fg: '#586e75'}
+  - expectCell: {at: {text: 'Made by', row: 21}, fg: '#586e75'}

@@ -1,0 +1,31 @@
+id: F-CFGUI-02
+title: theme row previews the theme under the cursor live; Esc, q and C close and revert to the committed theme
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] '}}
+  - expectCell: {at: {text: '[solarized]', row: 0, offset: 1}, fg: '#6c71c4'}
+  - keys: Cl
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] \[full\] \[unified\] \[vibrant\] '}
+        - {row: 17, matches: '│> theme +\[solarized\] +vibrant '}
+  - note: preview really switches the theme (view chip color magenta in vibrant)
+    expectCell: {at: {text: '[vibrant]', row: 0, offset: 1}, fg: 5}
+  - keys: <Right>
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[dull\] '}}
+  - keys: <Esc>
+  - expectScreen: {notContains: ' Config', line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] '}}
+  - expectCell: {at: {text: '[solarized]', row: 0, offset: 1}, fg: '#6c71c4'}
+  - keys: Clll
+  - expectScreen: {line: {row: 0, matches: '\[contrast\] '}}
+  - note: q closes the modal (does not quit)
+    keys: q
+  - expectScreen:
+      {notContains: [' Config', 'Quit xplain'], line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] '}}
+  - keys: Ch
+  - note: h at first choice stays on solarized
+    expectScreen: {line: {row: 0, matches: '\[solarized\] '}}
+  - keys: l<Left>l
+  - expectScreen: {line: {row: 0, matches: '\[vibrant\] '}}
+  - keys: C
+  - expectScreen: {notContains: ' Config', line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] '}}
+  - expectFile: {path: '${CONFIG}/xplain/config.json', exists: false}

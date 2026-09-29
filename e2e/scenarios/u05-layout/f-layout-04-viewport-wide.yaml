@@ -1,0 +1,16 @@
+id: F-LAYOUT-04
+title: 's at cols >= 100 resets cursor to first change and top to max(0, firstChange-3) (F-NAV-08)'
+size: 120x12
+steps:
+  - keys: <Tab>g
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[cursor r1:C1] src/big.ts'}
+        - {row: -1, matches: '^\(1-9/62\) '}
+  - keys: s
+  - note: split has 61 rows (del/add of line 30 paired on row 31)
+    expectScreen:
+      line:
+        - {row: 0, contains: '[split] [solarized] [mcp: off] [2/4] [cursor new L30:C1] src/big.ts'}
+        - {row: 5, matches: '^  30 -▶const v30 = 1; .*│  30 \+▶const v30 = 2;'}
+        - {row: -1, matches: '^\(28-36/61\) hjkl move  enter ask  J/K comments  p pane  \? help$'}

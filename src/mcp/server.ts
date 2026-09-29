@@ -4,8 +4,15 @@ import type {AddressInfo} from 'node:net';
 import type {Hub, Question} from './hub.js';
 import {callTool, SERVER_INSTRUCTIONS, TOOLS} from './tools.js';
 import {readMcpConfig, writeMcpConfig} from './token.js';
+import {httpRequest, track} from '../sync.js';
 
 export const DEFAULT_PORT = 47615;
+/** XPLAIN_MCP_PORT override (decimal 0-65535, 0 = any free port): undefined when unset or empty, NaN when invalid. */
+export const envPort = (env: NodeJS.ProcessEnv = process.env): number | undefined => {
+	const v = env.XPLAIN_MCP_PORT;
+	if (!v) return undefined;
+	return /^\d{1,5}$/.test(v) && Number(v) <= 65535 ? Number(v) : NaN;
+};
 export const SERVER_VERSION = '0.1.0';
 export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'] as const;
 const MAX_BODY = 1024 * 1024;
@@ -51,6 +58,18 @@ const send = (
 		...headers,
 	});
 	res.end(data, () => cb?.());
+};
+
+// request body; null when larger than MAX_BODY (stops reading)
+const readBody = async (req: IncomingMessage): Promise<Buffer | null> => {
+	const chunks: Buffer[] = [];
+	let size = 0;
+	for await (const c of req) {
+		size += (c as Buffer).length;
+		if (size > MAX_BODY) return null;
+		chunks.push(c as Buffer);
+	}
+	return Buffer.concat(chunks);
 };
 
 const rpcErr = (id: Rpc['id'], code: number, message: string) => ({
@@ -140,6 +159,15 @@ export function createMcpServer(opts: McpServerOptions): McpServer {
 	}
 
 	async function onRequest(req: IncomingMessage, res: ServerResponse) {
+		const done = httpRequest(); // sync seam: received now, done when handled
+		try {
+			await handleRequest(req, res);
+		} finally {
+			done();
+		}
+	}
+
+	async function handleRequest(req: IncomingMessage, res: ServerResponse) {
 		try {
 			const path = (req.url ?? '').split('?')[0];
 			if (!hostOk(req.headers.host) || !originOk(req.headers.origin)) return send(res, 403, {error: 'forbidden'});
@@ -150,16 +178,11 @@ export function createMcpServer(opts: McpServerOptions): McpServer {
 				return send(res, 401, {error: 'unauthorized'}, {'www-authenticate': 'Bearer'});
 			if (req.method !== 'POST') return send(res, 405, {error: 'method not allowed'}, {allow: 'POST'});
 
-			const chunks: Buffer[] = [];
-			let size = 0;
-			for await (const c of req) {
-				size += (c as Buffer).length;
-				if (size > MAX_BODY) return send(res, 413, {error: 'body too large'}, {connection: 'close'});
-				chunks.push(c as Buffer);
-			}
+			const raw = await track(readBody(req)); // sync seam: reading the body is pending work
+			if (!raw) return send(res, 413, {error: 'body too large'}, {connection: 'close'});
 			let body: unknown;
 			try {
-				body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+				body = JSON.parse(raw.toString('utf8'));
 			} catch {
 				return send(res, 400, rpcErr(null, -32700, 'Parse error'));
 			}

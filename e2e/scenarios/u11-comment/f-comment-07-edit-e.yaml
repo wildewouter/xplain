@@ -1,0 +1,20 @@
+id: F-COMMENT-07
+title: 'e on focused comment opens editor prefilled (caret at end, head edit <head>); Enter replaces message, note comment updated'
+size: 120x30
+steps:
+  - keys: <Tab>
+  - keys: ':20<Enter>afirst text<Enter>'
+  - keys: J
+  - expectScreen: {matches: '▸ sent  line L20[^\n]*\n┃ first text '}
+  - keys: e
+  - expectScreen:
+      matches: '│ edit line L20 +│\n│ first text  +│\n│ enter send  esc cancel +│'
+      line: {row: -1, contains: 'enter send  esc cancel'}
+  - keys: ' more'
+  - note: typed text lands at the caret, which started at the end
+    expectScreen: {matches: '│ first text more  +│'}
+  - keys: <Enter>
+  - expectScreen:
+      matches: 'sent  line L20[^\n]*\n[│┃] first text more '
+      notContains: ['edit line L20', 'enter send']
+      line: {row: -1, matches: '^comment updated \| '}

@@ -1,0 +1,37 @@
+id: F-EDGE-06
+title: git no-newline marker line becomes extra del/add row with same line number, not counted
+fixture: empty
+steps:
+  - writeFile: {path: f.txt, content: "a\nb"}
+  - git: add -A
+  - git: commit -qm base
+  - writeFile: {path: f.txt, content: "a\nc"}
+  - expectScreen: {line: {row: 0, contains: 'No changes'}}
+  - keys: r
+  - expectScreen:
+      line:
+        - {
+            row: 0,
+            matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/1\] \[cursor L2:C1\] f\.txt \+1 -1$',
+          }
+        - {row: 2, matches: '^@@ -1,2 \+1,2 @@'}
+        - {row: 3, equals: '   1    1   a'}
+        - {row: 4, matches: '^   2      -▶b'}
+        - {row: 5, equals: '   2      -  No newline at end of file'}
+        - {row: 6, equals: '        2 + c'}
+        - {row: 7, equals: '        2 +  No newline at end of file'}
+        - {row: 8, equals: ''}
+        - {row: -1, matches: '\(1-6/6\) '}
+      notContains: ['\ No newline']
+  - note: marker rows keep row kind - del / add gutter bg and mark
+    expectCell: {at: {row: 5, col: 0}, bg: '#4a1a1f'}
+  - expectCell: {at: {row: 5, col: 10}, chars: '-', fg: '#dc322f', bg: '#4a1a1f'}
+  - expectCell: {at: {row: 7, col: 0}, bg: '#0b3b1f'}
+  - expectCell: {at: {row: 7, col: 10}, chars: '+', fg: '#859900', bg: '#0b3b1f'}
+  - note: marker row carries the line number of the line before it
+    keys: j
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L2:C1\] f\.txt '}
+        - {row: 5, matches: '^   2      -▶ No newline at end of file'}
+        - {row: 4, equals: '   2      - b'}

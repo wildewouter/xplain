@@ -1,0 +1,19 @@
+id: F-ASK-06
+title: fence rules - tilde fences, indented open, close needs same char and length, whitespace only, no close runs to end
+size: 40x40
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - keys: a
+  - keys: q<Enter>
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+  - http:
+      tool: answer
+      args:
+        thread_id: q1
+        text: "p1\n~~~~\nin ``` tilde\n~~~\n~~~~\np2\n  ```py\ncode\n``` x\n~~~\n  ```  \np3\n```\nopen to end"
+  - keys: K
+  - expectScreen:
+      matches: >-
+        ┃ p1 +┃\n┃ \[ copy \] +┃\n┃ │ in ``` tilde +┃\n┃ │ ~~~ +┃\n┃ p2 +┃\n┃ \[ copy \] py +┃\n┃ │ code +┃\n┃ │ ``` x +┃\n┃ │ ~~~ +┃\n┃ p3 +┃\n┃ \[ copy \] +┃\n┃ │ open to end +┃\n┃ e edit
+      notContains: ['~~~~', '```py']

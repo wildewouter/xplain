@@ -1,0 +1,35 @@
+id: F-MCPSRV-11
+title: 'client row shows the poll marker while its long poll waits, marker gone once the poll got a question; counters follow'
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - httpStart:
+      id: poll
+      body:
+        - {
+            jsonrpc: '2.0',
+            id: 1,
+            method: initialize,
+            params: {protocolVersion: '2025-06-18', capabilities: {}, clientInfo: {name: waitbot, version: '2.0'}},
+          }
+        - {jsonrpc: '2.0', id: 2, method: tools/call, params: {name: next_question, arguments: {wait_seconds: 120}}}
+  # the barrier after M waits until the app reports the poll received. The 120 s wait never expires: a question ends
+  # the poll.
+  - keys: M
+  - expectScreen: {matches: ['^ +│   waitbot 2\.0 ⟳ +│$', '│ clients \d+ pending 0 delivered 0 +│']}
+  - keys: <Esc>
+  - keys: a
+  - keys: poll me<Enter>
+  - httpAwait: poll
+    expect:
+      body:
+        - {id: 1, result: {serverInfo: {name: xplain}}}
+        - {id: 2, result: {content: [{type: text, text: {$matches: '^\{"status":"question","thread_id":"q1"'}}]}}
+  - keys: M
+  - expectScreen:
+      matches: ['^ +│   waitbot 2\.0 +│$', '│ clients \d+ pending 0 delivered 1 +│']
+      notContains: '⟳'
+  # SPEC-MISMATCH: F-MCPSRV-06 / F-MCPUI-03 say MCP stop answers waiting long polls with
+  # {"status":"closed","note":"xplain closed the session. Stop."}. TS app drops the connection instead
+  # (client sees socket hang up, no response). Not asserted.

@@ -1,0 +1,37 @@
+id: F-CLI-03
+title: '--cwd <dir> - diff, file listing/reads and export all use that dir (dir created after start, r retries)'
+args: [--cwd, '${TMP}/other']
+size: 240x30
+steps:
+  - note: dir does not exist yet - git spawn fails (F-CLI-06)
+    expectScreen:
+      contains: spawn git ENOENT
+      notContains: README.md
+  - git: init -q '${TMP}/other'
+  - writeFile: {path: '${TMP}/other/notes.txt', content: "one\n"}
+  - git: -C '${TMP}/other' add -A
+  - git: -C '${TMP}/other' -c commit.gpgsign=false commit -qm init
+  - writeFile: {path: '${TMP}/other/notes.txt', content: "one\ntwo\n"}
+  - keys: r
+  - expectScreen:
+      line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/1\] .*notes\.txt \+1 -0$'}
+      contains: two
+      notContains: [README.md, ENOENT]
+  - note: file search lists the --cwd repo and browse reads the file from there
+    keys: F
+  - expectScreen: {contains: notes.txt, notContains: README.md}
+  - keys: notes<Enter>
+  - expectScreen:
+      line: {row: 0, matches: '^\[browse\] \[solarized\] \[mcp: off\] .*notes\.txt$'}
+  - keys: <Esc>
+  - keys: a
+  - keys: hi<Enter>
+  - expectScreen: {line: {row: -1, contains: 'question saved (1)'}}
+  - keys: E
+  - expectScreen:
+      line: {row: -1, matches: 'exported 1 comment -> ${TMP}/other/xplain-review-\d{8}-\d{6}\.md'}
+  - note: the export file lands in --cwd, not in the process cwd
+    expectFile: {glob: '${TMP}/other/xplain-review-*.md', contains: ["- comments: 1\n", "> hi\n"]}
+  - expectFile: {glob: xplain-review-*.md, count: 0}
+  - keys: <C-c>
+  - expectExit: 0

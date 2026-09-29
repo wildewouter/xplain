@@ -1,0 +1,9 @@
+id: F-CLI-04
+title: 'config path honors --config given before the subcommand'
+tui: false
+args: [--config, /x/y/cfg.json, config, path]
+env: {XPLAIN_CONFIG: '${TMP}/env.json'}
+steps:
+  - expectExit: 0
+  - expectStdout: {equals: "/x/y/cfg.json\n"}
+  - expectStderr: {equals: ''}

@@ -1,0 +1,58 @@
+id: F-CURSOR-05
+title: 'count cleared by keys that ignore it (i ] [ Esc t J K), by / : ( ), editor open, file change'
+# n.txt untracked, 30 lines: row 1 hunk, row k+1 = L<k>. m.txt second file.
+fixture: empty
+size: 80x16
+files:
+  n.txt: "line 01 abc\nline 02 abc\nline 03 abc\nline 04 abc\nline 05 abc\nline 06 abc\nline 07 abc\nline 08 abc\nline 09 abc\nline 10 abc\nline 11 abc\nline 12 abc\nline 13 abc\nline 14 abc\nline 15 abc\nline 16 abc\nline 17 abc\nline 18 abc\nline 19 abc\nline 20 abc\nline 21 abc\nline 22 abc\nline 23 abc\nline 24 abc\nline 25 abc\nline 26 abc\nline 27 abc\nline 28 abc\nline 29 abc\nline 30 abc\n"
+  m.txt: "m1\nm2\nm3\nm4\nm5\nm6\n"
+steps:
+  - expectScreen: {line: {row: 0, contains: '[1/2] [cursor L1:C1] m.txt'}}
+  - keys: <Tab>
+  - expectScreen: {line: {row: 0, contains: '[2/2] [cursor L1:C1] n.txt'}}
+  - keys: 3ij
+  - expectScreen: {line: {row: 0, contains: '[cursor L2:C1] n.txt'}}
+  - keys: 3<Esc>j
+  - expectScreen: {line: {row: 0, contains: '[cursor L3:C1] n.txt'}}
+  - keys: 3]j
+  - note: '] finds no later change start (no move), count dropped'
+    expectScreen: {line: {row: 0, contains: '[cursor L4:C1] n.txt'}}
+  - keys: 3[
+  - note: '[ jumps to the only change start (L1), count ignored'
+    expectScreen: {line: {row: 0, contains: '[cursor L1:C1] n.txt'}}
+  - keys: j
+  - expectScreen: {line: {row: 0, contains: '[cursor L2:C1] n.txt'}}
+  - keys: 3t
+  - expectScreen: {line: {row: 0, contains: '[vibrant]'}}
+  - keys: j
+  - expectScreen: {line: {row: 0, contains: '[cursor L3:C1] n.txt'}}
+  - keys: 3J
+  - expectScreen: {line: {row: -1, contains: 'no comments'}}
+  - keys: j
+  - expectScreen: {line: {row: 0, contains: '[cursor L4:C1] n.txt'}}
+  - keys: 3Kj
+  - expectScreen: {line: {row: 0, contains: '[cursor L5:C1] n.txt'}}
+  - keys: 3/
+  - expectScreen: {line: {row: -1, matches: '^/█'}}
+  - keys: <Esc>j
+  - expectScreen: {line: {row: 0, contains: '[cursor L6:C1] n.txt'}}
+  - keys: '3:'
+  - expectScreen: {line: {row: -1, matches: '^:█'}}
+  - keys: <Esc>j
+  - expectScreen: {line: {row: 0, contains: '[cursor L7:C1] n.txt'}}
+  - keys: 3(
+  - expectScreen: {line: {row: -1, contains: 'no numbered comments'}}
+  - keys: j
+  - expectScreen: {line: {row: 0, contains: '[cursor L8:C1] n.txt'}}
+  - keys: 3)j
+  - expectScreen: {line: {row: 0, contains: '[cursor L9:C1] n.txt'}}
+  - keys: 3a
+  - note: editor open clears the count
+    expectScreen: {line: {row: -1, contains: 'enter send'}}
+  - keys: <Esc>j
+  - expectScreen: {line: {row: 0, contains: '[cursor L10:C1] n.txt'}}
+  - keys: 3<Tab>j
+  - note: file change clears the count
+    expectScreen: {line: {row: 0, contains: '[1/2] [cursor L2:C1] m.txt'}}
+  - keys: 3<S-Tab>j
+  - expectScreen: {line: {row: 0, contains: '[2/2] [cursor L2:C1] n.txt'}}

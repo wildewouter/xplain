@@ -1,0 +1,25 @@
+id: F-LAYOUT-04
+title: 'split panes: NNNN cell, mark, cursor cell, code; each pane cut at its own width with … in its last cell'
+size: 101x24
+fixture: empty
+args: [--split]
+files:
+  w.txt: "a\n0123456789abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ\nz\n"
+steps:
+  - git: add -A
+  - git: [commit, -qm, base]
+  - writeFile:
+      {path: w.txt, content: "a\n0123456789abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ\nZ\n"}
+  - keys: r
+  - keys: G
+  - note: W = floor(100/2) = 50; pane text 50 cells = 7 prefix cells + 42 code chars + …
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor new L3:C1] w.txt +1 -1'}
+        - {row: 3, matches: '^   1   a {42}│   1   a$'}
+        - {
+            row: 4,
+            matches: '^   2   0123456789abcdefghijklmnopqrstuvwxyz012345…│   2   0123456789abcdefghijklmnopqrstuvwxyz012345…$',
+          }
+  - expectCell: {at: {row: 4, col: 49}, chars: '…'}
+  - expectCell: {at: {row: 4, col: 50}, chars: '│'}

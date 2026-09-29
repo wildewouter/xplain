@@ -1,0 +1,17 @@
+id: F-FIND-01
+title: '/ inside the comment editor is typed text, does not open find'
+fixture: empty
+size: 80x12
+files:
+  f.txt: "alpha beta\ngamma\n"
+steps:
+  - keys: a
+  - expectScreen:
+      line: {row: -1, contains: 'enter send'}
+  - keys: /x
+  - expectScreen:
+      contains: ' /x'
+      line: {row: -1, notContains: '█', contains: 'enter send'}
+  - keys: <Enter>
+  - expectScreen:
+      line: {row: -1, matches: '^question saved \(1\) \| \(1-3/3\) '}

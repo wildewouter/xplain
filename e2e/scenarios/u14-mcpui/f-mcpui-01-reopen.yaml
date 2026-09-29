@@ -1,0 +1,13 @@
+id: F-MCPUI-01
+title: 'reopen: power row selected again, no note, no preview'
+steps:
+  - keys: MR
+  - expectScreen: {contains: 'start MCP first'}
+  - keys: <Esc>M
+  - expectScreen: {matches: '^ +│> ○ off', notContains: 'start MCP first'}
+  - keys: <Enter>jc
+  - expectScreen: {matches: '^ +│> Claude Code ', contains: 'register command (copied):'}
+  - keys: <Esc>M
+  - expectScreen:
+      matches: ['^ +│> ● on ', '^ +│  Claude Code ', '^ +│  Copilot [^\n]*│\n +│ j/k  enter register']
+      notContains: 'copied'

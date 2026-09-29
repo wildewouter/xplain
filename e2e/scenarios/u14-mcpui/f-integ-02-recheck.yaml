@@ -1,0 +1,14 @@
+id: F-INTEG-02
+title: 'check re-runs on R (status follows CLI) and on each server start'
+shims:
+  copilot: [{match: [mcp, get], exit: 0}]
+steps:
+  - keys: M<Enter>
+  - expectScreen: {matches: '^ +│  Copilot registered'}
+  - shim: {name: copilot, match: [mcp, get], exit: 0, stdout: '{"url": "http://127.0.0.1:6/mcp"}'}
+  - keys: R
+  - expectScreen: {matches: '^ +│  Copilot stale'}
+  - shim: {name: copilot, match: [mcp, get], exit: 1}
+  - keys: <Enter><Enter>
+  - expectScreen: {matches: ['^ +│> ● on ', '^ +│  Copilot not registered']}
+  - expectShimCall: {name: copilot, args: [mcp, get, xplain, --json], count: 3}

@@ -1,0 +1,10 @@
+id: F-INTEG-03
+title: 'copilot register ok: note hint'
+shims:
+  copilot: [{match: [mcp, get], exit: 1}]
+steps:
+  - keys: M<Enter>jjjj<Enter>y
+  - expectShimCall: {name: copilot, argsPrefix: [mcp, add], count: 1}
+  - expectScreen:
+      matches: 'Registered\.[\s│]+Restart[\s│]+copilot[\s│]+\(or[\s│]+use[\s│]+/mcp\),[\s│]+then[\s│]+paste[\s│]+the[\s│]+watch[\s│]+prompt\.;[\s│]+restart'
+  # note wrap width not in spec: words may break across the 2 note rows

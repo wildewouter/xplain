@@ -1,0 +1,19 @@
+id: F-MCPSRV-04
+title: client name from clientInfo is sanitized (ANSI escapes and control chars stripped)
+size: 80x24
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - keys: a
+  - keys: explain<Enter>
+  - http:
+      body:
+        - {jsonrpc: '2.0', id: 1, method: initialize, params: {clientInfo: {name: "sa\e[31mfe\x01\bbot", version: '1'}}}
+        - {jsonrpc: '2.0', id: 2, method: tools/call, params: {name: next_question, arguments: {wait_seconds: 1}}}
+    expect: {status: 200, body: [{id: 1}, {id: 2, result: {content: [{text: {$matches: '"status":"question"'}}]}}]}
+  - expectScreen:
+      contains: '─ answer · safebot · streaming…'
+      notContains: '[31m'
+  - keys: <Esc>M
+  - expectScreen: {matches: '│   safebot 1 +│'}

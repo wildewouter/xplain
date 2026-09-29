@@ -1,0 +1,9 @@
+id: F-MCPUI-01
+title: 'power row on: "● on  127.0.0.1:<port>"'
+steps:
+  - keys: M
+  - expectScreen: {matches: '^ +│> ○ off +│$', notContains: '● on'}
+  - keys: <Enter>
+  - expectScreen:
+      matches: '^ +│ MCP +│\n +│> ● on  127\.0\.0\.1:${PORT} +│\n +│ clients 0 pending 0 delivered 0 +│\n +│ INTEGRATIONS +│$'
+      notContains: '○ off'

@@ -1,0 +1,17 @@
+id: F-HELP-04
+title: 'split effective adds p pane; toggling to unified drops it'
+size: 120x40
+args: [--split]
+steps:
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[split]'}
+        - {row: -1, matches: '^\(\d+-\d+/\d+\) hjkl move  enter ask  J/K comments  p pane  \? help$'}
+  - keys: s
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[unified]'}
+        - {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}
+  - keys: s
+  - expectScreen:
+      line: {row: -1, matches: 'hjkl move  enter ask  J/K comments  p pane  \? help$'}

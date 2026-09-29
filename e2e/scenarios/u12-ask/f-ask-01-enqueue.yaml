@@ -1,0 +1,42 @@
+id: F-ASK-01
+title: asked comments are queued as pending turn-1 questions q1, q2 in creation order with message and context
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http: {tool: get_questions}
+    expect: {result: {questions: {$len: 0}}}
+  - keys: a
+  - keys: first q<Enter>
+  - expectScreen:
+      line: {row: -1, contains: 'question sent to agent'}
+      contains: ['first q', '─ answer · agent · waiting… ─', ' ⠿ waiting for agent…']
+  - keys: j
+  - keys: a
+  - keys: second q<Enter>
+  - expectScreen: {contains: 'second q', matches: 'waiting…[\s\S]*waiting…'}
+  - note: both queued, undelivered, in creation order
+    http: {tool: get_questions}
+    expect:
+      result:
+        questions:
+          - {thread_id: q1, turn: 1, follow_up: false, preview: first q}
+          - {thread_id: q2, turn: 1, follow_up: false, preview: second q}
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+    expect:
+      result:
+        status: question
+        thread_id: q1
+        turn: 1
+        follow_up: false
+        question: {$matches: '^first q\n\nFile: README\.md\n[\s\S]*```\nhello\n```'}
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+    expect:
+      result:
+        status: question
+        thread_id: q2
+        turn: 1
+        follow_up: false
+        question: {$matches: '^second q\n\nFile: README\.md\n[\s\S]*```\nhello world\n```'}
+  - http: {tool: get_questions}
+    expect: {result: {questions: {$len: 0}}}

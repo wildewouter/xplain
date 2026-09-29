@@ -1,0 +1,23 @@
+id: F-INTEG-01
+title: 'xplain writes no agent config files itself (register all + copy OpenCode snippet)'
+shims:
+  claude: [{match: [mcp, get], exit: 1}]
+  codex: [{match: [mcp, get], exit: 1}]
+  copilot: [{match: [mcp, get], exit: 1}]
+steps:
+  - keys: M<Enter>j<Enter>y
+  - keys: j<Enter>y
+  - keys: jc
+  - keys: j<Enter>y
+  - expectShimCall: {name: claude, argsPrefix: [mcp, add], count: 1}
+  - expectShimCall: {name: codex, argsPrefix: [mcp, add], count: 1}
+  - expectShimCall: {name: copilot, argsPrefix: [mcp, add], count: 1}
+  - expectOsc52: {count: 1, contains: '"type": "remote"'}
+  - expectFile: {path: '${HOME}/.claude.json', exists: false}
+  - expectFile: {path: '${HOME}/.claude', exists: false}
+  - expectFile: {path: '${HOME}/.codex', exists: false}
+  - expectFile: {path: '${HOME}/.copilot', exists: false}
+  - expectFile: {path: '${HOME}/.config/opencode', exists: false}
+  - expectFile: {path: '${CONFIG}/opencode', exists: false}
+  - expectFile: {path: opencode.json, exists: false}
+  - expectFile: {path: .mcp.json, exists: false}

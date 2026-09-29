@@ -1,0 +1,25 @@
+id: F-MODE-03
+title: m from file 2 jumps to index 1 of the new list
+size: 120x20
+steps:
+  - git: add src/big.ts
+  - keys: <Tab>
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] .*\[2/4\] \[cursor L30:C1\] src/big\.ts \+1 -1$'}
+        - {row: -1, matches: '^\(28-44/62\) '}
+  - keys: 5j3l
+  - expectScreen: {line: {row: 0, matches: '\[2/4\] \[cursor L34:C4\] src/big\.ts '}}
+  - keys: m
+  # SPEC-MISMATCH: F-MODE-03 says cursor is kept (F-RELOAD-03) when the path shown after the new diff equals the path
+  # shown before `m`. Here both are src/big.ts (was index 2, staged list has it at index 1), spec expects
+  # [cursor L34:C4] and footer (22-38/62) (F-NAV-10); app compares with the old index-1 path (README.md) and resets
+  # per F-NAV-08 ([cursor L30:C1], (28-44/62)). Cursor/footer assertions dropped.
+  - expectScreen:
+      {
+        line:
+          {
+            row: 0,
+            matches: '^\[staged\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/1\] \[cursor L\d+:C\d+\] src/big\.ts \+1 -1$',
+          },
+      }

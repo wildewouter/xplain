@@ -1,0 +1,22 @@
+id: F-INTEG-02
+title: 'check: exit 0 without URL -> registered; non-zero -> not registered; CLI missing -> not registered, no note'
+shims:
+  claude: [{match: [mcp, get], exit: 0, stdout: "xplain:\n  Scope: Local config\n  Status: Connected\n"}]
+  codex: [{match: [mcp, get], exit: 1, stderr: "No MCP server named 'xplain' found.\n"}]
+  # copilot: no shim, CLI not on PATH
+steps:
+  - keys: M
+  - note: before any check every CLI row says not registered
+    expectScreen:
+      {matches: ['^ +│  Claude Code not registered', '^ +│  Codex not registered', '^ +│  Copilot not registered']}
+  - keys: <Enter>
+  - expectScreen:
+      matches:
+        - '^ +│  Claude Code registered'
+        - '^ +│  Codex not registered'
+        - '^ +│  Copilot not registered'
+        - '^ +│  Copilot [^\n]*│\n +│ j/k  enter register'
+      notContains: ['not found', 'No MCP server']
+  - keys: jjjj
+  - note: no note on the Copilot row either
+    expectScreen: {matches: '^ +│> Copilot not registered[^\n]*│\n +│ j/k  enter register', notContains: 'not found'}

@@ -1,0 +1,11 @@
+id: F-CLI-06
+title: '--theme --split takes --split as the theme value and fails "invalid theme: --split (...)"'
+tui: false
+args: [--theme, --split]
+steps:
+  - expectExit: 1
+  - expectStdout: {equals: ''}
+  - expectStderr:
+      {
+        matches: '(?<![\s\S])xplain: invalid theme: --split \(solarized\|vibrant\|dull\|contrast\|colorblind\|light\)\nusage: xplain ',
+      }

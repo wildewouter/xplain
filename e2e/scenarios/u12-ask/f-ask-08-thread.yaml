@@ -1,0 +1,31 @@
+id: F-ASK-08
+title: buttons are numbered across the whole thread (note, then answer); follow-up lines are never code blocks
+size: 60x40
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - http: {tool: annotate, args: {file: README.md, line: 2, text: "note:\n```ts\nfrom note\n```"}}
+  - keys: J
+  - keys: a
+  - keys: '```sh ls<Enter>'
+  - expectScreen:
+      {line: {row: -1, contains: 'follow-up queued'}, matches: '┃ follow-up: ```sh ls +┃', notContains: '[ copy ] sh'}
+  - note: only the note block is pickable; Down twice wraps onto it again
+    keys: <Down>
+  - expectScreen: {contains: '[ copy ] ts  enter copy'}
+  - keys: <Down>
+  - expectScreen: {contains: '[ copy ] ts  enter copy'}
+  - keys: <Enter>
+  - expectOsc52: {equals: from note, count: 1}
+  - keys: <Esc>
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+    expect: {result: {thread_id: q1, turn: 2}}
+  - http: {tool: answer, args: {thread_id: q1, text: "answer:\n```py\nfrom answer\n```"}}
+  - expectScreen: {contains: ['┃ [ copy ] ts ', '┃ [ copy ] py '], notContains: 'enter copy'}
+  - keys: <Down>
+  - expectScreen: {contains: '[ copy ] ts  enter copy', notContains: '[ copy ] py  enter copy'}
+  - keys: <Down>
+  - expectScreen: {contains: '[ copy ] py  enter copy', notContains: '[ copy ] ts  enter copy'}
+  - keys: <Enter>
+  - expectOsc52: {equals: from answer, count: 2}
+  - expectScreen: {line: {row: -1, contains: 'copied 1 line'}}

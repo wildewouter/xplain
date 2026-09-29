@@ -1,0 +1,160 @@
+id: F-NAV-05
+title: '] and [ jump the cursor between change starts, stop at the ends, viewport follows'
+# m.txt rows (full scope, 45): 1 hunk; change starts at row 6 (del L5), 22 (del L20), 34 (del L30), 40 (add L35).
+# 80x16: H=13, margin 2.
+fixture: empty
+size: 80x16
+steps:
+  - note: committed base, then a working tree with four separate change runs; r loads it
+    writeFile:
+      path: m.txt
+      content: |
+        line 1
+        line 2
+        line 3
+        line 4
+        line 5
+        line 6
+        line 7
+        line 8
+        line 9
+        line 10
+        line 11
+        line 12
+        line 13
+        line 14
+        line 15
+        line 16
+        line 17
+        line 18
+        line 19
+        line 20
+        line 21
+        line 22
+        line 23
+        line 24
+        line 25
+        line 26
+        line 27
+        line 28
+        line 29
+        line 30
+        line 31
+        line 32
+        line 33
+        line 34
+        line 35
+        line 36
+        line 37
+        line 38
+        line 39
+        line 40
+  - writeFile: {path: o.txt, content: "a\n"}
+  - git: add -A
+  - git: {args: [commit, -qm, base], code: 0}
+  - writeFile:
+      path: m.txt
+      content: |
+        line 1
+        line 2
+        line 3
+        line 4
+        line 5 changed
+        line 6
+        line 7
+        line 8
+        line 9
+        line 10
+        line 11
+        line 12
+        line 13
+        line 14
+        line 15
+        line 16
+        line 17
+        line 18
+        line 19
+        line 20 x
+        line 21 x
+        line 22
+        line 23
+        line 24
+        line 25
+        line 26
+        line 27
+        line 28
+        line 29
+        line 31
+        line 32
+        line 33
+        line 34
+        line 35
+        inserted
+        line 36
+        line 37
+        line 38
+        line 39
+        line 40
+  - writeFile: {path: o.txt, content: "b\n"}
+  - keys: r
+  - expectScreen: {line: {row: 0, matches: '\[1/2\] .*m\.txt \+4 -4$'}}
+  - note: Tab away and back so m.txt gets its initial position (first change start)
+    keys: <Tab><Tab>
+  - expectScreen:
+      matches: '^   5      -▶line 5\b'
+      line:
+        - {row: 0, matches: '\[1/2\] \[cursor L5:C1\] m\.txt '}
+        - {row: -1, matches: '(^|\| )\(3-15/45\) '}
+  - keys: '['
+  - note: no change start before the first one; nothing moves
+    expectScreen:
+      matches: '^   5      -▶line 5\b'
+      line:
+        - {row: 0, matches: '\[cursor L5:C1\] m\.txt '}
+        - {row: -1, matches: '(^|\| )\(3-15/45\) '}
+  - keys: ']'
+  - note: row 23 is the second del row of the same run, not a change start; ] lands on row 22
+    expectScreen:
+      matches: '^  20      -▶line 20\b'
+      line:
+        - {row: 0, matches: '\[cursor L20:C1\] m\.txt '}
+        - {row: -1, matches: '(^|\| )\(12-24/45\) '}
+  - keys: ']'
+  - expectScreen:
+      matches: '^  30      -▶line 30\b'
+      line:
+        - {row: 0, matches: '\[cursor L30:C1\] m\.txt '}
+        - {row: -1, matches: '(^|\| )\(24-36/45\) '}
+  - keys: ']'
+  - note: pure insertion is a change start too (add row, new number 35)
+    expectScreen:
+      matches: '^       35 \+▶inserted\b'
+      line:
+        - {row: 0, matches: '\[cursor L35:C1\] m\.txt '}
+        - {row: -1, matches: '(^|\| )\(30-42/45\) '}
+  - keys: ']'
+  - note: no change start after the last one; nothing moves
+    expectScreen:
+      matches: '^       35 \+▶inserted\b'
+      line:
+        - {row: 0, matches: '\[cursor L35:C1\] m\.txt '}
+        - {row: -1, matches: '(^|\| )\(30-42/45\) '}
+  - keys: '['
+  - note: row 34 still inside the margin of the current view; top stays
+    expectScreen:
+      matches: '^  30      -▶line 30\b'
+      line:
+        - {row: 0, matches: '\[cursor L30:C1\] m\.txt '}
+        - {row: -1, matches: '(^|\| )\(30-42/45\) '}
+  - keys: '['
+  - expectScreen:
+      matches: '^  20      -▶line 20\b'
+      line:
+        - {row: 0, matches: '\[cursor L20:C1\] m\.txt '}
+        - {row: -1, matches: '(^|\| )\(20-32/45\) '}
+  - keys: '['
+  - expectScreen:
+      matches: '^   5      -▶line 5\b'
+      line:
+        - {row: 0, matches: '\[cursor L5:C1\] m\.txt '}
+        - {row: -1, matches: '(^|\| )\(4-16/45\) '}

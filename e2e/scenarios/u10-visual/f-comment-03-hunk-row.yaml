@@ -1,0 +1,17 @@
+id: F-COMMENT-03
+title: comment on hunk row (no line number) gets head `line r1` and sits under the hunk row
+fixture: empty
+size: 80x20
+files:
+  f.txt: "alpha beta\n"
+steps:
+  - keys: g
+  - expectScreen: {line: {row: 0, matches: '\[cursor r1:C1\] f\.txt '}}
+  - keys: ax<Enter>
+  - expectScreen:
+      line:
+        - {row: 2, matches: '^@@ -0,0 \+1 @@'}
+        - {row: 3, matches: '^╭─+╮$'}
+        - {row: 4, matches: '^│ sent  line r1  saved · not asked +│$'}
+        - {row: 7, equals: '        1 + alpha beta'}
+        - {row: -1, contains: 'question saved (1)'}

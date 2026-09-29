@@ -1,0 +1,9 @@
+id: F-HELP-01
+title: 'text input (find) with items cut: no hint, no credit; last row is the more row'
+size: 80x10
+steps:
+  - keys: '?/'
+  - expectScreen:
+      matches: '│ Help · Find in file *│$\n^[^\n]*│ Find *│$\n^[^\n]*│  type      search text *│$\n^[^\n]*│  backspace delete char *│$\n^[^\n]*│ … 2 more *│$\n^[^\n]*╰─+╯$'
+      notContains: ['Made by', '? close', '? move keys']
+      line: {row: -1, matches: '^/█'}

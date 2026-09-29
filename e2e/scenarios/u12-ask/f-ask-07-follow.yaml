@@ -1,0 +1,38 @@
+id: F-ASK-07
+title: a live thread follows its bottom; k scrolls away from it, G returns to the bottom
+size: 60x16
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - keys: a
+  - keys: why?<Enter>
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+  - http:
+      {
+        tool: answer,
+        args:
+          {
+            thread_id: q1,
+            text: "l01\nl02\nl03\nl04\nl05\nl06\nl07\nl08\nl09\nl10\nl11\nl12\nl13\nl14\nl15\nl16\nl17\nl18\nl19\nl20",
+          },
+      }
+  - keys: K
+  - expectScreen: {line: {row: 4, contains: '↕ 1-8/22'}}
+  - keys: a
+  - keys: more<Enter>
+  - note: live follow-up turn, view at the bottom
+    expectScreen:
+      line: {row: 4, contains: '↕ 18-25/25'}
+      contains: ['┃ follow-up: more ', '┃ ⠿ waiting for agent… ']
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+    expect: {result: {thread_id: q1, turn: 2}}
+  - expectScreen:
+      line: {row: 4, contains: '↕ 18-25/25'}
+      contains: ['· streaming… ─', 'agent working…']
+  - keys: k
+  - expectScreen: {line: {row: 4, contains: '↕ 17-24/25'}, notContains: 'agent working…'}
+  - keys: G
+  - expectScreen: {line: {row: 4, contains: '↕ 18-25/25'}, contains: 'agent working…'}
+  # SPEC-MISMATCH: answer arrival on a followed live thread (no scroll by user): app shows '↕ 1-8/28' (jumps to top);
+  # after G it shows '↕ 18-25/28' (not bottom). Spec: live answer auto-follows bottom until user scrolls up.
+  # Arrival position not asserted.

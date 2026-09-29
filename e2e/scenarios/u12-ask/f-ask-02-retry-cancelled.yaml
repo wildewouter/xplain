@@ -1,0 +1,28 @@
+id: F-ASK-02
+title: a on a one-turn question cancelled by MCP stop re-asks it
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - keys: a
+  - keys: why?<Enter>
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+    expect: {result: {status: question, thread_id: q1, turn: 1}}
+  - keys: M<Enter><Esc>
+  - expectScreen: {line: {row: 0, contains: '[mcp: off]'}, contains: ['─ answer · agent · cancelled ─', 'MCP stopped']}
+  - keys: M<Enter><Esc>
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - keys: K
+  - keys: a
+  - expectScreen: {line: {row: -1, contains: 'question queued'}, contains: '· waiting… ─', notContains: 'MCP stopped'}
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+    expect:
+      {
+        result:
+          {
+            status: question,
+            thread_id: q1,
+            turn: 1,
+            follow_up: false,
+            question: {$matches: '^why\?\n\nFile: README\.md'},
+          },
+      }

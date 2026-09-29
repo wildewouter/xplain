@@ -1,0 +1,17 @@
+id: F-MCPUI-02
+title: 'Esc, q, M close the MCP modal (q does not quit)'
+steps:
+  - keys: M
+  - expectScreen: {contains: INTEGRATIONS}
+  - keys: <Esc>
+  - expectScreen: {notContains: [INTEGRATIONS, 'Quit xplain']}
+  - keys: M
+  - expectScreen: {contains: INTEGRATIONS}
+  - keys: q
+  - expectScreen: {notContains: [INTEGRATIONS, 'Quit xplain']}
+  - keys: M
+  - expectScreen: {contains: INTEGRATIONS}
+  - keys: M
+  - expectScreen: {notContains: [INTEGRATIONS, 'Quit xplain']}
+  - note: app still running and browsable after closes
+    expectScreen: {line: {row: 0, contains: '[mcp: off]'}}

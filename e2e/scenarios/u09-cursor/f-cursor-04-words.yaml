@@ -1,0 +1,80 @@
+id: F-CURSOR-04
+title: 'w/b/e vim word motions across rows; w stops at empty row and stays at last char of last row; hunk row text is header text'
+# w.txt untracked: L1 "foo bar.baz  qux", L2 "", L3 "  end_x+yy". rows: 1 hunk "@@ -0,0 +1,3 @@", 2 L1, 3 L2, 4 L3.
+fixture: empty
+size: 80x12
+files:
+  w.txt: "foo bar.baz  qux\n\n  end_x+yy\n"
+steps:
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C1] w.txt'}}
+  - keys: w
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C5] w.txt'}}
+  - expectCell: {at: {row: 3, col: 16}, chars: 'b', inverse: true}
+  - keys: w
+  - note: "'.' is its own class (other)"
+    expectScreen: {line: {row: 0, contains: '[cursor L1:C8] w.txt'}}
+  - keys: w
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C9] w.txt'}}
+  - keys: w
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C14] w.txt'}}
+  - keys: w
+  - note: crosses rows, stops at the empty row
+    expectScreen: {line: {row: 0, contains: '[cursor L2:C1] w.txt'}}
+  - keys: w
+  - expectScreen: {line: {row: 0, contains: '[cursor L3:C3] w.txt'}}
+  - keys: w
+  - expectScreen: {line: {row: 0, contains: '[cursor L3:C8] w.txt'}}
+  - keys: w
+  - expectScreen: {line: {row: 0, contains: '[cursor L3:C9] w.txt'}}
+  - keys: w
+  - note: no next word - last char of last row
+    expectScreen: {line: {row: 0, contains: '[cursor L3:C10] w.txt'}}
+  - expectCell: {at: {row: 5, col: 21}, chars: 'y', inverse: true}
+  - keys: w
+  - expectScreen: {line: {row: 0, contains: '[cursor L3:C10] w.txt'}}
+  - keys: b
+  - expectScreen: {line: {row: 0, contains: '[cursor L3:C9] w.txt'}}
+  - keys: b
+  - expectScreen: {line: {row: 0, contains: '[cursor L3:C8] w.txt'}}
+  - keys: b
+  - expectScreen: {line: {row: 0, contains: '[cursor L3:C3] w.txt'}}
+  - keys: b
+  - note: back across rows, stops at the empty row
+    expectScreen: {line: {row: 0, contains: '[cursor L2:C1] w.txt'}}
+  - keys: b
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C14] w.txt'}}
+  - keys: 2b
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C8] w.txt'}}
+  - keys: 2b
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C1] w.txt'}}
+  - keys: b
+  - note: hunk row text "@@ -0,0 +1,3 @@" is used; last word start "@@" at C14
+    expectScreen: {line: {row: 0, contains: '[cursor r1:C14] w.txt'}}
+  - keys: '0'
+  - expectScreen: {line: {row: 0, contains: '[cursor r1:C1] w.txt'}}
+  - keys: b
+  - note: row 1 col 1 - b stays
+    expectScreen: {line: {row: 0, contains: '[cursor r1:C1] w.txt'}}
+  - keys: w
+  - note: hunk text words - "-" at C4
+    expectScreen: {line: {row: 0, contains: '[cursor r1:C4] w.txt'}}
+  - keys: j0
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C1] w.txt'}}
+  - keys: e
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C3] w.txt'}}
+  - keys: e
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C7] w.txt'}}
+  - keys: e
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C8] w.txt'}}
+  - keys: 2e
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C16] w.txt'}}
+  - keys: e
+  - note: e crosses rows (skips the empty row) to end of "end_x"
+    expectScreen: {line: {row: 0, contains: '[cursor L3:C7] w.txt'}}
+  - expectCell: {at: {row: 5, col: 18}, chars: 'x', inverse: true}
+  - keys: e
+  - expectScreen: {line: {row: 0, contains: '[cursor L3:C8] w.txt'}}
+  - keys: e
+  - expectScreen: {line: {row: 0, contains: '[cursor L3:C10] w.txt'}}
+  - keys: gj03w
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C9] w.txt'}}

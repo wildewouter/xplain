@@ -1,0 +1,12 @@
+id: F-MCPUI-02
+title: 'j/k clear preview and note'
+steps:
+  - keys: M<Enter>j
+  - keys: c
+  - expectScreen: {contains: 'register command (copied):'}
+  - keys: j
+  - expectScreen: {matches: '^ +│> Codex ', notContains: 'register command (copied)'}
+  - keys: j<Enter>
+  - expectScreen: {contains: 'copy-paste only: c copies the snippet'}
+  - keys: k
+  - expectScreen: {matches: '^ +│> Codex ', notContains: 'copy-paste only: c copies'}

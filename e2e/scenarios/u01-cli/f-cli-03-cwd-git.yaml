@@ -1,0 +1,8 @@
+id: F-CLI-03
+title: '--cwd <dir> - git runs in that dir, not in the process cwd'
+args: [--cwd, '${HOME}']
+shims: [git]
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[mcp: off\] No changes '}}
+  - expectShimCall: {name: git, argsPrefix: [diff, --no-color, --no-ext-diff], cwd: '${HOME}'}
+  - expectShimCall: {name: git, cwd: '${REPO}', count: 0}

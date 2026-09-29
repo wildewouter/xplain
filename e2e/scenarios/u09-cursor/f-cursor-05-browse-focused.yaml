@@ -1,0 +1,37 @@
+id: F-CURSOR-05
+title: 'count works in browse; digits while comment focused keep focus, next motion unfocuses and uses count'
+fixture: empty
+size: 120x16
+files:
+  n.txt: "line 01 abc\nline 02 abc\nline 03 abc\nline 04 abc\nline 05 abc\nline 06 abc\nline 07 abc\nline 08 abc\nline 09 abc\nline 10 abc\nline 11 abc\nline 12 abc\nline 13 abc\nline 14 abc\nline 15 abc\nline 16 abc\nline 17 abc\nline 18 abc\nline 19 abc\nline 20 abc\nline 21 abc\nline 22 abc\nline 23 abc\nline 24 abc\nline 25 abc\nline 26 abc\nline 27 abc\nline 28 abc\nline 29 abc\nline 30 abc\n"
+steps:
+  - expectScreen: {line: {row: 0, contains: '[cursor L1:C1] n.txt'}}
+  - keys: ac1<Enter>
+  - expectScreen: {contains: 'line L1'}
+  - keys: J
+  - expectScreen: {line: {row: -1, contains: 'e edit  D delete'}}
+  - keys: '3'
+  - note: focus kept while count pending
+    expectScreen:
+      line:
+        - {row: -1, matches: 'e edit  D delete  a ask/follow up  j/k scroll  esc back  \? help$'}
+        - {row: 0, contains: '[cursor L1:C1] n.txt'}
+  - keys: j
+  - note: motion unfocuses and moves 3 rows
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L4:C1] n.txt'}
+        - {row: -1, matches: 'hjkl move  enter ask  J/K comments  \? help$'}
+  - keys: Fn.txt<Enter>
+  - expectScreen: {line: {row: 0, matches: '^\[browse\] .*\[cursor L1:C1\] n\.txt'}}
+  - keys: 4j
+  - expectScreen:
+      line: {row: 0, matches: '^\[browse\] .*\[cursor L5:C1\] n\.txt'}
+      matches: '^   5  ▶line 05 abc'
+  - keys: 2w
+  - expectScreen: {line: {row: 0, matches: '^\[browse\] .*\[cursor L5:C9\] n\.txt'}}
+  - keys: 12G
+  - note: browse has no hunk row - row 12 = L12
+    expectScreen: {line: {row: 0, matches: '^\[browse\] .*\[cursor L12:C9\] n\.txt'}}
+  - keys: 3k
+  - expectScreen: {line: {row: 0, matches: '^\[browse\] .*\[cursor L9:C9\] n\.txt'}}

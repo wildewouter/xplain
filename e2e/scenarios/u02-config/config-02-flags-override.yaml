@@ -1,0 +1,9 @@
+id: F-CONFIG-02
+title: defaults < config < flags; flags override config values
+args: [--mode, all, --theme, dull, --split, --changes-only]
+files:
+  ${CONFIG}/xplain/config.json:
+    theme: light
+    view: {mode: unstaged, split: false, full: true}
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[changes\] \[split\] \[dull\] \[mcp: off\] \[1/4\] '}}

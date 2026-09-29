@@ -1,0 +1,15 @@
+id: F-HELP-03
+title: 'Find in file entries verbatim: [Find] type, backspace, Enter, esc; no hint, credit only'
+size: 120x40
+steps:
+  - keys: '?'
+  - expectScreen:
+      {
+        contains: 'Help · Diff view',
+        line: {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'},
+      }
+  - keys: /
+  - expectScreen:
+      line: {row: -1, matches: '^/█'}
+      matches: '^(?=.{120}$)[^\n]*│ Help · Find in file *│$\n^[^\n]*│ Find *│$\n^[^\n]*│  type      search text *│$\n^[^\n]*│  backspace delete char *│$\n^[^\n]*│  Enter     jump to match *│$\n^[^\n]*│  esc       cancel *│$\n^[^\n]*│ *Made by Wouter de Wild - 2026 │$\n^(?=.{120}$)[^\n]*╰─+╯$'
+      notContains: ['│  i ', '? move keys', '? close']

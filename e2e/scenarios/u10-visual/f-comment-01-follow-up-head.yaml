@@ -1,0 +1,18 @@
+id: F-COMMENT-01
+title: follow-up editor (a on focused agent note) has head `follow-up` and edit/follow-up hint
+fixture: empty
+size: 80x30
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+  f.txt: "alpha beta\ntwo words here\n"
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http: {tool: annotate, args: {file: f.txt, line: 1, text: agent says hi}}
+    expect: {result: {ok: true}}
+  - expectScreen: {contains: 'agent note L1', notContains: 'follow-up'}
+  - keys: Ja
+  - expectScreen:
+      matches: '│ follow-up +│\n│  +│\n│ enter send  esc cancel +│\n╰'
+      notContains: ['[ask]', 'tab save/ask  esc']
+      line: {row: -1, matches: 'enter send  esc cancel$'}
+  - expectCell: {at: {text: '│ follow-up', offset: 2}, chars: f, fg: '#cb4b16'}

@@ -1,0 +1,19 @@
+id: F-ASK-05
+title: message and answer wrap at box width-3 (word break, hard cut, blank lines, tabs, CR, trimmed continuation)
+size: 40x40
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - keys: a
+  - keys: aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii<Enter>
+  - note: 36 columns of text per line (box 39 wide)
+    expectScreen: {matches: '^│ aaaa bbbb cccc dddd eeee ffff gggg  │\n│ hhhh iiii +│$'}
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+  - http:
+      tool: answer
+      args:
+        thread_id: q1
+        text: "word1 word2 word3 word4 word5 word6      word7\n\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\ttab\r\nend\n\n\n"
+  - expectScreen:
+      matches:
+        - '^│─ answer · agent · done ─+│\n│ word1 word2 word3 word4 word5 word6 │\n│ word7 +│\n│ +│\n│ x{36}│\n│ x{14} +│\n│   tab +│\n│ end +│\n╰─+╯$'

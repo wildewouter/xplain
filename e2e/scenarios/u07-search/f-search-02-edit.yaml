@@ -1,0 +1,43 @@
+id: F-SEARCH-02
+title: Backspace/Delete drop last query char and reset selection; Left/Right do nothing
+size: 80x24
+steps:
+  - keys: Fr<Down><Down>
+  - expectScreen:
+      line:
+        - {row: 5, matches: '│ Search \(3/4\) +│'}
+        - {row: 6, matches: '│ > r +│'}
+  - keys: <Left>
+  - note: Left changes neither query nor selection
+    expectScreen:
+      line:
+        - {row: 5, matches: '│ Search \(3/4\) +│'}
+        - {row: 6, matches: '│ > r +│'}
+  - keys: <Right>
+  - expectScreen:
+      line:
+        - {row: 5, matches: '│ Search \(3/4\) +│'}
+        - {row: 6, matches: '│ > r +│'}
+  - keys: <BS>
+  - note: query empty -> all 6 files, selection first
+    expectScreen:
+      line:
+        - {row: 5, matches: '│ Search \(1/6\) +│'}
+        - {row: 6, matches: '│ > +│'}
+        - {row: 7, matches: '│> README\.md +│'}
+  - keys: <BS>
+  - note: Backspace on empty query is harmless
+    expectScreen:
+      line:
+        - {row: 5, matches: '│ Search \(1/6\) +│'}
+        - {row: 6, matches: '│ > +│'}
+  - keys: r.<Down>
+  - expectScreen:
+      line:
+        - {row: 6, matches: '│ > r\. +│'}
+  - keys: <Del>
+  - note: Delete also removes the last char (not char under caret) and resets selection
+    expectScreen:
+      line:
+        - {row: 5, matches: '│ Search \(1/4\) +│'}
+        - {row: 6, matches: '│ > r +│'}

@@ -1,0 +1,14 @@
+id: F-LAYOUT-02
+title: 'footer: goto input open shows :<text>█; a note shows as <note> | before (a-b/n)'
+size: 80x24
+steps:
+  - keys: ':'
+  - expectScreen: {line: {row: -1, matches: '^:█\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - keys: abc
+  - expectScreen: {line: {row: -1, matches: '^:abc█\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - keys: <Enter>
+  - expectScreen:
+      {line: {row: -1, matches: '^not a line number: abc \| \(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - note: goto open replaces the note part too
+    keys: ':1'
+  - expectScreen: {line: {row: -1, matches: '^:1█\(1-5/5\) hjkl move'}}

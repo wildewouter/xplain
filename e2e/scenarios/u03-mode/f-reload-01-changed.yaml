@@ -1,0 +1,26 @@
+id: F-RELOAD-01
+title: r picks up worktree changes; same file path kept (also when its index moves); path gone -> first file
+steps:
+  - expectScreen:
+      {line: {row: 0, equals: '[all] [full] [unified] [solarized] [mcp: off] [1/4] [cursor L2:C1] README.md +2 -1'}}
+  - writeFile: {path: README.md, content: "# Title\nhello world\nmore\nextra line\n"}
+  - note: nothing re-read until r
+    expectScreen: {notContains: 'extra line'}
+  - keys: r
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] .*\[1/4\] \[cursor L2:C1\] README\.md \+3 -1$'}
+        - {row: 7, matches: '^        4 \+ extra line'}
+        - {row: -1, matches: '^reloaded \| \(1-6/6\) '}
+  - keys: <Tab>
+  - expectScreen: {line: {row: 0, matches: '\[2/4\] \[cursor L30:C1\] src/big\.ts '}}
+  - git: checkout -- README.md
+  - keys: r
+  - note: README.md dropped out, src/big.ts still shown, now index 1
+    expectScreen: {line: {row: 0, matches: '^\[all\] .*\[1/3\] \[cursor L30:C1\] src/big\.ts \+1 -1$'}}
+  - keys: <Tab>
+  - expectScreen: {line: {row: 0, matches: '\[2/3\] .*src/c\.tsx '}}
+  - git: checkout -- src/c.tsx
+  - keys: r
+  - note: shown path gone -> first file
+    expectScreen: {line: {row: 0, matches: '^\[all\] .*\[1/2\] \[cursor L30:C1\] src/big\.ts \+1 -1$'}}

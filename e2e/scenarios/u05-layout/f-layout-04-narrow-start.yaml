@@ -1,0 +1,12 @@
+id: F-LAYOUT-04
+title: '--split at cols 99: not effective, unified rows, no pane prefix in cursor tag'
+size: 99x24
+args: [--split]
+steps:
+  - expectScreen:
+      notContains: '│'
+      line:
+        - {row: 0, contains: '[cursor L2:C1] README.md'}
+        - {row: 3, matches: '^   1    1   # Title$'}
+        - {row: 5, matches: '^        2 \+ hello world$'}
+        - {row: -1, matches: '^too narrow for split \| \(1-5/5\) '}

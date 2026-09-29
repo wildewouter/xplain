@@ -1,0 +1,11 @@
+id: F-INTEG-04
+title: 'unregister works with MCP off when row known registered'
+shims:
+  codex: [{match: [mcp, get], exit: 0}]
+steps:
+  - keys: M<Enter><Enter>
+  - expectScreen: {matches: ['^ +│> ○ off', '^ +│  Codex registered'], line: {row: 0, contains: '[mcp: off]'}}
+  - keys: jjdy
+  - expectShimCall: {name: codex, args: [mcp, remove, xplain], count: 1}
+  - expectScreen: {matches: '^ +│ Removed xplain from Codex +│$'}
+  # row status afterwards: UNSPEC-22

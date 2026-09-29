@@ -1,0 +1,17 @@
+id: F-COMMENT-07
+title: 'Enter on focused comment also opens the edit editor; selection comment edit shows its quoted lines'
+size: 120x30
+steps:
+  - keys: Vj<Enter>
+  - keys: sel note<Enter>
+  - expectScreen: {contains: 'sent  selection L2 '}
+  - keys: J
+  - expectScreen: {contains: '▸ sent  selection L2 '}
+  - keys: <Enter>
+  - expectScreen:
+      matches: '│ edit selection L2 +│\n│ > hello +│\n│ > hello world +│\n│ sel note  +│\n│ enter send  esc cancel +│'
+  - keys: <BS><BS><BS><BS>text<Enter>
+  - expectScreen:
+      matches: 'sent  selection L2[^\n]*\n[│┃] > hello +[│┃]\n[│┃] > hello world +[│┃]\n[│┃] sel text '
+      notContains: ['sel note', 'edit selection']
+      line: {row: -1, matches: '^comment updated \| '}

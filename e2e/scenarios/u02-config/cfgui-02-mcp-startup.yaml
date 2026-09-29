@@ -1,0 +1,9 @@
+id: F-CFGUI-02
+title: mcp on startup select is a saved preference only; server not started
+steps:
+  - expectScreen: {line: {row: 0, matches: '\[mcp: off\] '}}
+  - keys: Cjjjjjl<Enter>
+  - expectScreen: {line: [{row: 0, matches: '\[mcp: off\] '}, {row: 22, matches: '│> mcp on startup +off +\[on\] +│'}]}
+  - expectFile: {path: '${CONFIG}/xplain/config.json', json: {mcp: {autostart: true}}}
+  - note: no MCP token file, server never started
+    expectFile: {path: '${STATE}/xplain/mcp.json', exists: false}

@@ -1,0 +1,28 @@
+id: F-COMMENT-02
+title: MCP running - editor defaults to ask, Tab toggles ask/save, choice kept, reset by MCP stop, ask again after restart
+fixture: empty
+size: 80x30
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+  f.txt: "alpha beta\n"
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - keys: a
+  - expectScreen: {line: {row: 6, matches: '^│ \[ask\] enter send  tab save/ask  esc cancel +│$'}}
+  - keys: <Tab>
+  - expectScreen: {line: {row: 6, matches: '^│ \[save\] enter send  tab save/ask  esc cancel +│$'}}
+  - keys: <Tab>
+  - expectScreen: {line: {row: 6, matches: '^│ \[ask\] enter send'}}
+  - keys: <Tab><Esc>
+  - note: chosen mode kept for next editor
+    keys: a
+  - expectScreen: {line: {row: 6, matches: '^│ \[save\] enter send'}}
+  - keys: <Esc>M
+  - expectScreen: {contains: '> ● on '}
+  - keys: <Space>
+  - expectScreen: {contains: '○ off', line: {row: 0, contains: '[mcp: off]'}}
+  - keys: <Space>
+  - expectScreen: {contains: '● on ', line: {row: 0, contains: '[mcp: on]'}}
+  - keys: <Esc>a
+  - note: MCP stop reset the chosen mode; running again - default ask
+    expectScreen: {line: {row: 6, matches: '^│ \[ask\] enter send'}}

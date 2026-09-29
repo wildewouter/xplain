@@ -1,0 +1,16 @@
+id: F-INTEG-05
+title: 'c on Claude Code copies the exact register command text'
+files:
+  ${STATE}/xplain/mcp.json: {token: tok-0123456789abcdefXYZ}
+steps:
+  - keys: M<Enter>jc
+  - expectOsc52:
+      count: 1
+      equals: |-
+        claude mcp add xplain http://127.0.0.1:${PORT}/mcp --transport http --scope local --header "Authorization: Bearer tok-0123456789abcdefXYZ"
+
+        Then restart/resume the session: claude --resume
+        Allow the tools: claude --allowedTools "mcp__xplain"  (or add permission rule mcp__xplain)
+        Optional: set env CLAUDE_CODE_MCP_AUTO_BACKGROUND_MS=0 to avoid auto-backgrounding long calls.
+  - expectScreen:
+      {contains: ['register command (copied):', 'claude mcp add xplain'], notContains: 'tok-0123456789abcdefXYZ'}

@@ -1,0 +1,11 @@
+id: F-CLI-01
+title: 'a bad flag before --help fails first (flags parsed left to right)'
+tui: false
+args: [--theme, neon, --help]
+steps:
+  - expectExit: 1
+  - expectStdout: {equals: ''}
+  - expectStderr:
+      {
+        matches: '(?<![\s\S])xplain: invalid theme: neon \(solarized\|vibrant\|dull\|contrast\|colorblind\|light\)\nusage: xplain ',
+      }

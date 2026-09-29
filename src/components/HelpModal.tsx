@@ -60,7 +60,8 @@ export function HelpPanel({
 	);
 	const inner = Math.max(1, Math.min(width, natural + 2) - 2);
 	const descW = Math.max(1, inner - 2 - pad);
-	const heightOf = (gs: Group[]) => gs.reduce((h, g) => h + 1 + g.items.reduce((s, i) => s + wrapped(i.d, descW), 0), 0);
+	const heightOf = (gs: Group[]) =>
+		gs.reduce((h, g) => h + 1 + g.items.reduce((s, i) => s + wrapped(i.d, descW), 0), 0);
 	// border 2 + title 1 + close row
 	const avail = Math.max(1, maxHeight - 3 - (close ? 1 : 0));
 	const total = keys.length;
@@ -88,8 +89,7 @@ export function HelpPanel({
 		body.push({g: g.g, items});
 		if (items.length < g.items.length) break;
 	}
-	const credit =
-		inner >= (hint ? hint.length + 1 : 0) + CREDIT.length + 1 && (close || (!cut && bodyH + 1 <= avail));
+	const credit = inner >= (hint ? hint.length + 1 : 0) + CREDIT.length + 1 && (close || (!cut && bodyH + 1 <= avail));
 	return (
 		<Box
 			flexDirection="column"

@@ -5,8 +5,9 @@ import {isLiveStatus, buildContext, type AskController, type Question} from '../
 import {createIntegrations, type AgentIntegration, type McpEndpoint, type Runner} from '../integrations/index.js';
 import {osc52Copy} from '../clipboard.js';
 import {createHub, type Hub} from './hub.js';
-import {createMcpServer, type McpServer} from './server.js';
+import {createMcpServer, DEFAULT_PORT, envPort, type McpServer} from './server.js';
 import {loadOrCreateToken} from './token.js';
+import {tracked} from '../sync.js';
 
 export type BridgeClient = {id: string; name: string; version: string; polling: boolean};
 export type BridgeIntegration = {
@@ -182,13 +183,16 @@ export function createMcpBridge(deps: BridgeDeps) {
 			return () => void changeListeners.delete(l);
 		},
 
-		async start(): Promise<void> {
+		start: tracked(async (): Promise<void> => {
 			if (disposed || state.running || state.starting) return;
+			const want = deps.port ?? envPort();
+			if (Number.isNaN(want))
+				return set({error: `invalid XPLAIN_MCP_PORT ${JSON.stringify(process.env.XPLAIN_MCP_PORT)} (0-65535)`});
 			set({starting: true, error: undefined});
 			const h = (deps.createHub ?? createHub)();
 			try {
 				const token = (deps.loadToken ?? loadOrCreateToken)(deps.stateDir).token;
-				const s = (deps.createServer ?? createMcpServer)({hub: h, token, port: deps.port, dir: deps.stateDir});
+				const s = (deps.createServer ?? createMcpServer)({hub: h, token, port: want, dir: deps.stateDir});
 				const {url, port} = await s.start();
 				if (disposed) {
 					h.close();
@@ -205,16 +209,16 @@ export function createMcpBridge(deps: BridgeDeps) {
 			} catch (e) {
 				h.close();
 				const code = (e as {code?: string})?.code;
-				const msg = code === 'EADDRINUSE' ? `port ${deps.port ?? 47615} in use` : String((e as Error)?.message ?? e);
+				const msg = code === 'EADDRINUSE' ? `port ${want ?? DEFAULT_PORT} in use` : String((e as Error)?.message ?? e);
 				set({running: false, starting: false, error: msg});
 			}
-		},
+		}),
 
-		async stop(): Promise<void> {
+		stop: tracked(async (): Promise<void> => {
 			if (!state.running && !hub) return;
 			await teardown();
 			set({running: false, url: undefined, port: undefined, tokenMasked: undefined, clients: [], pending: 0});
-		},
+		}),
 
 		dispose() {
 			if (disposed) return;
@@ -264,7 +268,7 @@ export function createMcpBridge(deps: BridgeDeps) {
 			return true;
 		},
 
-		async refreshRegistration(): Promise<void> {
+		refreshRegistration: tracked(async (): Promise<void> => {
 			const e = ep;
 			if (!e) return;
 			await Promise.all(
@@ -278,9 +282,9 @@ export function createMcpBridge(deps: BridgeDeps) {
 					}
 				}),
 			);
-		},
+		}),
 
-		async register(id: string): Promise<void> {
+		register: tracked(async (id: string): Promise<void> => {
 			const i = integrations.find((x) => x.id === id);
 			if (!i) return;
 			if (!i.canRegister || !i.register) return setInt(id, {note: 'copy-paste only'});
@@ -297,9 +301,9 @@ export function createMcpBridge(deps: BridgeDeps) {
 			setInt(id, {busy: false, note});
 			await api.refreshRegistration();
 			if (state.integrations.find((x) => x.id === id)?.note === undefined) setInt(id, {note});
-		},
+		}),
 
-		async unregister(id: string): Promise<void> {
+		unregister: tracked(async (id: string): Promise<void> => {
 			const i = integrations.find((x) => x.id === id);
 			if (!i) return;
 			if (!i.unregister) return setInt(id, {note: 'copy-paste only'});
@@ -313,7 +317,7 @@ export function createMcpBridge(deps: BridgeDeps) {
 			setInt(id, {busy: false, note});
 			await api.refreshRegistration();
 			if (state.integrations.find((x) => x.id === id)?.note === undefined) setInt(id, {note});
-		},
+		}),
 
 		/** Register command with the live endpoint; null when MCP is off. masked hides the token. */
 		commandText(id: string, masked = false): string | null {

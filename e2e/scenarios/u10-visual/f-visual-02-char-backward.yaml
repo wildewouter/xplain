@@ -1,0 +1,16 @@
+id: F-VISUAL-02
+title: backward char selection - from cursor col on first row to anchor col on last row
+fixture: empty
+size: 80x20
+files:
+  f.txt: "alpha beta\ntwo words here\n\nfourth line\nfifth\n"
+steps:
+  - keys: jlllvkh
+  - note: anchor L2:C4, cursor L1:C3
+    expectScreen: {line: {row: 0, matches: '\[visual L1:C3\] f\.txt '}}
+  - expectCell: {at: {row: 3, col: 13}, chars: l, bg: '#22586b'}
+  - expectCell: {at: {row: 3, col: 14}, chars: p, bg: '#6b4f00', inverse: true}
+  - expectCell: {at: {row: 3, col: 21}, chars: a, bg: '#6b4f00'}
+  - expectCell: {at: {row: 4, col: 12}, chars: t, bg: '#6b4f00'}
+  - expectCell: {at: {row: 4, col: 15}, chars: ' ', bg: '#6b4f00'}
+  - expectCell: {at: {row: 4, col: 16}, chars: w, bg: default}

@@ -1,0 +1,20 @@
+id: F-LAYOUT-05
+title: 'browse rows: tabs as 2 spaces, long line cut with … (browse of an unchanged file)'
+size: 80x24
+fixture: empty
+files:
+  t.txt: "first\n\tx\tb\n0123456789abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789END\n"
+steps:
+  - git: add -A
+  - git: [commit, -qm, base]
+  - keys: r
+  - expectScreen: {line: {row: 0, contains: 'No changes'}}
+  - keys: F
+  - keys: t.txt<Enter>
+  - note: prefix is 7 cells, so 72 code chars + … fill 80 columns
+    expectScreen:
+      line:
+        - {row: 0, matches: '^\[browse\] .*t\.txt$'}
+        - {row: 2, matches: '^   1  ▶first'}
+        - {row: 3, matches: '^   2     x  b$'}
+        - {row: 4, matches: '^   3   0123456789abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ…$'}

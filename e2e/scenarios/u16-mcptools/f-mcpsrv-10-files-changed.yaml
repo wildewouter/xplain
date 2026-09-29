@@ -1,0 +1,210 @@
+id: F-MCPSRV-10
+title: 'files_changed: exact ok result, silent reload (new file appears, no note); non-string / too many / long paths accepted; browsed file re-read'
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, matches: '\[mcp: on\] \[1/4\] .*README\.md \+2 -1$'}}
+  - writeFile: {path: added.txt, content: "brand new file\n"}
+  - writeFile: {path: README.md, content: "# Title\nhello world\nmore\nagent line\n"}
+  - note: not reloaded yet
+    expectScreen: {line: {row: 0, contains: '[1/4]'}, notContains: 'agent line'}
+  - note: non-string entries are dropped, not an error
+    http: {tool: files_changed, args: {paths: [README.md, 5, null, {a: 1}, added.txt]}}
+    expect:
+      status: 200
+      body: {result: {isError: {$exists: false}, content: [{type: text, text: '{"ok":true}'}]}}
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[mcp: on\] \[1/5\] .*README\.md \+3 -1$'}
+        - {row: -1, notContains: reloaded}
+      contains: '+ agent line'
+  - keys: <S-Tab><S-Tab>
+  - expectScreen: {line: {row: 0, matches: '\[\d/5\] .*added\.txt'}, contains: brand new file}
+  - note: more than 100 paths and a path over 500 chars - still ok
+    writeFile: {path: added.txt, content: "second version\n"}
+  - http:
+      {
+        tool: files_changed,
+        args:
+          {
+            paths:
+              [
+                f0.txt,
+                f1.txt,
+                f2.txt,
+                f3.txt,
+                f4.txt,
+                f5.txt,
+                f6.txt,
+                f7.txt,
+                f8.txt,
+                f9.txt,
+                f10.txt,
+                f11.txt,
+                f12.txt,
+                f13.txt,
+                f14.txt,
+                f15.txt,
+                f16.txt,
+                f17.txt,
+                f18.txt,
+                f19.txt,
+                f20.txt,
+                f21.txt,
+                f22.txt,
+                f23.txt,
+                f24.txt,
+                f25.txt,
+                f26.txt,
+                f27.txt,
+                f28.txt,
+                f29.txt,
+                f30.txt,
+                f31.txt,
+                f32.txt,
+                f33.txt,
+                f34.txt,
+                f35.txt,
+                f36.txt,
+                f37.txt,
+                f38.txt,
+                f39.txt,
+                f40.txt,
+                f41.txt,
+                f42.txt,
+                f43.txt,
+                f44.txt,
+                f45.txt,
+                f46.txt,
+                f47.txt,
+                f48.txt,
+                f49.txt,
+                f50.txt,
+                f51.txt,
+                f52.txt,
+                f53.txt,
+                f54.txt,
+                f55.txt,
+                f56.txt,
+                f57.txt,
+                f58.txt,
+                f59.txt,
+                f60.txt,
+                f61.txt,
+                f62.txt,
+                f63.txt,
+                f64.txt,
+                f65.txt,
+                f66.txt,
+                f67.txt,
+                f68.txt,
+                f69.txt,
+                f70.txt,
+                f71.txt,
+                f72.txt,
+                f73.txt,
+                f74.txt,
+                f75.txt,
+                f76.txt,
+                f77.txt,
+                f78.txt,
+                f79.txt,
+                f80.txt,
+                f81.txt,
+                f82.txt,
+                f83.txt,
+                f84.txt,
+                f85.txt,
+                f86.txt,
+                f87.txt,
+                f88.txt,
+                f89.txt,
+                f90.txt,
+                f91.txt,
+                f92.txt,
+                f93.txt,
+                f94.txt,
+                f95.txt,
+                f96.txt,
+                f97.txt,
+                f98.txt,
+                f99.txt,
+                f100.txt,
+                f101.txt,
+                f102.txt,
+                f103.txt,
+                f104.txt,
+                f105.txt,
+                f106.txt,
+                f107.txt,
+                f108.txt,
+                f109.txt,
+                f110.txt,
+                f111.txt,
+                f112.txt,
+                f113.txt,
+                f114.txt,
+                f115.txt,
+                f116.txt,
+                f117.txt,
+                f118.txt,
+                f119.txt,
+                f120.txt,
+                f121.txt,
+                f122.txt,
+                f123.txt,
+                f124.txt,
+                f125.txt,
+                f126.txt,
+                f127.txt,
+                f128.txt,
+                f129.txt,
+                f130.txt,
+                f131.txt,
+                f132.txt,
+                f133.txt,
+                f134.txt,
+                f135.txt,
+                f136.txt,
+                f137.txt,
+                f138.txt,
+                f139.txt,
+                f140.txt,
+                f141.txt,
+                f142.txt,
+                f143.txt,
+                f144.txt,
+                f145.txt,
+                f146.txt,
+                f147.txt,
+                f148.txt,
+                f149.txt,
+              ],
+          },
+      }
+    expect: {body: {result: {isError: {$exists: false}, content: [{type: text, text: '{"ok":true}'}]}}}
+  - expectScreen: {contains: second version, notContains: [brand new file, reloaded]}
+  - writeFile: {path: added.txt, content: "third version\n"}
+  - http:
+      {
+        tool: files_changed,
+        args:
+          {
+            paths:
+              [
+                pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp,
+              ],
+          },
+      }
+    expect: {body: {result: {content: [{type: text, text: '{"ok":true}'}]}}}
+  - expectScreen: {contains: third version, notContains: [second version, reloaded]}
+  - note: browse - the browsed file is re-read
+    keys: Fjson<Enter>
+  - expectScreen: {line: {row: 0, matches: '^\[browse\] .*package\.json$'}, contains: '"demo"'}
+  - writeFile: {path: package.json, content: "{\"name\":\"changed\"}\n"}
+  - http: {tool: files_changed, args: {paths: [package.json]}}
+    expect: {result: {ok: true}}
+  - expectScreen:
+      line: {row: 0, matches: '^\[browse\] .*package\.json$'}
+      contains: '"changed"'
+      notContains: ['"demo"', reloaded]

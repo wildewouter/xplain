@@ -1,0 +1,18 @@
+id: F-HELP-04
+title: 'follow-up editor footer: enter send  esc cancel'
+size: 120x30
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - keys: 'afirst q<Enter>'
+  - http: {tool: next_question, args: {wait_seconds: 1}}
+    capture: {T1: result.thread_id}
+  - http: {tool: answer, args: {thread_id: '${T1}', text: 'ans one'}}
+  - keys: J
+  - expectScreen: {line: {row: -1, contains: 'e edit  D delete  a ask/follow up'}}
+  - keys: a
+  - expectScreen:
+      contains: '│ follow-up'
+      line: {row: -1, matches: '\(1-5/5\) enter send  esc cancel$'}
+  - expectScreen: {line: {row: -1, notContains: 'tab save/ask'}}

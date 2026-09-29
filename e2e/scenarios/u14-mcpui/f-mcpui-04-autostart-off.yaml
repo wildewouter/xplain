@@ -1,0 +1,9 @@
+id: F-MCPUI-04
+title: 'mcp.autostart false: server not started, no check'
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: false}}
+shims: [claude]
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: off]'}}
+  - expectShimCall: {name: claude, count: 0}
+  - expectFile: {path: '${STATE}/xplain/mcp.json', exists: false}

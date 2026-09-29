@@ -1,0 +1,13 @@
+id: F-MODE-05
+title: no-changes header mcp chip reflects the running server
+fixture: empty
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen:
+      line:
+        - {row: 0, equals: '[all] [mcp: on] No changes (m cycles mode, F search, q quits)'}
+        - {row: -1, equals: '(0-0/0) hjkl move  enter ask  J/K comments  ? help'}
+  - keys: M<Enter><Esc>
+  - note: power row Enter stops the server
+    expectScreen: {line: {row: 0, equals: '[all] [mcp: off] No changes (m cycles mode, F search, q quits)'}}

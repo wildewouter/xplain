@@ -1,0 +1,26 @@
+id: F-CFGUI-01
+title: theme choice window (width-22 cols) follows the choice cursor with ‹ / › markers for hidden choices
+steps:
+  - keys: C
+  - expectScreen: {line: {row: 17, matches: '│> theme {11}\[solarized\] +vibrant +dull +› +│$'}}
+  - keys: l
+  - expectScreen: {line: {row: 17, matches: '│> theme {11}\[solarized\] +vibrant +dull +› +│$'}}
+  - expectCell: {at: {text: 'vibrant', row: 17}, inverse: true}
+  - keys: l
+  - expectScreen: {line: {row: 17, matches: '│> theme {9}‹ +vibrant +dull +contrast +› +│$'}}
+  - expectCell: {at: {text: 'dull', row: 17}, inverse: true}
+  - keys: l
+  - expectScreen: {line: {row: 17, matches: '│> theme {9}‹ +dull +contrast +colorblind +› +│$'}}
+  - keys: l
+  - expectScreen: {line: {row: 17, matches: '│> theme {9}‹ +contrast +colorblind +light +│$'}}
+  - keys: l
+  - expectScreen: {line: {row: 17, matches: '│> theme {9}‹ +contrast +colorblind +light +│$'}}
+  - expectCell: {at: {text: 'light', row: 17}, inverse: true}
+  - note: clamped at the last choice
+    keys: l
+  - expectScreen: {line: {row: 17, matches: '│> theme {9}‹ +contrast +colorblind +light +│$'}}
+  - expectCell: {at: {text: 'light', row: 17}, inverse: true}
+  - note: back left to the committed value
+    keys: hhhhh
+  - expectScreen: {line: {row: 17, matches: '│> theme {11}\[solarized\] +vibrant +dull +› +│$'}}
+  - expectCell: {at: {text: '[solarized]', row: 17, offset: 1}, inverse: true}

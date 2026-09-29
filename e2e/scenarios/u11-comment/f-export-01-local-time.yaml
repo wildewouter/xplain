@@ -1,0 +1,13 @@
+id: F-EXPORT-01
+title: 'file name timestamp is local time: equals the UTC date line hour with TZ=UTC'
+size: 250x20
+env: {TZ: UTC}
+steps:
+  - keys: ac<Enter>E
+  - expectScreen: {line: {row: -1, matches: '^exported 1 comment -> ${REPO}/xplain-review-\d{8}-\d{6}\.md '}}
+  - captureScreen:
+      row: -1
+      matches: '-> (?<F>\S+/xplain-review-(?<Y>\d{4})(?<MO>\d{2})(?<D>\d{2})-(?<H>\d{2})\d{4}\.md) '
+  - expectFile: {glob: xplain-review-*.md, count: 1}
+  - note: file name YYYYMMDD-HH equals the `- date:` line (ISO UTC) YYYY-MM-DDTHH
+    expectFile: {path: '${F}', matches: '^- date: ${Y}-${MO}-${D}T${H}:\d{2}:\d{2}\.\d{3}Z$'}

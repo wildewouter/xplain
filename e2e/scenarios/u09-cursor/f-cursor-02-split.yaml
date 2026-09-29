@@ -1,0 +1,57 @@
+id: F-CURSOR-02
+title: split cursor row - both panes curBg, ▶ in non-empty panes, char cursor only in active pane, empty active cell ▶ + reverse space
+# f.txt base "a\nb\nc\n", work "a\nB\nc\nd\n". rows: 1 hunk, 2 a|a, 3 b|B, 4 c|c, 5 (empty)|d.
+# 120 cols: pane W=59; left: num 0-3, mark 5, cursor 6, code 7; separator 59; right: num 60-63, mark 65, cursor 66, code 67.
+fixture: empty
+size: 120x12
+args: [--split]
+steps:
+  - writeFile: {path: f.txt, content: "a\nb\nc\n"}
+  - git: add -A
+  - git: {args: [commit, -qm, base], code: 0}
+  - writeFile: {path: f.txt, content: "a\nB\nc\nd\n"}
+  - keys: r
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[split\] .*\[cursor new L2:C1\] f\.txt '}
+        - {row: 3, matches: '^   1   a +│   1   a$'}
+        - {row: 4, matches: '^   2 -▶b.*│   2 \+▶B'}
+        - {row: 6, matches: '^ +│   4 \+ d$'}
+  - note: both panes of cursor row get curBg (left, separator side, right, padding)
+    expectCell: {at: {row: 4, col: 0}, bg: '#22586b'}
+  - expectCell: {at: {row: 4, col: 5}, chars: '-', fg: '#dc322f', bg: '#22586b'}
+  - expectCell: {at: {row: 4, col: 30}, bg: '#22586b'}
+  - expectCell: {at: {row: 4, col: 60}, bg: '#22586b'}
+  - expectCell: {at: {row: 4, col: 65}, chars: '+', fg: '#859900', bg: '#22586b'}
+  - expectCell: {at: {row: 4, col: 90}, bg: '#22586b'}
+  - note: char cursor only in active (new) pane
+    expectCell: {at: {row: 4, col: 67}, chars: 'B', inverse: true}
+  - expectCell: {at: {row: 4, col: 7}, chars: 'b', inverse: false}
+  - expectCell: {at: {row: 3, col: 0}, bg: default}
+  - keys: p
+  - note: pane old - char cursor moves to left pane, ▶ still in both
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor old L2:C1] f.txt'}
+        - {row: 4, matches: '^   2 -▶b.*│   2 \+▶B'}
+  - expectCell: {at: {row: 4, col: 7}, chars: 'b', inverse: true}
+  - expectCell: {at: {row: 4, col: 67}, chars: 'B', inverse: false}
+  - keys: jj
+  - note: add-only row, pane old - empty active cell shows ▶ + reverse space; right pane ▶ without char cursor
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor old r5:C1] f.txt'}
+        - {row: 6, matches: '^      ▶.*│   4 \+▶d'}
+        - {row: 4, matches: '^   2 - b +│   2 \+ B$'}
+  - expectCell: {at: {row: 6, col: 7}, chars: ' ', inverse: true, bg: '#22586b'}
+  - expectCell: {at: {row: 6, col: 67}, chars: 'd', inverse: false, bg: '#22586b'}
+  - expectCell: {at: {row: 6, col: 0}, bg: '#22586b'}
+  - keys: p
+  - note: pane new on add-only row - char cursor on d; empty left pane has no ▶
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor new L4:C1] f.txt'}
+        - {row: 6, matches: '^ +(…)?│   4 \+▶d'}
+  - expectCell: {at: {row: 6, col: 67}, chars: 'd', inverse: true}
+  - expectCell: {at: {row: 6, col: 6}, chars: ' ', bg: '#22586b'}
+  - expectCell: {at: {row: 6, col: 7}, inverse: false, bg: '#22586b'}

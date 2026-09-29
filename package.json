@@ -5,6 +5,7 @@
 	"main": "index.js",
 	"scripts": {
 		"test": "sh tests/run.sh",
+		"e2e": "tsx e2e/run.ts",
 		"dev": "tsx src/cli.tsx",
 		"build": "tsc -p tsconfig.build.json",
 		"start": "node dist/cli.js",
@@ -29,11 +30,14 @@
 		"react": "^19.3.0"
 	},
 	"devDependencies": {
+		"@lydell/node-pty": "^1.2.0-beta.15",
 		"@types/node": "^26.6.1",
 		"@types/react": "^19.3.0",
+		"@xterm/headless": "^6.0.0",
 		"ink-testing-library": "^4.0.0",
 		"prettier": "^3.9.8",
 		"tsx": "^4.23.13",
-		"typescript": "^7.0.2"
+		"typescript": "^7.0.2",
+		"yaml": "^2.9.1"
 	}
 }

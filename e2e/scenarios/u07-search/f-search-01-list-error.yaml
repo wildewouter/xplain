@@ -1,0 +1,23 @@
+id: F-SEARCH-01
+title: git ls-files failing (not a repo) leaves the search list empty (0/0); Enter does nothing
+size: 80x24
+fixture: nogit
+# git diff --no-index on identical files works outside a repo (exit 0, empty diff) -> no-changes screen;
+# git ls-files fails there -> list error -> list stays empty.
+args: [--no-index, a.txt, b.txt]
+files:
+  a.txt: "same\n"
+  b.txt: "same\n"
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[mcp: off\] No changes '}}
+  - keys: F
+  - expectScreen:
+      line:
+        - {row: 5, matches: '│ Search \(0/0\) +│'}
+        - {row: 6, matches: '│ > +│'}
+        - {row: 7, matches: '│ +│'}
+  - keys: <Enter>
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] \[mcp: off\] No changes '}
+        - {row: 5, matches: '│ Search \(0/0\) +│'}

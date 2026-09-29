@@ -1,0 +1,20 @@
+id: F-COMMENT-04
+title: focused box with code blocks and overflow - hint gains `j/k scroll` and `↑/↓ code`
+fixture: empty
+size: 80x14
+# H = 11, window = 11-1-4 = 6
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+  f.txt: "alpha\n"
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http:
+      {
+        tool: annotate,
+        args: {file: f.txt, line: 1, text: "see:\n```ts\nconst a = 1\nconst b = 2\nconst c = 3\n```\nt1\nt2\nt3\nt4"},
+      }
+    expect: {result: {ok: true}}
+  - keys: J
+  - expectScreen:
+      contains: '▸ sent  agent note L1  ↕ 1-6/'
+      matches: '. e edit  D delete  a follow up  j/k scroll  ↑/↓ code  esc back +.\n'

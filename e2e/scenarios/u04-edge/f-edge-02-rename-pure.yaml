@@ -1,0 +1,26 @@
+id: F-EDGE-02
+title: rename without content change has no hunks, one dim note row, +0 -0
+fixture: empty
+steps:
+  - writeFile: {path: same.txt, content: "s1\ns2\ns3\n"}
+  - writeFile: {path: keep.txt, content: "k\n"}
+  - git: add -A
+  - git: commit -qm base
+  - git: mv same.txt moved.txt
+  - expectScreen: {line: {row: 0, contains: 'No changes'}}
+  - keys: r
+  - expectScreen:
+      line:
+        - {
+            row: 0,
+            matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/1\] \[cursor r1:C1\] same\.txt -> moved\.txt \+0 -0$',
+          }
+        - {row: 2, matches: '^Renamed, no content changes'}
+        - {row: 3, equals: ''}
+        - {row: -1, matches: '\(1-1/1\) '}
+      notContains: ['@@', s1, 'No textual changes']
+  - note: note row fg dim
+    expectCell: {at: {text: 'Renamed', row: 2}, fg: '#586e75'}
+  - keys: f
+  - expectScreen:
+      matches: '│>R same\.txt -> moved\.txt \+0 -0 \*\s+│'

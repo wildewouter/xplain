@@ -1,0 +1,33 @@
+id: F-MCPUI-03
+title: 'stop: live answers cancelled (MCP stopped), header off, clients cleared, pending 0, editor back to save'
+steps:
+  - keys: M<Enter><Esc>
+  - http:
+      {
+        method: initialize,
+        params: {protocolVersion: '2025-06-18', capabilities: {}, clientInfo: {name: stopclient, version: '1'}},
+      }
+    expect: {status: 200}
+  - keys: a
+  - expectScreen: {contains: '[ask] enter send'}
+  - keys: first question<Enter>
+  - expectScreen: {contains: 'question sent to agent'}
+  - http: {tool: next_question, args: {wait_seconds: 1}}
+    expect: {result: {status: question, question: {$contains: 'first question'}}}
+  - keys: jjja
+  - keys: second question<Enter>
+  - expectScreen: {contains: 'question sent to agent'}
+  - keys: M
+  - expectScreen: {matches: ['│ clients \d+ pending 1 delivered 1 +│', '│   stopclient 1 +│']}
+  - keys: <Enter>
+  - expectScreen:
+      matches: '│> ○ off +│[^\n]*\n[^\n]*│ clients 0 pending 0 delivered \d+ +│[^\n]*\n[^\n]*│ INTEGRATIONS'
+      notContains: stopclient
+      line: {row: 0, contains: '[mcp: off]'}
+  - keys: <Esc>
+  - expectScreen:
+      matches:
+        ['answer · \S+ · cancelled[^\n]*\n[^\n]*MCP stopped[\s\S]*answer · \S+ · cancelled[^\n]*\n[^\n]*MCP stopped']
+      notContains: ['waiting…', 'streaming…', 'agent working', 'waiting for agent']
+  - keys: a
+  - expectScreen: {contains: '[save] enter send', notContains: '[ask]'}

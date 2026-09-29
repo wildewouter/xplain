@@ -1,0 +1,23 @@
+id: F-RELOAD-03
+title: split view - reload keeps pane and old-side line number when rows shift
+size: 120x20
+args: [--split]
+steps:
+  - keys: <Tab>p
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] \[full\] \[split\] .*\[2/4\] \[cursor old L30:C1\] src/big\.ts \+1 -1$'}
+        - {row: 5, matches: '^  30 -▶const v30 = 1;.*│  30 \+▶const v30 = 2;'}
+        - {row: -1, matches: '^\(28-44/61\) '}
+  - note: 5 lines inserted at the top -> old line 30 pairs with new line 35, 5 rows further down
+    writeFile:
+      {
+        path: src/big.ts,
+        content: "// a\n// b\n// c\n// d\n// e\nconst v1 = 1;\nconst v2 = 1;\nconst v3 = 1;\nconst v4 = 1;\nconst v5 = 1;\nconst v6 = 1;\nconst v7 = 1;\nconst v8 = 1;\nconst v9 = 1;\nconst v10 = 1;\nconst v11 = 1;\nconst v12 = 1;\nconst v13 = 1;\nconst v14 = 1;\nconst v15 = 1;\nconst v16 = 1;\nconst v17 = 1;\nconst v18 = 1;\nconst v19 = 1;\nconst v20 = 1;\nconst v21 = 1;\nconst v22 = 1;\nconst v23 = 1;\nconst v24 = 1;\nconst v25 = 1;\nconst v26 = 1;\nconst v27 = 1;\nconst v28 = 1;\nconst v29 = 1;\nconst v30 = 2;\nconst v31 = 1;\nconst v32 = 1;\nconst v33 = 1;\nconst v34 = 1;\nconst v35 = 1;\nconst v36 = 1;\nconst v37 = 1;\nconst v38 = 1;\nconst v39 = 1;\nconst v40 = 1;\nconst v41 = 1;\nconst v42 = 1;\nconst v43 = 1;\nconst v44 = 1;\nconst v45 = 1;\nconst v46 = 1;\nconst v47 = 1;\nconst v48 = 1;\nconst v49 = 1;\nconst v50 = 1;\nconst v51 = 1;\nconst v52 = 1;\nconst v53 = 1;\nconst v54 = 1;\nconst v55 = 1;\nconst v56 = 1;\nconst v57 = 1;\nconst v58 = 1;\nconst v59 = 1;\nconst v60 = 1;\n",
+      }
+  - keys: r
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] \[full\] \[split\] .*\[2/4\] \[cursor old L30:C1\] src/big\.ts \+6 -1$'}
+        - {row: 10, matches: '^  30 -▶const v30 = 1;.*│  35 \+▶const v30 = 2;'}
+        - {row: -1, matches: '^reloaded \| \(28-44/66\) '}

@@ -1,0 +1,20 @@
+id: F-MCPUI-02
+title: 'power row Enter/Space toggle server; clears note'
+steps:
+  - keys: M
+  - expectScreen: {matches: '^ +│> ○ off'}
+  - keys: R
+  - expectScreen: {contains: 'start MCP first'}
+  - keys: <Enter>
+  - expectScreen:
+      {
+        matches: '^ +│> ● on  127\.0\.0\.1:${PORT}',
+        notContains: 'start MCP first',
+        line: {row: 0, contains: '[mcp: on]'},
+      }
+  - keys: <Space>
+  - expectScreen: {matches: '^ +│> ○ off', line: {row: 0, contains: '[mcp: off]'}}
+  - keys: <Space>
+  - expectScreen: {matches: '^ +│> ● on ', line: {row: 0, contains: '[mcp: on]'}}
+  - keys: <Enter>
+  - expectScreen: {matches: '^ +│> ○ off', line: {row: 0, contains: '[mcp: off]'}}

@@ -1,0 +1,18 @@
+id: F-NAV-09
+title: with the comment editor open the margin is 0 and the editor box counts under the cursor row
+# R=12: H=9. Editor box for a new comment = 4 lines.
+size: 80x12
+steps:
+  - keys: <Tab>g6j
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L6:C1\] src/big\.ts '}
+        - {row: -1, equals: '(1-9/62) hjkl move  enter ask  J/K comments  ? help'}
+  - keys: a
+  - note: rows 0..6 (7 lines) + editor (4) > 9 - top 2; with margin 2 it would be 4
+    expectScreen:
+      line:
+        - {row: 6, matches: '^   6    6  ▶const v6'}
+        - {row: 7, matches: '^╭'}
+        - {row: 10, matches: '^╰'}
+        - {row: -1, matches: '^\(3-11/62\) '}

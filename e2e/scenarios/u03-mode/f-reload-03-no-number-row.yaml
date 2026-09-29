@@ -1,0 +1,37 @@
+id: F-RELOAD-03
+title: cursor on a row without line number (hunk header) keeps its row index, clamped to the last row
+size: 120x40
+args: [--changes-only]
+files:
+  src/big.ts: "const v1 = 1;\nconst v2 = 1;\nconst v3 = 1;\nconst v4 = 1;\nconst v5 = 5;\nconst v6 = 1;\nconst v7 = 1;\nconst v8 = 1;\nconst v9 = 1;\nconst v10 = 1;\nconst v11 = 1;\nconst v12 = 1;\nconst v13 = 1;\nconst v14 = 1;\nconst v15 = 1;\nconst v16 = 1;\nconst v17 = 1;\nconst v18 = 1;\nconst v19 = 1;\nconst v20 = 1;\nconst v21 = 1;\nconst v22 = 1;\nconst v23 = 1;\nconst v24 = 1;\nconst v25 = 1;\nconst v26 = 1;\nconst v27 = 1;\nconst v28 = 1;\nconst v29 = 1;\nconst v30 = 2;\nconst v31 = 1;\nconst v32 = 1;\nconst v33 = 1;\nconst v34 = 1;\nconst v35 = 1;\nconst v36 = 1;\nconst v37 = 1;\nconst v38 = 1;\nconst v39 = 1;\nconst v40 = 1;\nconst v41 = 1;\nconst v42 = 1;\nconst v43 = 1;\nconst v44 = 1;\nconst v45 = 1;\nconst v46 = 1;\nconst v47 = 1;\nconst v48 = 1;\nconst v49 = 1;\nconst v50 = 1;\nconst v51 = 1;\nconst v52 = 1;\nconst v53 = 1;\nconst v54 = 1;\nconst v55 = 5;\nconst v56 = 1;\nconst v57 = 1;\nconst v58 = 1;\nconst v59 = 1;\nconst v60 = 1;\n"
+steps:
+  - keys: <Tab>10G
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[2/4\] \[cursor r10:C1\] src/big\.ts \+3 -3$'}
+        - {row: 11, matches: '^@@ -27,7 \+27,7 @@'}
+  - note: change on line 5 reverted - row index 9 is now the hunk of line 55
+    writeFile:
+      {
+        path: src/big.ts,
+        content: "const v1 = 1;\nconst v2 = 1;\nconst v3 = 1;\nconst v4 = 1;\nconst v5 = 1;\nconst v6 = 1;\nconst v7 = 1;\nconst v8 = 1;\nconst v9 = 1;\nconst v10 = 1;\nconst v11 = 1;\nconst v12 = 1;\nconst v13 = 1;\nconst v14 = 1;\nconst v15 = 1;\nconst v16 = 1;\nconst v17 = 1;\nconst v18 = 1;\nconst v19 = 1;\nconst v20 = 1;\nconst v21 = 1;\nconst v22 = 1;\nconst v23 = 1;\nconst v24 = 1;\nconst v25 = 1;\nconst v26 = 1;\nconst v27 = 1;\nconst v28 = 1;\nconst v29 = 1;\nconst v30 = 2;\nconst v31 = 1;\nconst v32 = 1;\nconst v33 = 1;\nconst v34 = 1;\nconst v35 = 1;\nconst v36 = 1;\nconst v37 = 1;\nconst v38 = 1;\nconst v39 = 1;\nconst v40 = 1;\nconst v41 = 1;\nconst v42 = 1;\nconst v43 = 1;\nconst v44 = 1;\nconst v45 = 1;\nconst v46 = 1;\nconst v47 = 1;\nconst v48 = 1;\nconst v49 = 1;\nconst v50 = 1;\nconst v51 = 1;\nconst v52 = 1;\nconst v53 = 1;\nconst v54 = 1;\nconst v55 = 5;\nconst v56 = 1;\nconst v57 = 1;\nconst v58 = 1;\nconst v59 = 1;\nconst v60 = 1;\n",
+      }
+  - keys: r
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[2/4\] \[cursor r10:C1\] src/big\.ts \+2 -2$'}
+        - {row: 2, matches: '^@@ -27,7 \+27,7 @@'}
+        - {row: 11, matches: '^@@ -52,7 \+52,7 @@'}
+        - {row: -1, matches: '^reloaded \| \(1-18/18\) '}
+  - note: only one hunk left (9 rows) - row index 9 clamped to the last row (line 33)
+    writeFile:
+      {
+        path: src/big.ts,
+        content: "const v1 = 1;\nconst v2 = 1;\nconst v3 = 1;\nconst v4 = 1;\nconst v5 = 1;\nconst v6 = 1;\nconst v7 = 1;\nconst v8 = 1;\nconst v9 = 1;\nconst v10 = 1;\nconst v11 = 1;\nconst v12 = 1;\nconst v13 = 1;\nconst v14 = 1;\nconst v15 = 1;\nconst v16 = 1;\nconst v17 = 1;\nconst v18 = 1;\nconst v19 = 1;\nconst v20 = 1;\nconst v21 = 1;\nconst v22 = 1;\nconst v23 = 1;\nconst v24 = 1;\nconst v25 = 1;\nconst v26 = 1;\nconst v27 = 1;\nconst v28 = 1;\nconst v29 = 1;\nconst v30 = 2;\nconst v31 = 1;\nconst v32 = 1;\nconst v33 = 1;\nconst v34 = 1;\nconst v35 = 1;\nconst v36 = 1;\nconst v37 = 1;\nconst v38 = 1;\nconst v39 = 1;\nconst v40 = 1;\nconst v41 = 1;\nconst v42 = 1;\nconst v43 = 1;\nconst v44 = 1;\nconst v45 = 1;\nconst v46 = 1;\nconst v47 = 1;\nconst v48 = 1;\nconst v49 = 1;\nconst v50 = 1;\nconst v51 = 1;\nconst v52 = 1;\nconst v53 = 1;\nconst v54 = 1;\nconst v55 = 1;\nconst v56 = 1;\nconst v57 = 1;\nconst v58 = 1;\nconst v59 = 1;\nconst v60 = 1;\n",
+      }
+  - keys: r
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[2/4\] \[cursor L33:C1\] src/big\.ts \+1 -1$'}
+        - {row: 10, matches: '^  33   33  ▶const v33 = 1;'}
+        - {row: -1, matches: '^reloaded \| \(1-9/9\) '}

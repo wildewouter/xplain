@@ -1,0 +1,43 @@
+id: F-EDGE-01
+title: diff paths shown repo-root relative without a/ b/ prefixes; deleted file shows old path; new file shows new path
+fixture: empty
+# SPEC-MISMATCH: repo dirs named `a` or `b` (e.g. `b/a/x.txt`, `a/y.txt`) should show as-is (`b/a/x.txt`, `a/y.txt`)
+# per F-EDGE-01 ("path relative to repo root, as git prints"); TS app strips a leading `a/`/`b/` a second time
+# (shows `a/x.txt`, `y.txt`). Assertion dropped.
+steps:
+  - expectScreen: {line: {row: 0, contains: 'No changes'}}
+  - writeFile: {path: docs/gone.md, content: "g1\ng2\n"}
+  - writeFile: {path: src/deep/mod.ts, content: "export const v = 1;\n"}
+  - git: add -A
+  - git: commit -qm base
+  - removeFile: docs/gone.md
+  - writeFile: {path: src/deep/mod.ts, content: "export const v = 2;\n"}
+  - writeFile: {path: lib/fresh.txt, content: "new\n"}
+  - git: add lib/fresh.txt
+  - keys: r
+  - note: deleted file listed by its old path (not /dev/null), no a/ prefix
+    expectScreen:
+      line:
+        - {
+            row: 0,
+            matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/3\] \[cursor L1:C1\] docs/gone\.md \+0 -2$',
+          }
+        - {row: 2, matches: '^@@ -1,2 \+0,0 @@'}
+      notContains: [/dev/null, 'a/docs', 'b/docs']
+  - keys: <Tab>
+  - note: added file listed by its new path (not /dev/null), no b/ prefix
+    expectScreen:
+      line: {row: 0, matches: '\[2/3\] \[cursor L1:C1\] lib/fresh\.txt \+1 -0$'}
+      notContains: [/dev/null, 'b/lib']
+  - keys: <Tab>
+  - expectScreen:
+      line: {row: 0, matches: '\[3/3\] \[cursor L1:C1\] src/deep/mod\.ts \+1 -1$'}
+      notContains: ['a/src', 'b/src']
+  - keys: f
+  - expectScreen:
+      contains: ' Files (3/3)'
+      matches:
+        - '│ D docs/gone\.md \+0 -2\s+│'
+        - '│ A lib/fresh\.txt \+1 -0\s+│'
+        - '│>M src/deep/mod\.ts \+1 -1 \*\s+│'
+      notContains: [/dev/null]

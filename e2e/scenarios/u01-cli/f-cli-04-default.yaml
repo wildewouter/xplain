@@ -1,0 +1,9 @@
+id: F-CLI-04
+title: 'config path prints the resolved default path ($XDG_CONFIG_HOME/xplain/config.json) + newline, exit 0; file need not exist'
+tui: false
+args: [config, path]
+steps:
+  - expectExit: 0
+  - expectStdout: {equals: "${CONFIG}/xplain/config.json\n"}
+  - expectStderr: {equals: ''}
+  - expectFile: {path: '${CONFIG}/xplain/config.json', exists: false}

@@ -1,0 +1,19 @@
+id: F-ASK-02
+title: a on an agent note without reply opens the follow-up editor; with a reply pending it notes still waiting
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - http: {tool: annotate, args: {file: README.md, line: 2, text: my note}}
+    expect: {result: {ok: true}}
+  - keys: J
+  - expectScreen: {contains: '▸ sent  agent note L2', notContains: 'enter send'}
+  - keys: a
+  - expectScreen: {matches: '^│ follow-up +│$', contains: 'enter send  esc cancel'}
+  - keys: reply<Enter>
+  - expectScreen:
+      {line: {row: -1, contains: 'follow-up queued'}, contains: 'follow-up: reply', notContains: 'enter send'}
+  - keys: a
+  - expectScreen: {line: {row: -1, contains: 'still waiting for the agent'}, notContains: 'enter send'}
+# NOT-COVERED: `can't reply to this note yet`. Agent note with pending/streaming reply hits `still waiting` first; with a
+# cancelled reply the app opens the follow-up editor. Spec unclear whether a cancelled turn counts as "answered"
+# (F-ASK-03 "can take follow-up"), so that case is not asserted.

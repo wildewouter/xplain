@@ -1,0 +1,8 @@
+id: F-CONFIG-01
+title: --config wins over XPLAIN_CONFIG
+tui: false
+env: {XPLAIN_CONFIG: '${TMP}/env/cfg.json'}
+args: [--config, '${TMP}/flag/cfg.json', config, path]
+steps:
+  - expectExit: 0
+  - expectStdout: {equals: "${TMP}/flag/cfg.json\n"}

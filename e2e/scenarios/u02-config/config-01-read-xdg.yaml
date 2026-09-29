@@ -1,0 +1,7 @@
+id: F-CONFIG-01
+title: app reads $XDG_CONFIG_HOME/xplain/config.json, not $HOME/.config
+files:
+  ${CONFIG}/xplain/config.json: {theme: vibrant}
+  ${HOME}/.config/xplain/config.json: {theme: dull}
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[vibrant\] \[mcp: off\] '}}

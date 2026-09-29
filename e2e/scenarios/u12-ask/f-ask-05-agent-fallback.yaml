@@ -1,0 +1,21 @@
+id: F-ASK-05
+title: client without a usable name (non-string clientInfo.name) is shown as agent in the divider
+size: 40x30
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - keys: a
+  - keys: why?<Enter>
+  - http:
+      body:
+        - {jsonrpc: '2.0', id: 1, method: initialize, params: {protocolVersion: '2025-06-18', clientInfo: {name: 42}}}
+        - {jsonrpc: '2.0', id: 2, method: tools/call, params: {name: next_question, arguments: {wait_seconds: 5}}}
+    expect:
+      body:
+        - {id: 1}
+        - {id: 2, result: {content: [{text: {$contains: '"thread_id":"q1"'}}]}}
+  - expectScreen:
+      matches: '^│─ answer · agent · streaming… ─{7}│$'
+      notContains: ['unknown', 'waiting…']
+  - http: {tool: answer, args: {thread_id: q1, text: ok}}
+  - expectScreen: {matches: '^│─ answer · agent · done ─{13}│\n│ ok +│$', notContains: 'unknown'}

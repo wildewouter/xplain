@@ -1,0 +1,39 @@
+id: F-COMMENT-01
+title: selection editor - accent head, up to 5 dim quoted lines (tabs expanded), then `… +k more`; box grows
+fixture: empty
+size: 80x30
+files:
+  f.txt: "alpha beta\n\tgamma delta\n\nepsilon zeta\nlast line here\nsix\nseven\neight\n"
+steps:
+  - keys: VGa
+  - expectScreen:
+      line:
+        - {row: 10, matches: '^        8 \+▶eight'}
+        - {row: 11, matches: '^╭─+╮$'}
+        - {row: 12, matches: '^│ selection L1-8 +│$'}
+        - {row: 13, matches: '^│ > alpha beta +│$'}
+        - {row: 14, matches: '^│ >   gamma delta +│$'}
+        - {row: 15, matches: '^│ > +│$'}
+        - {row: 16, matches: '^│ > epsilon zeta +│$'}
+        - {row: 17, matches: '^│ > last line here +│$'}
+        - {row: 18, matches: '^│ … \+3 more +│$'}
+        - {row: 19, matches: '^│  +│$'}
+        - {row: 20, matches: '^│ \[save\] enter send'}
+        - {row: 21, matches: '^╰─+╯$'}
+      notContains: '> six'
+  - expectCell: {at: {row: 12, col: 2}, chars: s, fg: '#cb4b16', bg: '#002b36'}
+  - expectCell: {at: {row: 13, col: 4}, chars: a, fg: '#586e75'}
+  - keys: <Esc><Esc>
+  - expectScreen: {notContains: '╭'}
+  - note: exactly 5 lines - no more-row
+    keys: ggjVjjjja
+  - expectScreen:
+      line:
+        - {row: 7, matches: '^        5 \+▶last line here'}
+        - {row: 8, matches: '^╭─+╮$'}
+        - {row: 9, matches: '^│ selection L1-5 +│$'}
+        - {row: 14, matches: '^│ > last line here +│$'}
+        - {row: 15, matches: '^│  +│$'}
+        - {row: 16, matches: '^│ \[save\] enter send'}
+        - {row: 17, matches: '^╰─+╯$'}
+      notContains: 'more'

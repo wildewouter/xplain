@@ -1,0 +1,13 @@
+id: F-MCPUI-03
+title: 'after stop + start: delivered back to 0'
+steps:
+  - keys: M<Enter><Esc>a
+  - keys: q1 text<Enter>
+  - http: {tool: next_question, args: {wait_seconds: 1}}
+    expect: {result: {status: question}}
+  - keys: M
+  - expectScreen: {matches: '^ +│ clients \d+ pending 0 delivered 1 +│$'}
+  - keys: <Enter>
+  - expectScreen: {matches: '^ +│> ○ off'}
+  - keys: <Enter>
+  - expectScreen: {matches: ['^ +│> ● on ', '^ +│ clients 0 pending 0 delivered 0 +│$']}

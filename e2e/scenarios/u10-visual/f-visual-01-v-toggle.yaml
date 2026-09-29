@@ -1,0 +1,41 @@
+id: F-VISUAL-01
+title: v starts char selection at cursor (visual tag + footer), moves extend it, v again ends it
+fixture: empty
+size: 80x20
+# untracked f.txt shown fully added: row 2 hunk, rows 3.. = L1..; code starts col 12; cursor starts L1:C1
+files:
+  f.txt: "alpha beta\ntwo words here\n\nfourth line\nfifth\n"
+steps:
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L1:C1\] f\.txt \+5 -0$'}
+        - {row: 3, matches: '^        1 \+▶alpha beta'}
+        - {row: -1, matches: '\(1-6/6\) hjkl move  enter ask  J/K comments  \? help$'}
+  - note: no selection yet - code cells on cursor row have curBg only
+    expectCell: {at: {row: 3, col: 13}, chars: l, bg: '#22586b', inverse: false}
+  - keys: v
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[visual L1:C1\] f\.txt \+5 -0$'}
+        - {row: -1, matches: '\(1-6/6\) v/esc end  enter ask  hjkl move  \? help$'}
+  - expectCell: {at: {text: '[visual', row: 0, offset: 1}, fg: '#cb4b16', bold: true}
+  - note: anchor = cursor char, reverse inside selection
+    expectCell: {at: {row: 3, col: 12}, chars: a, fg: '#fdf6e3', bg: '#6b4f00', inverse: true}
+  - expectCell: {at: {row: 3, col: 13}, chars: l, bg: '#22586b', inverse: false}
+  - keys: ll
+  - expectScreen: {line: {row: 0, matches: '\[visual L1:C3\] f\.txt '}}
+  - expectCell: {at: {row: 3, col: 12}, chars: a, fg: '#fdf6e3', bg: '#6b4f00', inverse: false}
+  - expectCell: {at: {row: 3, col: 13}, chars: l, fg: '#fdf6e3', bg: '#6b4f00', inverse: false}
+  - expectCell: {at: {row: 3, col: 14}, chars: p, fg: '#fdf6e3', bg: '#6b4f00', inverse: true}
+  - expectCell: {at: {row: 3, col: 15}, chars: h, bg: '#22586b'}
+  - keys: v
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L1:C3\] f\.txt \+5 -0$'}
+        - {row: -1, matches: '\(1-6/6\) hjkl move  enter ask  J/K comments  \? help$'}
+  - expectCell: {at: {row: 3, col: 12}, chars: a, bg: '#22586b', inverse: false}
+  - expectCell: {at: {row: 3, col: 13}, chars: l, bg: '#22586b', inverse: false}
+  - note: moves after ending do not select
+    keys: h
+  - expectScreen: {line: {row: 0, matches: '\[cursor L1:C2\] '}}
+  - expectCell: {at: {row: 3, col: 12}, chars: a, bg: '#22586b', inverse: false}

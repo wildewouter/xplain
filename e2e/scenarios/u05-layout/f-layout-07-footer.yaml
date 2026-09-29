@@ -1,0 +1,7 @@
+id: F-LAYOUT-07
+title: 'footer wider than screen at 40 cols: 39 cells + …'
+size: 40x24
+steps:
+  - expectScreen: {line: {row: -1, equals: '(1-5/5) hjkl move  enter ask  J/K comme…'}}
+  - keys: /abc
+  - expectScreen: {line: {row: -1, equals: '/abc█(1-5/5) hjkl move  enter ask  J/K …'}}

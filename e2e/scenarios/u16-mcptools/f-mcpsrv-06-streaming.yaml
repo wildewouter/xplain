@@ -1,0 +1,43 @@
+id: F-MCPSRV-06
+title: 'delivery sets the UI answer status streaming with the polling client name (initialize clientInfo) in the divider'
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - note: batch - initialize creates the session, the following next_question polls as that client
+    httpStart:
+      id: poll
+      body:
+        - {
+            jsonrpc: '2.0',
+            id: 1,
+            method: initialize,
+            params: {protocolVersion: '2025-06-18', capabilities: {}, clientInfo: {name: pollbot, version: '2.0'}},
+          }
+        - {jsonrpc: '2.0', id: 2, method: tools/call, params: {name: next_question, arguments: {wait_seconds: 60}}}
+  - keys: a
+  - keys: stream me<Enter>
+  - httpAwait: poll
+    expect:
+      status: 200
+      body:
+        - {id: 1, result: {serverInfo: {name: xplain}}}
+        - id: 2
+          result:
+            content:
+              - {
+                  type: text,
+                  text:
+                    {
+                      $matches: '^\{"status":"question","thread_id":"q1","turn":1,"follow_up":false,"question":"stream me\\n\\n',
+                    },
+                }
+  - expectScreen:
+      contains: '─ answer · pollbot · streaming… ─'
+      matches: '│ [⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] agent working… +│'
+      notContains: ['waiting…', 'waiting for agent']
+  - http: {tool: answer, args: {thread_id: q1, text: streamed reply}}
+    expect: {result: {ok: true}}
+  - expectScreen:
+      matches: '│─ answer · pollbot · done ─+│\n│ streamed reply +│'
+      notContains: ['streaming…', 'agent working']

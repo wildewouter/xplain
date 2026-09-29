@@ -1,0 +1,128 @@
+id: F-NAV-05
+title: '] and [ cross hunk rows in changes scope; no move in browse'
+args: [--changes-only]
+fixture: empty
+size: 80x16
+steps:
+  - note: committed base, then a working tree with four separate change runs; r loads it
+    writeFile:
+      path: m.txt
+      content: |
+        line 1
+        line 2
+        line 3
+        line 4
+        line 5
+        line 6
+        line 7
+        line 8
+        line 9
+        line 10
+        line 11
+        line 12
+        line 13
+        line 14
+        line 15
+        line 16
+        line 17
+        line 18
+        line 19
+        line 20
+        line 21
+        line 22
+        line 23
+        line 24
+        line 25
+        line 26
+        line 27
+        line 28
+        line 29
+        line 30
+        line 31
+        line 32
+        line 33
+        line 34
+        line 35
+        line 36
+        line 37
+        line 38
+        line 39
+        line 40
+  - writeFile: {path: o.txt, content: "a\n"}
+  - git: add -A
+  - git: {args: [commit, -qm, base], code: 0}
+  - writeFile:
+      path: m.txt
+      content: |
+        line 1
+        line 2
+        line 3
+        line 4
+        line 5 changed
+        line 6
+        line 7
+        line 8
+        line 9
+        line 10
+        line 11
+        line 12
+        line 13
+        line 14
+        line 15
+        line 16
+        line 17
+        line 18
+        line 19
+        line 20 x
+        line 21 x
+        line 22
+        line 23
+        line 24
+        line 25
+        line 26
+        line 27
+        line 28
+        line 29
+        line 31
+        line 32
+        line 33
+        line 34
+        line 35
+        inserted
+        line 36
+        line 37
+        line 38
+        line 39
+        line 40
+  - writeFile: {path: o.txt, content: "b\n"}
+  - keys: r
+  - expectScreen: {line: {row: 0, matches: '\[1/2\] .*m\.txt \+4'}}
+  - note: Tab away and back so m.txt gets its initial position (first change start)
+    keys: <Tab><Tab>
+  - note: changes scope has no full-file start position; cursor on first row (hunk header)
+    expectScreen: {line: {row: 0, matches: '\[changes\] .*\[cursor r1:C1\] m\.txt '}}
+  - keys: '['
+  - expectScreen: {line: {row: 0, matches: '\[cursor r1:C1\] m\.txt '}}
+  - keys: ']'
+  - expectScreen: {line: {row: 0, matches: '\[cursor L5:C1\] m\.txt '}, matches: '^   5      -▶line 5\b'}
+  - keys: ']'
+  - note: crosses the next hunk header row
+    expectScreen: {line: {row: 0, matches: '\[cursor L20:C1\] m\.txt '}, matches: '^  20      -▶line 20\b'}
+  - keys: ']]'
+  - expectScreen: {line: {row: 0, matches: '\[cursor L35:C1\] m\.txt '}, matches: '^       35 \+▶inserted'}
+  - keys: ']'
+  - expectScreen: {line: {row: 0, matches: '\[cursor L35:C1\] m\.txt '}}
+  - keys: '[[['
+  - expectScreen: {line: {row: 0, matches: '\[cursor L5:C1\] m\.txt '}}
+  - note: open m.txt in browse via file search
+    keys: Fm.txt<Enter>
+  - expectScreen: {line: {row: 0, matches: '^\[browse\] .*\[cursor L1:C1\] m\.txt$'}}
+  - keys: ']'
+  - expectScreen: {line: {row: 0, matches: '\[cursor L1:C1\] m\.txt$'}}
+  - keys: 4j
+  - expectScreen: {line: {row: 0, matches: '\[cursor L5:C1\] m\.txt$'}}
+  - keys: ']'
+  - note: browse has no change starts
+    expectScreen: {line: {row: 0, matches: '^\[browse\] .*\[cursor L5:C1\] m\.txt$'}}
+  - keys: '['
+  - expectScreen: {line: {row: 0, matches: '^\[browse\] .*\[cursor L5:C1\] m\.txt$'}}

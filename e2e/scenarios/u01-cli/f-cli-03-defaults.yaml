@@ -1,0 +1,7 @@
+id: F-CLI-03
+title: 'no flags - baseline for the flag scenarios - all mode, full scope, unified, solarized, untracked file counted'
+steps:
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] .*README\.md \+2 -1$'}
+        - {row: -1, notContains: 'p pane'}

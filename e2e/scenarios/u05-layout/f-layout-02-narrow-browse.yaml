@@ -1,0 +1,11 @@
+id: F-LAYOUT-02
+title: 'footer: too narrow for split also shown in browse; (a-b/n) counts browse rows'
+size: 80x24
+args: [--split]
+steps:
+  - keys: F
+  - keys: README.md<Enter>
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[browse\] '}
+        - {row: -1, matches: '^too narrow for split \| \(1-3/3\) hjkl move  enter ask  J/K comments  \? help$'}

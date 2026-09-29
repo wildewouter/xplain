@@ -1,0 +1,25 @@
+id: F-COMMENT-02
+title: Enter with empty or whitespace-only text does nothing (editor stays open)
+fixture: empty
+size: 80x20
+files:
+  f.txt: "alpha beta\ntwo words here\n"
+steps:
+  - keys: a<Enter>
+  - expectScreen:
+      line:
+        - {row: 4, matches: '^╭─+╮$'}
+        - {row: 5, matches: '^│  +│$'}
+        - {row: 6, matches: '^│ \[save\] enter send'}
+      notContains: 'question saved'
+  - keys: '   <Enter>'
+  - expectScreen:
+      line:
+        - {row: 4, matches: '^╭─+╮$'}
+        - {row: 6, matches: '^│ \[save\] enter send'}
+      notContains: ['question saved', 'sent  line']
+  - expectCell: {at: {row: 5, col: 5}, chars: ' ', inverse: true}
+  - keys: '  ok  <Enter>'
+  - expectScreen:
+      line: {row: -1, contains: 'question saved (1)'}
+      contains: 'sent  line L1'

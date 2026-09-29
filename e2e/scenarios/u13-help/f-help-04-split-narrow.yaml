@@ -1,0 +1,8 @@
+id: F-HELP-04
+title: 'split set but not effective (80 cols): no p pane'
+size: 80x24
+args: [--split]
+steps:
+  - expectScreen:
+      line: {row: -1, matches: 'hjkl move  enter ask  J/K comments  \? help$'}
+      notContains: 'p pane'

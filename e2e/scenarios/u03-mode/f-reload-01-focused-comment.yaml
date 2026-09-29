@@ -1,0 +1,16 @@
+id: F-RELOAD-01
+title: r works while a comment is focused; focus and box stay
+steps:
+  - keys: a
+  - keys: my note<Enter>
+  - expectScreen: {contains: 'my note', line: {row: -1, matches: '^question saved \(1\) \| '}}
+  - keys: J
+  - expectScreen: {line: {row: -1, matches: 'e edit  D delete  a ask/follow up  j/k scroll  esc back  \? help$'}}
+  - keys: r
+  - expectScreen:
+      contains: ['▸ sent  line L2', 'my note']
+      line:
+        {
+          row: -1,
+          matches: '^reloaded \| \(\d+-\d+/\d+\) e edit  D delete  a ask/follow up  j/k scroll  esc back  \? help$',
+        }

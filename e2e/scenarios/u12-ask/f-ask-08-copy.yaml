@@ -1,0 +1,56 @@
+id: F-ASK-08
+title: Down/Up pick code buttons with wrap, Enter copies raw block via OSC 52 with line count note, Esc unpicks
+size: 60x40
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - keys: a
+  - keys: q<Enter>
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+  - http:
+      tool: answer
+      args:
+        thread_id: q1
+        text: "A:\n```ts\nconst a = 1;\n\tif (x) {}\n\nlast\n```\nB:\n```sh\necho one\n```\nC:\n```\n```"
+  - keys: K
+  - expectScreen:
+      contains: ['┃ [ copy ] ts ', '┃ [ copy ] sh ', '↑/↓ code']
+      notContains: 'enter copy  esc cancel'
+  - note: first Down picks the first button
+    keys: <Down>
+  - expectScreen:
+      matches: '┃ \[ copy \] ts  enter copy  esc cancel +┃'
+      notContains: '[ copy ] sh  enter copy'
+  - expectCell: {at: {text: '[ copy ] ts'}, inverse: true, bold: true}
+  - expectCell: {at: {text: '[ copy ] sh'}, inverse: false}
+  - expectCell: {at: {text: 'enter copy'}, fg: '#586e75'}
+  - expectCell: {at: {text: '│ const'}, chars: '│', fg: '#cb4b16'}
+  - expectCell: {at: {text: '│ echo'}, chars: '│', fg: '#586e75'}
+  - keys: <Enter>
+  - expectOsc52: {equals: "const a = 1;\n\tif (x) {}\n\nlast", count: 1}
+  - expectScreen: {line: {row: -1, contains: 'copied 4 lines'}}
+  - keys: <Down>
+  - expectScreen: {matches: '┃ \[ copy \] sh  enter copy  esc cancel +┃', notContains: '[ copy ] ts  enter copy'}
+  - expectCell: {at: {text: '│ echo'}, chars: '│', fg: '#cb4b16'}
+  - expectCell: {at: {text: '│ const'}, chars: '│', fg: '#586e75'}
+  - keys: <Enter>
+  - expectOsc52: {equals: 'echo one', count: 2}
+  - expectScreen: {line: {row: -1, contains: 'copied 1 line'}}
+  - keys: <Down>
+  - expectScreen: {matches: '┃ C: +┃\n┃ \[ copy \]  enter copy  esc cancel +┃'}
+  - note: empty block copies empty text, counted as 1 line
+    keys: <Enter>
+  - expectOsc52: {equals: '', count: 3}
+  - expectScreen: {line: {row: -1, contains: 'copied 1 line'}}
+  - note: Down wraps from last to first
+    keys: <Down>
+  - expectScreen: {contains: '[ copy ] ts  enter copy'}
+  - note: Up wraps from first to last
+    keys: <Up>
+  - expectScreen: {matches: '┃ \[ copy \]  enter copy  esc cancel +┃', notContains: '[ copy ] ts  enter copy'}
+  - keys: <Up>
+  - expectScreen: {contains: '[ copy ] sh  enter copy'}
+  - keys: <Esc>
+  - expectScreen: {notContains: 'enter copy  esc cancel', contains: '▸ sent  line L2'}
+  - expectCell: {at: {text: '[ copy ] sh'}, inverse: false}
+  - expectCell: {at: {text: '│ echo'}, chars: '│', fg: '#586e75'}

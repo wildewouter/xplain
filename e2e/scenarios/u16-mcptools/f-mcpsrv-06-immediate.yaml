@@ -1,0 +1,34 @@
+id: F-MCPSRV-06
+title: 'next_question with a question already queued returns it at once (no wait); exact turn-1 result text and <q> context'
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - keys: jj
+  - expectScreen: {line: {row: 0, contains: '[cursor L3:C1] README.md'}}
+  - keys: a
+  - keys: why more?<Enter>
+  - expectScreen: {line: {row: -1, contains: 'question sent to agent'}}
+  - note: >-
+      queued before the poll: returns immediately even with wait_seconds 120 (a waiting poll would hit the
+      scenario hang guard); synchronous http step, no timing
+    http: {tool: next_question, args: {wait_seconds: 120}}
+    expect:
+      status: 200
+      body:
+        result:
+          isError: {$exists: false}
+          content:
+            - type: text
+              text:
+                $matches: '^\{"status":"question","thread_id":"q1","turn":1,"follow_up":false,"question":"why more\?\\n\\nFile: README\.md\\n[^"]*"\}$'
+      result:
+        status: question
+        thread_id: q1
+        turn: 1
+        follow_up: false
+        previous: {$exists: false}
+        question:
+          $matches: "^why more\\?\\n\\nFile: README\\.md\\nSide: new \\(after the change\\)\\nLines: 3\\n\\nCode at cursor line:\\n```\\nmore\\n```\\n\\nSurrounding context:\\n```\\n# Title\\nhello\\nhello world\\nmore\\n```$"
+  - note: delivered - the UI thread moves from waiting to streaming
+    expectScreen: {contains: '─ answer · agent · streaming… ─', notContains: 'waiting…'}

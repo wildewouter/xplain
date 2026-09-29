@@ -1,0 +1,7 @@
+id: F-CLI-03
+title: '--staged shortcut = --mode staged (diff of the index, empty in the fixture)'
+args: [--staged]
+steps:
+  - expectScreen:
+      line: {row: 0, matches: '^\[staged\] \[mcp: off\] No changes '}
+      notContains: README.md

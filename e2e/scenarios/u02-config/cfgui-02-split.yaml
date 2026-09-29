@@ -1,0 +1,19 @@
+id: F-CFGUI-02
+title: split select acts like s (split layout at cols >= 100); modal stays open
+steps:
+  - expectScreen: {line: [{row: 0, matches: '^\[all\] \[full\] \[unified\] '}, {row: -1, notContains: 'p pane'}]}
+  - keys: Cjjl<Enter>
+  - expectScreen:
+      contains: ' Config'
+      line:
+        - {row: 0, matches: '^\[all\] \[full\] \[split\] '}
+        - {row: 3, matches: '│'}
+        - {row: 19, matches: '│> split +off +\[on\] +│'}
+        - {row: -1, matches: 'hjkl move  enter ask  J/K comments  p pane  \? help$'}
+  - expectFile: {path: '${CONFIG}/xplain/config.json', json: {view: {split: true}}}
+  - keys: h<Enter>
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] \[full\] \[unified\] '}
+        - {row: -1, matches: '\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}
+  - expectFile: {path: '${CONFIG}/xplain/config.json', json: {view: {split: false}}}

@@ -1,0 +1,24 @@
+id: F-EXPORT-02
+title: 'comment in the old pane (split): where = old side, line <l>, Line block = old text'
+size: 250x20
+args: [--split]
+steps:
+  - keys: p
+  - expectScreen: {line: {row: 0, contains: '[cursor old L2:C1] README.md'}}
+  - keys: aold one<Enter>E
+  - expectScreen: {line: {row: -1, matches: '^exported 1 comment -> '}}
+  - expectFile:
+      glob: xplain-review-*.md
+      contains:
+        - |
+          ### 1. old side, line 2
+
+          - origin: human
+          - state: saved
+
+          Line:
+
+          ```
+          hello
+          ```
+        - "**Comment:**\n\n> old one\n"

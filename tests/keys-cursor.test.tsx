@@ -18,9 +18,10 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		await tick();
 		await w('\t');
 		await w('j');
-		ok('no cursor outside mode', !g().includes('[cursor') && cur() === undefined);
+		ok('cursor on from start, indicator', /\[cursor (L|r)\d+:C\d+\]/.test(g()) && cur() !== undefined);
+		const i0 = cur()!.index;
 		await w('i');
-		ok('i enters, indicator', /\[cursor (L|r)\d+:C\d+\]/.test(g()) && cur() !== undefined);
+		ok('i no-op', /\[cursor (L|r)\d+:C\d+\]/.test(g()) && cur()?.index === i0);
 		await w('g');
 		await w('j');
 		ok('j moves', cur()?.index === 1);
@@ -48,14 +49,10 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		ok('u moves cursor back', cur()?.index === 3);
 		await w('\t');
 		ok('n switches file, cursor reset, mode on', /\[3\//.test(g()) && cur() !== undefined && g().includes('[cursor'));
+		const e0 = cur()!.index;
 		await w('\x1b');
-		ok('esc exits, still running', !g().includes('[cursor') && cur() === undefined && /\[3\//.test(g()));
-		await w('j');
-		await w('i');
-		await w('i');
-		ok('i again exits', !g().includes('[cursor'));
+		ok('esc no-op, still running', g().includes('[cursor') && cur()?.index === e0 && /\[3\//.test(g()));
 		await w('\x1b[Z');
-		await w('i');
 		await w('s');
 		ok('split keeps cursor mode', g().includes('[split]') && g().includes('[cursor') && ln() >= 0);
 		const s0 = cur()!.index;
@@ -99,16 +96,6 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		r.unmount();
 	}
 	{
-		const {r, g, w} = mk();
-		await tick();
-		await w('\t');
-		await w('g');
-		const a = first(g);
-		await w('j');
-		ok('outside cursor mode j scrolls', first(g) === a + 1 && !g().includes('[cursor'));
-		r.unmount();
-	}
-	{
 		const {r, g, w, cur} = mk();
 		await tick();
 		await w('F');
@@ -120,9 +107,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		await w('j');
 		ok('browse cursor moves, indicator L', cur()?.index === 2 && /\[cursor L3:C\d+\]/.test(g()));
 		await w('\x1b');
-		ok('esc exits cursor only, stays browse', g().includes('[browse]') && !g().includes('[cursor'));
-		await w('\x1b');
-		await w('i');
+		ok('esc leaves browse, cursor stays on', !g().includes('[browse]') && g().includes('[cursor'));
 		await w('t');
 		await w('m');
 		ok('t/m work in cursor mode', (g().includes('[cursor') && g().includes('[staged]')) || g().includes('No changes'));
@@ -273,7 +258,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		await ws('vl\x1b');
 		ok('esc ends visual first', hd().startsWith('[cursor'));
 		await w('\x1b');
-		ok('second esc exits cursor', !g().includes('[cursor'));
+		ok('second esc no-op, cursor stays', hd().startsWith('[cursor'));
 		await ws('iv');
 		await w('v');
 		ok('v again ends', hd().startsWith('[cursor'));
@@ -292,12 +277,13 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		r.unmount();
 	}
 	{
-		// reset on file switch / mode toggles, arrows outside cursor mode
+		// reset on file switch / mode toggles; arrows move the char cursor, never switch files
 		const {r, g, w, ws, hd} = mk(cwd);
 		await boot(g);
 		await w('\x1b[C');
-		ok('right arrow outside cursor mode switches file', g().includes('[2/'));
+		ok('right arrow moves char, no file switch', /\[cursor [Lr]\d+:C2\]/.test(hd()) && g().includes('[1/'));
 		await w('\x1b[D');
+		ok('left arrow moves char back, no file switch', /\[cursor [Lr]\d+:C1\]/.test(hd()) && g().includes('[1/'));
 		await ws('ilv');
 		await w('l');
 		await w('\t');
@@ -321,10 +307,6 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		await w('0');
 		await ws('120l');
 		ok('mid scroll keeps cursor visible', hd() === '[cursor L4:C121]' && !g().includes('word0 word1'));
-		await w('j');
-		await w('\x1b');
-		await w('\x1b');
-		ok('hoff reset outside cursor mode', !g().includes('[cursor') && g().includes('word0 word1'));
 		r.unmount();
 	}
 	{
@@ -392,7 +374,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		r.unmount();
 	}
 	{
-		// added row: old pane empty; deleted row: new pane empty; p outside cursor mode is prev file
+		// added row: old pane empty; deleted row: new pane empty
 		const df = repo('keep\ngone\nend\n', 'keep\nend\n');
 		const {r, g, w, ws, qs} = mk(df, {split: true}, 120);
 		await boot(g);
@@ -407,13 +389,6 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 			'side: deleted row ask',
 			qs.length === 1 && (qs[0]!.text === 'gone' || qs[0]!.text === '') && qs[0]!.side === 'old',
 		);
-		await w('\x1b');
-		await w('p');
-		ok(
-			'side: p outside cursor mode no-op',
-			!g().includes('[cursor') && g().includes('[1/1]') && g().includes('[split]'),
-		);
-		await w('n');
 		r.unmount();
 	}
 	{
@@ -454,6 +429,46 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		r.unmount();
 	}
 	{
+		// page keys move the cursor; view resets that keep the rows never leave the cursor off-screen
+		const lines = Array.from({length: 100}, (_, i) => 'line' + (i + 1));
+		const d = repo(lines.join('\n') + '\n', ['changed', ...lines.slice(1)].join('\n') + '\n');
+		execSync('git add -A', {cwd: d, stdio: 'ignore'}); // staged == all: `m` lands on the same path
+		let c: {index: number} | undefined;
+		const r = render(<App args={[]} cwd={d} onCursor={(x) => (c = x)} />);
+		Object.defineProperty(r.stdout, 'columns', {value: 80});
+		const g = () => r.lastFrame() ?? '';
+		const w = keyPress(r);
+		await boot(g);
+		const i0 = c!.index;
+		await w(' ');
+		ok('space pages cursor down', c!.index === i0 + 20);
+		await w('2');
+		await w('\x1b[6~');
+		ok('count PageDown', c!.index === i0 + 60);
+		await w('\x1b[5~');
+		ok('PageUp', c!.index === i0 + 40);
+		await w('G');
+		const end = c!.index;
+		const seen = (what: string) => ok(`${what}: cursor kept, visible`, c?.index === end && g().includes('line100'));
+		await w('\t');
+		seen('Tab with one file');
+		await w('s');
+		seen('s too narrow for split');
+		await w('s');
+		await w('f');
+		await w('\r');
+		seen('picker Enter on current file');
+		await w('C');
+		await w('j');
+		await w('\r');
+		await w('\x1b');
+		seen('config select current mode');
+		await w('m');
+		await tick();
+		seen('m lands on same path');
+		r.unmount();
+	}
+	{
 		// sent questions stay inline under their anchor
 		const {r, g, w, ws, hd, qs} = mk(fx);
 		await boot(g);
@@ -486,8 +501,6 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		);
 		await w('j');
 		ok('sent: j skips over boxes to next diff row', hd() === '[cursor L2:C1]');
-		await w('\x1b');
-		ok('sent: persists outside cursor mode', g().includes('why') && !g().includes('[cursor'));
 		await w('c');
 		await w('c');
 		await w('s');

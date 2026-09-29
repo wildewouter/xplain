@@ -1,0 +1,30 @@
+id: F-CFGUI-02
+title: view select changes scope like c, keeping the shown file
+steps:
+  - keys: <Tab>
+  - expectScreen:
+      {
+        line:
+          [
+            {row: 0, matches: '^\[all\] \[full\] .* \[2/4\] \[cursor [^\]]+\] src/big\.ts '},
+            {row: -1, matches: '/62\) '},
+          ],
+      }
+  - keys: Cjjjl<Enter>
+  - expectScreen:
+      contains: ' Config'
+      line:
+        - {row: 0, matches: '^\[all\] \[changes\] .* \[2/4\] \[cursor [^\]]+\] src/big\.ts '}
+        - {row: 20, matches: '│> view +full +\[changes\] +│'}
+        - {row: -1, notContains: '/62) '}
+  - expectFile: {path: '${CONFIG}/xplain/config.json', json: {view: {full: false}}}
+  - keys: h<Enter>
+  - expectScreen:
+      {
+        line:
+          [
+            {row: 0, matches: '^\[all\] \[full\] .* \[2/4\] \[cursor [^\]]+\] src/big\.ts '},
+            {row: -1, matches: '/62\) '},
+          ],
+      }
+  - expectFile: {path: '${CONFIG}/xplain/config.json', json: {view: {full: true}}}

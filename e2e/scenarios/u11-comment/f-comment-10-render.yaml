@@ -1,0 +1,29 @@
+id: F-COMMENT-10
+title: 'agent note boxes: head #<n> agent note L<l> / agent note L<l>, no saved · not asked, body = note text, old side on del row, code blocks'
+size: 120x40
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http:
+      tool: annotate
+      args: {file: README.md, line: 1, number: 4, text: "see code\n```ts\nlet a = 1;\n```"}
+    expect: {result: {ok: true}}
+  - http: {tool: annotate, args: {file: README.md, line: 2, side: old, text: old side note}}
+    expect: {result: {ok: true}}
+  - http: {tool: annotate, args: {file: README.md, line: 2, text: new side note}}
+    expect: {result: {ok: true}}
+  - expectScreen:
+      notContains: ['saved · not asked', '```']
+      matches:
+        - '   1    1   # Title\n╭─+╮\n│ sent  #4 agent note L1 +│\n│ see code +│\n│ \[ copy \] ts +│\n│ │ let a = 1; +│\n╰─+╯'
+        - '   2      -[▶ ]hello *…?\n╭─+╮\n│ sent  agent note L2 +│\n│ old side note +│\n╰─+╯'
+        - '        2 \+[▶ ]hello world *…?\n╭─+╮\n│ sent  agent note L2 +│\n│ new side note +│\n╰─+╯'
+  - keys: J
+  - note: focused agent note - still no saved · not asked suffix
+    expectScreen:
+      notContains: 'saved · not asked'
+      matches: '┃ ▸ sent  #4 agent note L1 +┃'
+  - note: head in accent (solarized #cb4b16), copy button accent
+    expectCell: {at: {text: 'sent  #4 agent note'}, fg: '#cb4b16'}
+  - expectCell: {at: {text: '[ copy ]'}, fg: '#cb4b16'}

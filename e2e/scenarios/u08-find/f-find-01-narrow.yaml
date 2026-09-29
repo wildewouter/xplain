@@ -1,0 +1,18 @@
+id: F-FIND-01
+title: 'find line keeps the rest of the footer (too narrow for split part stays)'
+fixture: empty
+size: 80x12
+args: [--split]
+files:
+  f.txt: "alpha beta\ngamma\n"
+steps:
+  - expectScreen:
+      line: {row: -1, matches: '^too narrow for split \| \(1-3/3\) hjkl move'}
+  - keys: /be
+  - expectScreen:
+      line: {row: -1, matches: '^/be█too narrow for split \| \(1-3/3\) hjkl move'}
+  - keys: <Enter>
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L1:C7] f.txt'}
+        - {row: -1, matches: '^/be \| too narrow for split \| \(1-3/3\) hjkl move'}

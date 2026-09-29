@@ -1,0 +1,10 @@
+id: F-LAYOUT-02
+title: 'footer: too narrow for split also on the no-changes screen'
+size: 80x24
+fixture: empty
+args: [--split]
+steps:
+  - expectScreen:
+      line:
+        - {row: 0, contains: 'No changes'}
+        - {row: -1, matches: '^too narrow for split \| \(0-0/0\) hjkl move  enter ask  J/K comments  \? help$'}

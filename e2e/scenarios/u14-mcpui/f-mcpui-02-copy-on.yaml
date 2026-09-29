@@ -1,0 +1,14 @@
+id: F-MCPUI-02
+title: 'c/w with MCP on: OSC 52 full text with token; preview masks token'
+files:
+  ${STATE}/xplain/mcp.json: {token: tok-0123456789abcdefXYZ}
+steps:
+  - keys: M<Enter>j
+  - expectOsc52: {count: 0}
+  - keys: c
+  - expectOsc52:
+      {count: 1, contains: ['claude mcp add xplain http://127.0.0.1:${PORT}/mcp', 'Bearer tok-0123456789abcdefXYZ']}
+  - expectScreen: {contains: ['register command (copied):', 'Bearer ***'], notContains: 'tok-0123456789abcdefXYZ'}
+  - keys: w
+  - expectOsc52: {count: 2, contains: 'wait_seconds=100'}
+  - expectScreen: {contains: 'watch prompt (copied):', notContains: 'register command (copied)'}

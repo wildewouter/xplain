@@ -1,0 +1,12 @@
+id: F-ASK-04
+title: A with MCP off notes MCP is off and queues nothing
+steps:
+  - keys: a
+  - keys: s one<Enter>
+  - keys: J
+  - keys: A
+  - expectScreen: {line: {row: -1, contains: 'MCP is off (M to start)'}, contains: 'saved · not asked'}
+  - keys: M<Enter><Esc>
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}, contains: 'saved · not asked'}
+  - http: {tool: get_questions}
+    expect: {result: {questions: []}}

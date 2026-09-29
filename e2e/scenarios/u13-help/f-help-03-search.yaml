@@ -1,0 +1,11 @@
+id: F-HELP-03
+title: 'File search entries verbatim: [Search] type, backspace, down/up, Enter, esc; no hint, credit only'
+size: 120x40
+steps:
+  - keys: '?'
+  - expectScreen: {contains: 'Help · Diff view', notContains: 'Search ('}
+  - keys: F
+  - expectScreen:
+      contains: 'Search (1/6)'
+      matches: '^(?=.{120}$)[^\n]*│ Help · File search *│$\n^[^\n]*│ Search *│$\n^[^\n]*│  type      filter files *│$\n^[^\n]*│  backspace delete char *│$\n^[^\n]*│  down/up   next / prev hit *│$\n^[^\n]*│  Enter     open hit *│$\n^[^\n]*│  esc       close *│$\n^[^\n]*│ *Made by Wouter de Wild - 2026 │$\n^(?=.{120}$)[^\n]*╰─+╯$'
+      notContains: ['│  i ', '? move keys', '? close']

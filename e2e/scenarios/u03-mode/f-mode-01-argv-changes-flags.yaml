@@ -1,0 +1,8 @@
+id: F-MODE-01
+title: --changes-only with --staged and extra args gives git diff --no-color --no-ext-diff --cached <args>
+args: [--changes-only, --staged, main]
+shims: [git]
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[staged\] .*No changes'}}
+  - expectShimCall: {name: git, args: [diff, --no-color, --no-ext-diff, --cached, main], cwd: '${REPO}', count: 1}
+  - expectShimCall: {name: git, argsPrefix: [diff], count: 1}

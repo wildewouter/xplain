@@ -1,0 +1,66 @@
+id: F-GOTO-01
+title: ': opens goto line: any char typed, BS/Del, Esc cancels, empty Enter no-op, spaces-only note, trimmed number jumps'
+size: 120x12
+steps:
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[1/4] [cursor L2:C1] README.md'}
+        - {row: 4, matches: '^   2      -▶hello'}
+        - {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}
+  - keys: '2:'
+  - expectScreen:
+      line: {row: -1, matches: '^:█\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}
+  - keys: ab?
+  - note: any char accepted, ? typed (no help panel)
+    expectScreen:
+      line: {row: -1, matches: '^:ab\?█\(1-5/5\) '}
+      notContains: 'Help ·'
+  - keys: <BS>
+  - expectScreen: {line: {row: -1, matches: '^:ab█\(1-5/5\) '}}
+  - keys: <Del>
+  - expectScreen: {line: {row: -1, matches: '^:a█\(1-5/5\) '}}
+  - keys: <Space>x
+  - expectScreen: {line: {row: -1, matches: '^:a x█\(1-5/5\) '}}
+  - keys: <Esc>
+  - note: Esc cancels, no jump, no note
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L2:C1] README.md'}
+        - {row: 4, matches: '^   2      -▶hello'}
+        - {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}
+  - keys: j
+  - note: 'count typed before : was dropped, j moves one row'
+    expectScreen:
+      line:
+        - {row: 5, matches: '^        2 \+▶hello world'}
+  - keys: ':<Enter>'
+  - note: empty text, Enter closes without jump or note
+    expectScreen:
+      line:
+        - {row: 5, matches: '^        2 \+▶hello world'}
+        - {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}
+  - keys: ': 3 <Enter>'
+  - note: text trimmed, exact hit, no note
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L3:C1] README.md'}
+        - {row: 6, matches: '^        3 \+▶more'}
+        - {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}
+  - keys: ':   <Enter>'
+  - note: spaces only, note with empty text, no move
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L3:C1] README.md'}
+        - {row: -1, matches: '^not a line number:  \| \(1-5/5\) hjkl move'}
+  - keys: /Title<Enter>
+  - expectScreen: {line: {row: -1, matches: '^/Title \| '}}
+  - keys: ':'
+  - note: open goto line replaces term and note parts
+    expectScreen:
+      line: {row: -1, matches: '^:█\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}
+  - keys: <Esc>
+  - expectScreen: {line: {row: -1, matches: '^/Title \| '}}
+  - note: newlines in a paste (one chunk) are removed
+    keys: ':'
+  - paste: "1\r\n\n2"
+  - expectScreen: {line: {row: -1, matches: '^:12█\(1-5/5\) '}}

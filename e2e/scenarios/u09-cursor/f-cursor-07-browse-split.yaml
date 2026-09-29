@@ -1,0 +1,55 @@
+id: F-CURSOR-07
+title: 'horizontal follow in split (cw floor((cols-1)/2)-7, both panes shifted) and browse (cw cols-7); new file starts at shift 0'
+# f.txt base L1 "o00|..o24|" + L2 "c00|..c24|", work L1 "x00|..x24|" + same L2 (100 chars each). g.txt second file.
+# split 120: cw 52, m 4; left code col 7, right code col 67.
+fixture: empty
+size: 120x10
+args: [--split]
+steps:
+  - writeFile:
+      {
+        path: f.txt,
+        content: "o00|o01|o02|o03|o04|o05|o06|o07|o08|o09|o10|o11|o12|o13|o14|o15|o16|o17|o18|o19|o20|o21|o22|o23|o24|\nc00|c01|c02|c03|c04|c05|c06|c07|c08|c09|c10|c11|c12|c13|c14|c15|c16|c17|c18|c19|c20|c21|c22|c23|c24|\n",
+      }
+  - writeFile: {path: g.txt, content: "g\n"}
+  - git: add -A
+  - git: {args: [commit, -qm, base], code: 0}
+  - writeFile:
+      {
+        path: f.txt,
+        content: "x00|x01|x02|x03|x04|x05|x06|x07|x08|x09|x10|x11|x12|x13|x14|x15|x16|x17|x18|x19|x20|x21|x22|x23|x24|\nc00|c01|c02|c03|c04|c05|c06|c07|c08|c09|c10|c11|c12|c13|c14|c15|c16|c17|c18|c19|c20|c21|c22|c23|c24|\n",
+      }
+  - writeFile: {path: g.txt, content: "G\n"}
+  - keys: r
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[1/2] [cursor new L1:C1] f.txt'}
+        - {row: 3, matches: '^   1 -▶o00\|o01\|.*│   1 \+▶x00\|x01\|'}
+  - keys: '$'
+  - note: col 99 -> s = 99-52+1+4 = 52; cursor at 67+47 = 114; both panes and context row shifted
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor new L1:C100] f.txt'}
+        - {row: 2, matches: '^@@ -1,2 \+1,2 @@$'}
+        - {row: 3, matches: '^   1 -▶o13\|o14\|.*│   1 \+▶x13\|x14\|.*x24\|'}
+        - {row: 4, matches: '^   2   c13\|c14\|.*│   2   c13\|c14\|.*c24\|$'}
+  - expectCell: {at: {row: 3, col: 114}, chars: '|', inverse: true}
+  - keys: '<Tab><S-Tab>'
+  - note: file shown again from its start position - col 1, shift 0
+    expectScreen:
+      line:
+        - {row: 0, contains: '[1/2] [cursor new L1:C1] f.txt'}
+        - {row: 3, matches: '^   1 -▶o00\|o01\|.*│   1 \+▶x00\|x01\|'}
+  - expectCell: {at: {row: 3, col: 67}, chars: 'x', inverse: true}
+  - keys: Ff.txt<Enter>
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[browse\] .*\[cursor L1:C1\] f\.txt'}
+        - {row: 2, matches: '^   1  ▶x00\|x01\|'}
+  - keys: '$'
+  - note: browse cw = 113 fits 100 chars - no shift
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L1:C100] f.txt'}
+        - {row: 2, matches: '^   1  ▶x00\|x01\|'}
+  - expectCell: {at: {row: 2, col: 106}, chars: '|', inverse: true}

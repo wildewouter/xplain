@@ -1,0 +1,41 @@
+id: F-NAV-06
+title: Tab / S-Tab switch file with wrap; header [i/n] updates; each file lands on its first change; Left/Right never switch
+# standard fixture: README.md, src/big.ts, src/c.tsx, x.bin (untracked, one added line)
+size: 80x24
+steps:
+  - expectScreen:
+      matches: '^   2      -▶hello'
+      line: {row: 0, matches: '\[1/4\] \[cursor L2:C1\] README\.md'}
+  - keys: <Right>
+  - note: Right moves the char cursor, file unchanged
+    expectScreen: {line: {row: 0, matches: '\[1/4\] \[cursor L2:C2\] README\.md '}}
+  - keys: <Left>
+  - expectScreen: {line: {row: 0, matches: '\[1/4\] \[cursor L2:C1\] README\.md '}}
+  - keys: <Tab>
+  - expectScreen:
+      matches: '^  30      -▶const v30 = 1;'
+      line:
+        - {row: 0, matches: '\[2/4\] \[cursor L30:C1\] src/big\.ts'}
+        - {row: -1, matches: '(^|\| )\(28-48/62\) '}
+  - keys: <Tab>
+  - expectScreen:
+      matches: '^   1      -▶export const C'
+      line: {row: 0, matches: '\[3/4\] \[cursor L1:C1\] src/c\.tsx'}
+  - keys: <Tab>
+  - expectScreen:
+      matches: '^        1 \+▶x'
+      line: {row: 0, matches: '\[4/4\] \[cursor L1:C1\] x\.bin'}
+  - keys: <Tab>
+  - note: wraps to the first file
+    expectScreen:
+      matches: '^   2      -▶hello'
+      line: {row: 0, matches: '\[1/4\] \[cursor L2:C1\] README\.md '}
+  - keys: <S-Tab>
+  - note: S-Tab wraps to the last file
+    expectScreen: {line: {row: 0, matches: '\[4/4\] \[cursor L1:C1\] x\.bin '}}
+  - keys: <S-Tab>
+  - expectScreen: {line: {row: 0, matches: '\[3/4\] \[cursor L1:C1\] src/c\.tsx '}}
+  - keys: <S-Tab>
+  - expectScreen: {line: {row: 0, matches: '\[2/4\] \[cursor L30:C1\] src/big\.ts '}}
+  - keys: <S-Tab>
+  - expectScreen: {line: {row: 0, matches: '\[1/4\] \[cursor L2:C1\] README\.md '}}

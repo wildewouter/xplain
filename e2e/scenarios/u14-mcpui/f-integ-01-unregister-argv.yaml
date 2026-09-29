@@ -1,0 +1,18 @@
+id: F-INTEG-01
+title: 'unregister argv per CLI (remove only, no add)'
+shims:
+  claude: [{match: [mcp, get], exit: 0}]
+  codex: [{match: [mcp, get], exit: 0}]
+  copilot: [{match: [mcp, get], exit: 0}]
+steps:
+  - keys: M<Enter>
+  - expectScreen: {matches: ['^ +│  Claude Code registered', '^ +│  Codex registered', '^ +│  Copilot registered']}
+  - keys: jdy
+  - keys: jdy
+  - keys: jjdy
+  - expectShimCall: {name: claude, args: [mcp, remove, xplain, -s, local], count: 1}
+  - expectShimCall: {name: codex, args: [mcp, remove, xplain], count: 1}
+  - expectShimCall: {name: copilot, args: [mcp, remove, xplain], count: 1}
+  - expectShimCall: {name: claude, argsPrefix: [mcp, add], count: 0}
+  - expectShimCall: {name: codex, argsPrefix: [mcp, add], count: 0}
+  - expectShimCall: {name: copilot, argsPrefix: [mcp, add], count: 0}

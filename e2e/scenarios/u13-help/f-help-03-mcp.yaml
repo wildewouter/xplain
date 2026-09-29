@@ -1,0 +1,16 @@
+id: F-HELP-03
+title: 'MCP entries verbatim: L1 [MCP (M)] 7 items; L2 [Move] j/k first'
+size: 120x40
+steps:
+  - keys: M
+  - expectScreen: {contains: 'INTEGRATIONS', notContains: 'Help ·'}
+  - keys: '?'
+  - expectScreen:
+      contains: 'INTEGRATIONS'
+      matches: '^(?=.{120}$)[^\n]*│ Help · MCP *│$\n^[^\n]*│ MCP \(M\) *│$\n^[^\n]*│  ⏎/space server on / off *│$\n^[^\n]*│  Enter   register agent *│$\n^[^\n]*│  d       unregister agent *│$\n^[^\n]*│  y/n     confirm / cancel *│$\n^[^\n]*│  c/w     copy cmd / prompt *│$\n^[^\n]*│  R       refresh status *│$\n^[^\n]*│  esc/q/M close *│$\n^[^\n]*│ \? move keys +Made by Wouter de Wild - 2026 │$\n^(?=.{120}$)[^\n]*╰─+╯$'
+      notContains: ['│  i ', 'Move']
+  - keys: '?'
+  - expectScreen:
+      contains: 'INTEGRATIONS'
+      matches: '^(?=.{120}$)[^\n]*│ Help · MCP *│$\n^[^\n]*│ Move *│$\n^[^\n]*│  j/k     move *│$\n^[^\n]*│ MCP \(M\) *│$\n^[^\n]*│  ⏎/space server on / off *│$\n^[^\n]*│  Enter   register agent *│$\n^[^\n]*│  d       unregister agent *│$\n^[^\n]*│  y/n     confirm / cancel *│$\n^[^\n]*│  c/w     copy cmd / prompt *│$\n^[^\n]*│  R       refresh status *│$\n^[^\n]*│  esc/q/M close *│$\n^[^\n]*│ \? close +Made by Wouter de Wild - 2026 │$\n^(?=.{120}$)[^\n]*╰─+╯$'
+      notContains: ['│  i ', '? move keys']

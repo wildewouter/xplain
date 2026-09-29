@@ -1,0 +1,10 @@
+id: F-HEADER-03
+title: 'cursor tag on a note row (binary file) uses r<row>'
+size: 120x24
+fixture: empty
+files:
+  b.bin: "a\u0000b\n"
+steps:
+  - expectScreen:
+      contains: 'Binary file'
+      line: {row: 0, matches: '\[1/1\] \[cursor r1:C1\] b\.bin \+0 -0$'}

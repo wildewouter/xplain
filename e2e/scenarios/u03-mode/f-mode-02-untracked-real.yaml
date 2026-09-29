@@ -1,0 +1,43 @@
+id: F-MODE-02
+title: all mode lists untracked regular files <= 1 MiB after tracked files; big files, symlinks, dirs, unreadable skipped; index untouched
+size: 120x30
+files:
+  0first.txt: "zero\n"
+  sub/n.txt: "n1\nn2\n"
+  secret.txt: "s\n"
+  nested/inner.txt: "i\n"
+steps:
+  - note: at start secret.txt is readable and nested/ is a plain dir, so nested/inner.txt is listed
+    expectScreen: {line: {row: 0, matches: '\[1/8\] \[cursor L2:C1\] README\.md \+2 -1$'}}
+  - note: 1024 lines of 1023 a + newline = 1048576 bytes
+    writeFile: {path: fit.txt, size: 1048576, lineLength: 1024, fill: a}
+  - copyFile: {from: fit.txt, to: huge.txt}
+  - writeFile: {path: huge.txt, content: b, append: true}
+  - symlink: {target: README.md, path: link.md}
+  - chmod: {path: secret.txt, mode: '000'}
+  - git: init -q nested
+  - note: fit.txt is exactly 1048576 bytes (shown), huge.txt 1048577 (skipped)
+    keys: r
+  - keys: f
+  - note: tracked first in git order, then untracked in ls-files order; skipped files absent
+    expectScreen:
+      contains: ' Files (1/7)'
+      matches: 'M README\.md \+2 -1 \*.*\n.*M src/big\.ts \+1 -1.*\n.*M src/c\.tsx \+1 -1.*\n.*A 0first\.txt \+1 -0.*\n.*A fit\.txt \+1024 -0.*\n.*A sub/n\.txt \+2 -0.*\n.*A x\.bin \+1 -0'
+      notContains: [huge.txt, link.md, secret.txt, nested]
+  - keys: <Esc><Tab><Tab><Tab>
+  - note: untracked file shown as a fully added file
+    expectScreen:
+      line:
+        - {row: 0, matches: '\[4/7\] \[cursor L1:C1\] 0first\.txt \+1 -0$'}
+        - {row: 2, matches: '^@@ -0,0 \+1 @@'}
+        - {row: 3, matches: '^        1 \+▶zero'}
+  - keys: <Tab><Tab>
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[6/7\] \[cursor L1:C1\] sub/n\.txt \+2 -0$'}
+        - {row: 2, matches: '^@@ -0,0 \+1,2 @@'}
+        - {row: 3, matches: '^        1 \+▶n1'}
+        - {row: 4, matches: '^        2 \+ n2'}
+  - note: untracked files were not added to the index
+    git: {args: [ls-files, --error-unmatch, 0first.txt], code: 1}
+  - git: {args: [diff, --cached, --quiet], code: 0}

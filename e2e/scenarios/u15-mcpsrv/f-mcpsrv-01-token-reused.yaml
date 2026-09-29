@@ -1,0 +1,12 @@
+id: F-MCPSRV-01
+title: existing token of >= 16 chars is reused, file left untouched (content and mode)
+steps:
+  - writeFile: {path: '${STATE}/xplain/mcp.json', content: '{"token":"0123456789abcdef"}', mode: '644'}
+  - keys: M<Enter>
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - note: byte-identical (compact, no trailing newline); not rewritten in 2-space form
+    expectFile: {path: '${STATE}/xplain/mcp.json', equals: '{"token":"0123456789abcdef"}'}
+  - note: untouched means no chmod either
+    expectFile: {path: '${STATE}/xplain/mcp.json', mode: '644'}
+  - http: {method: ping, auth: 'Bearer 0123456789abcdef'}
+    expect: {status: 200, body: {id: 1, result: {}}}

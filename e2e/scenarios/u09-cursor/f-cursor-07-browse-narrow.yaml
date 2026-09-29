@@ -1,0 +1,32 @@
+id: F-CURSOR-07
+title: 'browse horizontal follow at 80 cols (cw 73, m 4)'
+# 80 cols: browse code col 7, cw 73. $ on 100-char line: s = 99-73+1+4 = 31, cursor at 7+68 = 75.
+fixture: empty
+size: 80x10
+files:
+  h.txt: "x00|x01|x02|x03|x04|x05|x06|x07|x08|x09|x10|x11|x12|x13|x14|x15|x16|x17|x18|x19|x20|x21|x22|x23|x24|\nc00|c01|c02|c03|c04|c05|c06|c07|c08|c09|c10|c11|c12|c13|c14|c15|c16|c17|c18|c19|c20|c21|c22|c23|c24|\n"
+steps:
+  - keys: Fh.txt<Enter>
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[browse\] .*\[cursor L1:C1\] h\.txt'}
+        - {row: 2, matches: '^   1  ▶x00\|x01\|'}
+        - {row: 3, matches: '^   2   c00\|c01\|'}
+  - keys: '$'
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L1:C100] h.txt'}
+        - {row: 2, matches: '^   1  ▶\|x08\|x09\|.*x24\|'}
+        - {row: 3, matches: '^   2   \|c08\|c09\|.*c24\|$'}
+  - expectCell: {at: {row: 2, col: 75}, chars: '|', inverse: true}
+  - expectCell: {at: {row: 2, col: 7}, chars: '|', inverse: false}
+  - keys: 26h
+  - note: col 73 >= s+m (35) - kept
+    expectScreen: {line: {row: 2, matches: '^   1  ▶\|x08\|'}}
+  - keys: 38h
+  - note: col 35 = s+m - kept
+    expectScreen: {line: {row: 2, matches: '^   1  ▶\|x08\|'}}
+  - expectCell: {at: {row: 2, col: 11}, chars: '|', inverse: true}
+  - keys: h
+  - note: col 34 < s+m -> s = 30
+    expectScreen: {line: {row: 2, matches: '^   1  ▶7\|x08\|'}}

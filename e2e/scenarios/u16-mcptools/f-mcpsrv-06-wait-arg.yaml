@@ -1,0 +1,29 @@
+id: F-MCPSRV-06
+title: 'next_question wait_seconds non-number (default 45) and above max (clamped 120) are no errors: poll waits and gets the next question'
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - httpStart: {id: p1, tool: next_question, args: {wait_seconds: abc}}
+  - keys: a
+  - keys: first<Enter>
+  - httpAwait: p1
+    expect:
+      status: 200
+      body: {result: {isError: {$exists: false}}}
+      result: {status: question, thread_id: q1, turn: 1, follow_up: false, question: {$matches: '^first\n\n'}}
+  - httpStart: {id: p2, tool: next_question, args: {wait_seconds: 100000}}
+  - keys: j
+  - keys: a
+  - keys: second<Enter>
+  - httpAwait: p2
+    expect:
+      body: {result: {isError: {$exists: false}}}
+      result: {status: question, thread_id: q2, turn: 1, follow_up: false, question: {$matches: '^second\n\n'}}
+  - note: no wait_seconds at all
+    httpStart: {id: p3, tool: next_question}
+  - keys: j
+  - keys: a
+  - keys: third<Enter>
+  - httpAwait: p3
+    expect: {result: {status: question, thread_id: q3, question: {$matches: '^third\n\n'}}}

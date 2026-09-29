@@ -1,0 +1,10 @@
+id: F-INTEG-05
+title: 'c on Codex copies a register command (text UNSPEC-6); token not shown'
+files:
+  ${STATE}/xplain/mcp.json: {token: tok-0123456789abcdefXYZ}
+steps:
+  - keys: M<Enter>jj
+  - expectOsc52: {count: 0}
+  - keys: c
+  - expectOsc52: {count: 1}
+  - expectScreen: {contains: 'register command (copied):', notContains: 'tok-0123456789abcdefXYZ'}

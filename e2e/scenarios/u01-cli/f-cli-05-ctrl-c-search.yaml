@@ -1,0 +1,7 @@
+id: F-CLI-05
+title: 'Ctrl+C in the file search modal exits 0'
+steps:
+  - keys: F
+  - expectScreen: {contains: ' Search ('}
+  - keys: <C-c>
+  - expectExit: 0

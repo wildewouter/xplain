@@ -1,0 +1,11 @@
+id: F-CONFIG-03
+title: absent keys (empty sub-objects) give no warning and defaults
+files:
+  ${CONFIG}/xplain/config.json: {view: {}, app: {}, mcp: {}}
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] '}}
+  - keys: q
+  - expectScreen: {contains: 'Quit xplain? (y/n)'}
+  - keys: y
+  - expectExit: 0
+  - expectScreen: {notContains: 'xplain'}

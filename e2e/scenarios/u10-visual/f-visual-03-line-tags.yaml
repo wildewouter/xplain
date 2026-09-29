@@ -1,0 +1,26 @@
+id: F-VISUAL-03
+title: Enter / a on line selection open editor with head `selection L<a>` or `L<a>-<b>` (end label minus first char)
+fixture: empty
+size: 80x40
+files:
+  f.txt: "l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\n"
+steps:
+  - keys: V
+  - expectScreen: {notContains: 'selection L'}
+  - keys: <Enter>
+  - expectScreen:
+      contains: '│ selection L1 '
+      notContains: 'selection L1-'
+      line: {row: -1, matches: 'enter send  tab save/ask  esc cancel$'}
+  - expectCell: {at: {text: 'selection L1'}, fg: '#cb4b16'}
+  - keys: <Esc>
+  - expectScreen: {notContains: ['selection L', '╭']}
+  - keys: <Esc>9GVj
+  - expectScreen: {line: {row: 0, matches: '\[visual L9:C1\] f\.txt '}}
+  - keys: a
+  - expectScreen: {contains: '│ selection L8-9 '}
+  - keys: <Esc><Esc>
+  - keys: 10GVjjj
+  - expectScreen: {line: {row: 0, matches: '\[visual L12:C1\] f\.txt '}}
+  - keys: a
+  - expectScreen: {contains: '│ selection L9-12 ', notContains: 'selection L9-L12'}

@@ -1,0 +1,32 @@
+id: F-COMMENT-05
+title: old-pane comment in split anchors to the unified del row with that old number (not the paired add row)
+fixture: empty
+size: 120x30
+args: [--split]
+steps:
+  - writeFile: {path: f.txt, content: "alpha\nbravo\ncharlie\n"}
+  - git: add -A
+  - git: commit -qm base
+  - writeFile: {path: f.txt, content: "alpha\nBRAVO two\ncharlie\ndelta\n"}
+  - keys: r
+  - expectScreen: {line: [{row: 0, matches: '\[cursor new L2:C1\] '}, {row: 4, matches: '^   2 -.bravo'}]}
+  - keys: p
+  - expectScreen: {line: {row: 0, matches: '\[cursor old L2:C1\] '}}
+  - keys: aoldside<Enter>
+  - expectScreen:
+      line:
+        - {row: 4, matches: '^   2 -.bravo.*│   2 \+.BRAVO two'}
+        - {row: 5, matches: '^╭─+╮$'}
+        - {row: 7, matches: '^│ oldside +│$'}
+        - {row: 9, matches: '^   3   charlie'}
+  - keys: s
+  - note: unified - del row (old 2) carries the box; add row L2 comes after it
+    expectScreen:
+      line:
+        - {row: 0, contains: '[unified]'}
+        - {row: 4, matches: '^   2      -.bravo'}
+        - {row: 5, matches: '^╭─+╮$'}
+        - {row: 6, matches: '^│ sent  line L2 '}
+        - {row: 7, matches: '^│ oldside +│$'}
+        - {row: 8, matches: '^╰─+╯$'}
+        - {row: 9, matches: '^        2 \+.BRAVO two'}

@@ -1,0 +1,50 @@
+id: F-COMMENT-02
+title: editor keys - insert at caret, Left/Right, Backspace + Delete delete before caret, ctrl/meta/Up/Down/Home/End ignored, ? typed
+fixture: empty
+size: 80x20
+files:
+  f.txt: "alpha beta\ntwo words here\n"
+steps:
+  - keys: a
+  - keys: abc
+  - expectScreen: {line: {row: 5, matches: '^│ abc +│$'}}
+  - expectCell: {at: {row: 5, col: 5}, chars: ' ', inverse: true}
+  - keys: <Left><Left>
+  - expectCell: {at: {row: 5, col: 3}, chars: b, inverse: true}
+  - expectCell: {at: {row: 5, col: 5}, chars: ' ', inverse: false}
+  - keys: X
+  - expectScreen: {line: {row: 5, matches: '^│ aXbc +│$'}}
+  - expectCell: {at: {row: 5, col: 4}, chars: b, inverse: true}
+  - keys: <Right>
+  - expectCell: {at: {row: 5, col: 5}, chars: c, inverse: true}
+  - keys: <BS>
+  - expectScreen: {line: {row: 5, matches: '^│ aXc +│$'}}
+  - expectCell: {at: {row: 5, col: 4}, chars: c, inverse: true}
+  - keys: <Del>
+  - expectScreen: {line: {row: 5, matches: '^│ ac +│$'}}
+  - expectCell: {at: {row: 5, col: 3}, chars: c, inverse: true}
+  - note: ignored keys - text, caret and cursor row unchanged, no help panel
+    keys: <C-a><C-e><C-u><A-b><M-x><Up><Down><Home><End>
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor L1:C1\] f\.txt '}
+        - {row: 3, matches: '^        1 \+▶alpha beta'}
+        - {row: 5, matches: '^│ ac +│$'}
+  - expectCell: {at: {row: 5, col: 3}, chars: c, inverse: true}
+  - keys: '?'
+  - expectScreen:
+      line: {row: 5, matches: '^│ a\?c +│$'}
+  - keys: <Right>
+  - expectCell: {at: {row: 5, col: 5}, chars: ' ', inverse: true}
+  - keys: <Right>
+  - note: Right at end stays
+    expectCell: {at: {row: 5, col: 5}, chars: ' ', inverse: true}
+  - note: each CR/LF run in a paste (one chunk) becomes one space, inserted at the caret; CR does not submit
+    paste: "\r\nx\r\n\ny"
+  - expectScreen: {line: {row: 5, matches: '^│ a\?c x y +│$'}}
+  - keys: <Enter>
+  - expectScreen:
+      line:
+        - {row: 5, matches: '^│ sent  line L1'}
+        - {row: 6, matches: '^│ a\?c x y +│$'}
+        - {row: -1, contains: 'question saved (1)'}

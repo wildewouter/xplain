@@ -1,0 +1,36 @@
+id: F-VISUAL-02
+title: split - selection drawn only in the active pane (new, then old after p)
+fixture: empty
+size: 120x20
+args: [--split]
+steps:
+  - writeFile: {path: f.txt, content: "alpha\nbravo\ncharlie\n"}
+  - git: add -A
+  - git: commit -qm base
+  - writeFile: {path: f.txt, content: "alpha\nBRAVO two\ncharlie\ndelta\n"}
+  - keys: r
+  # rows: 3 alpha|alpha, 4 bravo|BRAVO two (cursor), 5 charlie|charlie, 6 (empty)|delta; left code col 7, right col 67
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[cursor new L2:C1\] f\.txt '}
+        - {row: 5, matches: '^   3   charlie\s+│   3   charlie'}
+  - keys: Vj
+  - expectScreen: {line: {row: 0, matches: '\[visual new L3:C1\] f\.txt '}}
+  - expectCell: {at: {row: 4, col: 67}, chars: B, bg: '#6b4f00', fg: '#fdf6e3'}
+  - expectCell: {at: {row: 4, col: 75}, chars: o, bg: '#6b4f00'}
+  - expectCell: {at: {row: 5, col: 73}, chars: e, bg: '#6b4f00'}
+  - note: old pane cells of the same rows not selected
+    expectCell: {at: {row: 4, col: 7}, chars: b, bg: default}
+  - expectCell: {at: {row: 5, col: 7}, chars: c, bg: '#22586b'}
+  - expectCell: {at: {row: 5, col: 8}, chars: h, bg: '#22586b'}
+  - keys: kpvlj
+  - expectScreen: {line: {row: 0, matches: '\[visual old L3:C2\] f\.txt '}}
+  - expectCell: {at: {row: 4, col: 7}, chars: b, bg: '#6b4f00'}
+  - expectCell: {at: {row: 4, col: 11}, chars: o, bg: '#6b4f00'}
+  - expectCell: {at: {row: 5, col: 7}, chars: c, bg: '#6b4f00'}
+  - expectCell: {at: {row: 5, col: 8}, chars: h, bg: '#6b4f00', inverse: true}
+  - expectCell: {at: {row: 5, col: 9}, chars: a, bg: '#22586b'}
+  - note: new pane cells not selected; char cursor only in active pane
+    expectCell: {at: {row: 4, col: 68}, chars: R, bg: default}
+  - expectCell: {at: {row: 5, col: 67}, chars: c, bg: '#22586b', inverse: false}
+  - expectCell: {at: {row: 5, col: 68}, chars: h, bg: '#22586b', inverse: false}

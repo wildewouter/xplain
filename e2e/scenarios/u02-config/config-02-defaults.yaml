@@ -1,0 +1,26 @@
+id: F-CONFIG-02
+title: missing config file gives defaults (all, full, unified, solarized, mcp off, confirm quit on) and no warning
+steps:
+  - expectFile: {path: '${CONFIG}/xplain/config.json', exists: false}
+  - expectScreen:
+      line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] '}
+  - keys: C
+  - note: committed values in the config modal are the defaults
+    expectScreen:
+      matches:
+        - '│> theme +\[solarized\] +vibrant '
+        - '│  mode +\[all\] +staged +unstaged +│'
+        - '│  view +\[full\] +changes +│'
+        - '│  split +\[off\] +on +│'
+        - '│  confirm quit +off +\[on\] +│'
+        - '│  mcp on startup  \[off\] +on +│'
+  - keys: <Esc>
+  - expectScreen: {notContains: ' Config'}
+  - note: confirmQuit defaults to true
+    keys: q
+  - expectScreen: {contains: 'Quit xplain? (y/n)'}
+  - keys: y
+  - expectExit: 0
+  - note: main screen after leaving the alternate screen holds whatever went to stderr before the UI; no warning
+    expectScreen: {notContains: 'xplain'}
+  - expectFile: {path: '${CONFIG}/xplain/config.json', exists: false}

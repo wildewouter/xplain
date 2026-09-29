@@ -1,0 +1,21 @@
+id: F-VISUAL-01
+title: numbered comment jump `)` ends an active selection
+fixture: empty
+size: 80x30
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+  f.txt: "alpha beta\ntwo words here\n\nfourth line\nfifth\n"
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http: {tool: annotate, args: {file: f.txt, line: 4, text: look here, number: 1}}
+    expect: {status: 200, result: {ok: true}}
+  - expectScreen: {contains: '#1 agent note L4'}
+  - keys: Vj
+  - expectScreen: {line: {row: 0, matches: '\[visual L2:C1\] f\.txt '}}
+  - expectCell: {at: {row: 3, col: 12}, chars: a, bg: '#6b4f00'}
+  - keys: )
+  - expectScreen:
+      line: {row: 0, matches: '\[cursor L4:C1\] f\.txt '}
+      contains: '▸ sent  #1 agent note L4'
+  - expectCell: {at: {row: 3, col: 12}, chars: a, bg: default}
+  - expectCell: {at: {row: 4, col: 12}, chars: t, bg: default}

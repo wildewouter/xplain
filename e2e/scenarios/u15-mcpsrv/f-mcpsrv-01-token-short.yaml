@@ -1,0 +1,19 @@
+id: F-MCPSRV-01
+title: short (15 chars) token file is replaced by a fresh 43-char token, file rewritten, mode 0600
+steps:
+  - writeFile: {path: '${STATE}/xplain/mcp.json', content: '{"token":"0123456789abcde"}', mode: '644'}
+  - keys: M<Enter>
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - expectFile:
+      path: '${STATE}/xplain/mcp.json'
+      # 2-space indented JSON + trailing newline; fields besides token not asserted (UNSPEC-15)
+      matches: ['^\{\n  "', '^  "token": "[A-Za-z0-9_-]{43}",?$', '\n\}\n$']
+      json: {token: {$matches: '^[A-Za-z0-9_-]{43}$'}}
+  - note: chmod 0600 on every write
+    expectFile: {path: '${STATE}/xplain/mcp.json', mode: '600'}
+  - note: the new token (from the file) is accepted
+    http: {method: ping}
+    expect: {status: 200, body: {id: 1, result: {}}}
+  - note: the old token is no longer valid
+    http: {method: ping, auth: 'Bearer 0123456789abcde'}
+    expect: {status: 401, body: {error: unauthorized}}

@@ -1,0 +1,43 @@
+id: F-HELP-04
+title: 'modals and find/goto keep the underlying hint (diff, visual, focused comment)'
+size: 120x40
+steps:
+  - keys: /
+  - expectScreen: {line: {row: -1, matches: '^/█\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - keys: <Esc>
+  - keys: ':'
+  - expectScreen: {line: {row: -1, matches: '^:█\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - keys: <Esc>
+  - keys: f
+  - expectScreen:
+      {contains: 'Files (1/4)', line: {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - keys: <Esc>
+  - keys: F
+  - expectScreen:
+      {contains: 'Search (1/6)', line: {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - keys: <Esc>
+  - keys: M
+  - expectScreen:
+      {contains: 'INTEGRATIONS', line: {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - keys: <Esc>
+  - keys: C
+  - expectScreen:
+      {contains: 'mcp on startup', line: {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}}
+  - keys: <Esc>
+  - keys: q
+  - expectScreen:
+      {
+        contains: 'Quit xplain? (y/n)',
+        line: {row: -1, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'},
+      }
+  - keys: n
+  - keys: v/
+  - expectScreen: {line: {row: -1, matches: '^/█\(1-5/5\) v/esc end  enter ask  hjkl move  \? help$'}}
+  - keys: <Esc>
+  - keys: ':'
+  - expectScreen: {line: {row: -1, matches: '^:█\(1-5/5\) v/esc end  enter ask  hjkl move  \? help$'}}
+  - keys: <Esc><Esc>
+  - keys: 'ahi<Enter>JD'
+  - expectScreen:
+      contains: 'Delete comment? (y/n)'
+      line: {row: -1, matches: 'e edit  D delete  a ask/follow up  j/k scroll  esc back  \? help$'}

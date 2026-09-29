@@ -1,0 +1,16 @@
+id: F-HELP-02
+title: 'find, goto, editor beat visual selection; Visual selection back after find/goto close'
+size: 120x40
+steps:
+  - keys: 'v?'
+  - expectScreen: {contains: 'Help · Visual selection', line: {row: 0, contains: '[visual L2:C1]'}}
+  - keys: /
+  - expectScreen: {contains: 'Help · Find in file', line: {row: -1, matches: '^/█'}}
+  - keys: <Esc>
+  - expectScreen: {contains: 'Help · Visual selection', line: {row: 0, contains: '[visual L2:C1]'}}
+  - keys: ':'
+  - expectScreen: {contains: 'Help · Go to line', line: {row: -1, matches: '^:█'}}
+  - keys: <Esc>
+  - expectScreen: {contains: 'Help · Visual selection'}
+  - keys: a
+  - expectScreen: {contains: ['Help · Editor', 'selection L2:C1-C1']}

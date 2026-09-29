@@ -1,0 +1,37 @@
+id: F-SEARCH-01
+title: search box height floors at 8 on short terminals; list window height-5 = 3 rows centered on selection
+size: 80x10
+# height min(10, max(8, floor(10*0.7)=7)) = 8 -> rows 1-8: border, title, query, 3 list rows (4-6), hint, border.
+steps:
+  - keys: F
+  - expectScreen:
+      region:
+        - {rows: [1, 1], cols: [12, 67], matches: '^╭─{54}╮$'}
+        - {rows: [2, 2], cols: [12, 67], matches: '^│ Search \(1/6\) +│$'}
+        - {rows: [3, 3], cols: [12, 67], matches: '^│ > +│$'}
+        - {rows: [4, 4], cols: [12, 67], matches: '^│> README\.md +│$'}
+        - {rows: [5, 5], cols: [12, 67], matches: '^│  package\.json +│$'}
+        - {rows: [6, 6], cols: [12, 67], matches: '^│  src/a\.ts +│$'}
+        - {rows: [7, 7], cols: [12, 67], matches: '^│ ↑↓/\^n\^p move enter open esc close +│$'}
+        - {rows: [8, 8], cols: [12, 67], matches: '^╰─{54}╯$'}
+  - keys: <Down><Down><Down>
+  - note: selection 4th of 6 -> window centered on it
+    expectScreen:
+      region:
+        - {rows: [2, 2], cols: [12, 67], matches: '^│ Search \(4/6\) +│$'}
+        - {rows: [4, 4], cols: [12, 67], matches: '^│  src/a\.ts +│$'}
+        - {rows: [5, 5], cols: [12, 67], matches: '^│> src/big\.ts +│$'}
+        - {rows: [6, 6], cols: [12, 67], matches: '^│  src/c\.tsx +│$'}
+  - keys: <Up><Up>
+  - expectScreen:
+      region:
+        - {rows: [2, 2], cols: [12, 67], matches: '^│ Search \(2/6\) +│$'}
+        - {rows: [4, 4], cols: [12, 67], matches: '^│  README\.md +│$'}
+        - {rows: [5, 5], cols: [12, 67], matches: '^│> package\.json +│$'}
+        - {rows: [6, 6], cols: [12, 67], matches: '^│  src/a\.ts +│$'}
+  - keys: <Down><Down><Down><Down>
+  - note: last hit selected and visible
+    expectScreen:
+      region:
+        - {rows: [2, 2], cols: [12, 67], matches: '^│ Search \(6/6\) +│$'}
+        - {rows: [4, 6], cols: [12, 67], contains: '│> x.bin'}

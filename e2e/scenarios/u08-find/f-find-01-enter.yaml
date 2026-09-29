@@ -1,0 +1,50 @@
+id: F-FIND-01
+title: '/ Enter sets term (footer /term | ), Esc keeps old term, empty Enter clears term + highlights, no-match note'
+fixture: empty
+size: 120x12
+files:
+  f.txt: "alpha beta\ngamma Alpha\ndelta\naaa\n\tbeta alpha\n"
+steps:
+  - expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L1:C1] f.txt'}
+        - {row: -1, matches: '^\(1-6/6\) hjkl move'}
+  - keys: /delta<Enter>
+  - note: term set, cursor jumped to match
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L3:C1] f.txt'}
+        - {row: -1, matches: '^/delta \| \(1-6/6\) hjkl move  enter ask  J/K comments  \? help$'}
+  - keys: /gam
+  - note: while open the find line replaces the term part
+    expectScreen:
+      line: {row: -1, matches: '^/gam█\(1-6/6\) hjkl move'}
+  - keys: <Esc>
+  - note: Esc keeps the earlier term, no move
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L3:C1] f.txt'}
+        - {row: -1, matches: '^/delta \| \(1-6/6\) hjkl move'}
+  - keys: k
+  - note: term active, delta on L3 highlighted
+    expectCell: {at: {text: delta, row: 5}, bg: 3, fg: 0}
+  - keys: /<Enter>
+  - note: empty Enter clears term, no move
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L2:C1] f.txt'}
+        - {row: -1, matches: '^\(1-6/6\) hjkl move  enter ask  J/K comments  \? help$'}
+  - expectCell: {at: {text: delta, row: 5}, bg: default}
+  - keys: /zzz<Enter>
+  - note: no match anywhere; term still set, note shown, no move
+    expectScreen:
+      line:
+        - {row: 0, contains: '[cursor L2:C1] f.txt'}
+        - {
+            row: -1,
+            matches: '^/zzz \| pattern not found: zzz \| \(1-6/6\) hjkl move  enter ask  J/K comments  \? help$',
+          }
+  - keys: /
+  - note: open find line replaces both term and note parts
+    expectScreen:
+      line: {row: -1, matches: '^/█\(1-6/6\) hjkl move  enter ask  J/K comments  \? help$'}

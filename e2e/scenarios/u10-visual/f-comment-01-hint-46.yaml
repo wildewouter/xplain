@@ -1,0 +1,13 @@
+id: F-COMMENT-01
+title: new-comment hint at cols 46 - full hint no longer fits, drops [save] chip
+fixture: empty
+size: 46x16
+files:
+  f.txt: "alpha\n"
+steps:
+  - keys: a
+  - expectScreen:
+      line:
+        - {row: 4, matches: '^╭─+╮$'}
+        - {row: 6, matches: '^│ enter send  tab save/ask  esc cancel +│$'}
+      notContains: '[save]'

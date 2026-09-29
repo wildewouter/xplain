@@ -1,0 +1,28 @@
+id: F-COMMENT-09
+title: 'target file not in diff: opens it in browse; target in diff list: leaves browse and switches to it'
+size: 120x30
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http: {tool: annotate, args: {file: package.json, line: 1, text: pkg note, number: 1}}
+    expect: {result: {ok: true}}
+  - http: {tool: annotate, args: {file: src/c.tsx, line: 1, text: tsx note, number: 2}}
+    expect: {result: {ok: true}}
+  - keys: )
+  - note: package.json is unchanged (not in diff) - browse
+    expectScreen:
+      matches: '▸ sent  #1 agent note L1[^\n]*\n┃ pkg note '
+      line: {row: 0, matches: '^\[browse\] .*\[cursor L1:C1\] package\.json'}
+  - keys: )
+  - expectScreen:
+      matches: '▸ sent  #2 agent note L1[^\n]*\n┃ tsx note '
+      notContains: '[browse]'
+      line: {row: 0, matches: '^\[all\] .*\[3/4\] \[cursor L1:C1\] src/c\.tsx'}
+  - keys: )
+  - expectScreen:
+      matches: '▸ sent  #1 agent note L1[^\n]*\n┃ pkg note '
+      line: {row: 0, matches: '^\[browse\] .*package\.json'}
+  - keys: <Esc><Esc>
+  - note: Esc unfocuses, second Esc leaves browse back to the diff file shown before (src/c.tsx)
+    expectScreen: {line: {row: 0, matches: '^\[all\] .*\[3/4\] .*src/c\.tsx'}}

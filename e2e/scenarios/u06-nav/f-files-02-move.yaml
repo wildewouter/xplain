@@ -1,0 +1,81 @@
+id: F-FILES-02
+title: picker j/k/Down/Up move 1 and d/u move floor(H/2), all clamped; list window follows the selection
+# 12 files at 80x12 (H=9, so d/u = 4); list window 3 rows
+# order: README.md, package.json -> pkg.json, src/a.ts, src/big.ts, src/c.tsx, n1..n6.txt, x.bin
+size: 80x12
+files:
+  n1.txt: "a\n"
+  n2.txt: "a\n"
+  n3.txt: "a\n"
+  n4.txt: "a\n"
+  n5.txt: "a\n"
+  n6.txt: "a\n"
+steps:
+  - removeFile: src/a.ts
+  - git: mv package.json pkg.json
+  - keys: r
+  - keys: f
+  - expectScreen:
+      {
+        matches: '│ Files \(1/12\) +│[^\n]*\n[^\n]*│>M README\.md \+2 -1 \* +│[^\n]*\n[^\n]*│ R package\.json -> pkg\.json \+0 -0 +│[^\n]*\n[^\n]*│ D src/a\.ts \+0 -3 +│[^\n]*\n[^\n]*│ j/k/↑↓ move',
+      }
+  - keys: k<Up>
+  - note: clamped at the first file
+    expectScreen:
+      {
+        matches: '│ Files \(1/12\) +│[^\n]*\n[^\n]*│>M README\.md \+2 -1 \* +│[^\n]*\n[^\n]*│ R package\.json -> pkg\.json \+0 -0 +│[^\n]*\n[^\n]*│ D src/a\.ts \+0 -3 +│[^\n]*\n[^\n]*│ j/k/↑↓ move',
+      }
+  - keys: j
+  - expectScreen:
+      {
+        matches: '│ Files \(2/12\) +│[^\n]*\n[^\n]*│ M README\.md \+2 -1 \* +│[^\n]*\n[^\n]*│>R package\.json -> pkg\.json \+0 -0 +│[^\n]*\n[^\n]*│ D src/a\.ts \+0 -3 +│[^\n]*\n[^\n]*│ j/k/↑↓ move',
+      }
+  - keys: <Down>
+  - expectScreen:
+      {
+        matches: '│ Files \(3/12\) +│[^\n]*\n[^\n]*│ R package\.json -> pkg\.json \+0 -0 +│[^\n]*\n[^\n]*│>D src/a\.ts \+0 -3 +│[^\n]*\n[^\n]*│ M src/big\.ts \+1 -1 +│[^\n]*\n[^\n]*│ j/k/↑↓ move',
+      }
+  - keys: <Up>
+  - expectScreen:
+      {
+        matches: '│ Files \(2/12\) +│[^\n]*\n[^\n]*│ M README\.md \+2 -1 \* +│[^\n]*\n[^\n]*│>R package\.json -> pkg\.json \+0 -0 +│[^\n]*\n[^\n]*│ D src/a\.ts \+0 -3 +│[^\n]*\n[^\n]*│ j/k/↑↓ move',
+      }
+  - keys: d
+  - note: 2 + 4 = 6 (n1.txt)
+    expectScreen:
+      {
+        matches: '│ Files \(6/12\) +│[^\n]*\n[^\n]*│ M src/c\.tsx \+1 -1 +│[^\n]*\n[^\n]*│>A n1\.txt \+1 -0 +│[^\n]*\n[^\n]*│ A n2\.txt \+1 -0 +│[^\n]*\n[^\n]*│ j/k/↑↓ move',
+      }
+  - keys: d
+  - expectScreen:
+      {
+        matches: '│ Files \(10/12\) +│[^\n]*\n[^\n]*│ A n4\.txt \+1 -0 +│[^\n]*\n[^\n]*│>A n5\.txt \+1 -0 +│[^\n]*\n[^\n]*│ A n6\.txt \+1 -0 +│[^\n]*\n[^\n]*│ j/k/↑↓ move',
+      }
+  - keys: d
+  - note: clamped at the last file
+    expectScreen:
+      {
+        matches: '│ Files \(12/12\) +│[^\n]*\n[^\n]*│ A n5\.txt \+1 -0 +│[^\n]*\n[^\n]*│ A n6\.txt \+1 -0 +│[^\n]*\n[^\n]*│>A x\.bin \+1 -0 +│[^\n]*\n[^\n]*│ j/k/↑↓ move',
+      }
+  - keys: j<Down>
+  - expectScreen:
+      {
+        matches: '│ Files \(12/12\) +│[^\n]*\n[^\n]*│ A n5\.txt \+1 -0 +│[^\n]*\n[^\n]*│ A n6\.txt \+1 -0 +│[^\n]*\n[^\n]*│>A x\.bin \+1 -0 +│[^\n]*\n[^\n]*│ j/k/↑↓ move',
+      }
+  - keys: u
+  - expectScreen:
+      {
+        matches: '│ Files \(8/12\) +│[^\n]*\n[^\n]*│ A n2\.txt \+1 -0 +│[^\n]*\n[^\n]*│>A n3\.txt \+1 -0 +│[^\n]*\n[^\n]*│ A n4\.txt \+1 -0 +│[^\n]*\n[^\n]*│ j/k/↑↓ move',
+      }
+  - keys: u
+  - expectScreen:
+      {
+        matches: '│ Files \(4/12\) +│[^\n]*\n[^\n]*│ D src/a\.ts \+0 -3 +│[^\n]*\n[^\n]*│>M src/big\.ts \+1 -1 +│[^\n]*\n[^\n]*│ M src/c\.tsx \+1 -1 +│[^\n]*\n[^\n]*│ j/k/↑↓ move',
+      }
+  - keys: u
+  - expectScreen:
+      {
+        matches: '│ Files \(1/12\) +│[^\n]*\n[^\n]*│>M README\.md \+2 -1 \* +│[^\n]*\n[^\n]*│ R package\.json -> pkg\.json \+0 -0 +│[^\n]*\n[^\n]*│ D src/a\.ts \+0 -3 +│[^\n]*\n[^\n]*│ j/k/↑↓ move',
+      }
+  - note: moving the selection does not switch the shown file
+    expectScreen: {line: {row: 0, matches: '\[1/12\] \[cursor L2:C1\] README\.md'}}

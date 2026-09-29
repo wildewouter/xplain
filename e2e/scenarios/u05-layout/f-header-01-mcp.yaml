@@ -1,0 +1,11 @@
+id: F-HEADER-01
+title: 'header [mcp: on] only while the server runs'
+size: 120x24
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] '}}
+  - keys: M<Enter>
+  - expectScreen: {contains: '● on'}
+  - keys: <Esc>
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: on\] \[1/4\] '}}
+  - keys: M<Enter><Esc>
+  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] '}}

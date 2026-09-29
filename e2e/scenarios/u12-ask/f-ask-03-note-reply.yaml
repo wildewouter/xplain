@@ -1,0 +1,25 @@
+id: F-ASK-03
+title: reply to an agent note is queued as follow-up turn 2 carrying the note context
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - http: {tool: annotate, args: {file: README.md, line: 2, text: check this, number: 3}}
+  - keys: J
+  - keys: a
+  - keys: ok why<Enter>
+  - expectScreen:
+      line: {row: -1, contains: 'follow-up queued'}
+      notContains: 'enter send'
+      matches: 'check this +┃\n┃ follow-up: ok why +┃\n┃─ answer · agent · waiting… ─+┃'
+  - http: {tool: next_question, args: {wait_seconds: 5}}
+    expect:
+      result:
+        status: question
+        thread_id: q1
+        turn: 2
+        follow_up: true
+        previous: [{turn: 1, question: (note you added with annotate), answer: check this}]
+        question: "Follow-up to your earlier answer (thread q1, turn 2): ok why\n\nReply to your annotate note #3:\nFile: README.md\nSide: new\nLine: 2\n\nYour note:\ncheck this"
+  - http: {tool: answer, args: {thread_id: q1, text: see above}}
+    expect: {result: {ok: true}}
+  - expectScreen: {matches: 'follow-up: ok why +┃\n┃─ answer · agent · done ─+┃\n┃ see above +┃'}

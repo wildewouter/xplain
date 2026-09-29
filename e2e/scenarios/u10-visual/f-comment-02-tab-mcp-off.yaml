@@ -1,0 +1,17 @@
+id: F-COMMENT-02
+title: Tab with MCP off - note `MCP is off (M to start)`, mode stays save
+fixture: empty
+size: 80x20
+files:
+  f.txt: "alpha beta\n"
+steps:
+  - keys: a
+  - expectScreen: {line: {row: 6, matches: '^│ \[save\] enter send'}, notContains: 'MCP is off'}
+  - keys: <Tab>
+  - expectScreen:
+      line:
+        - {row: 6, matches: '^│ \[save\] enter send'}
+        - {row: -1, contains: 'MCP is off (M to start)'}
+      notContains: '[ask]'
+  - keys: hi<Enter>
+  - expectScreen: {line: {row: -1, contains: 'question saved (1)'}}

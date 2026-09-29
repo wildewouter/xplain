@@ -1,0 +1,40 @@
+id: F-MCPSRV-03
+title: unknown method gives -32601 Method not found with the method name cut to 100 chars
+files:
+  ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, contains: '[mcp: on]'}}
+  - http: {body: {jsonrpc: '2.0', id: 3, method: resources/list}}
+    expect:
+      status: 200
+      headers: {content-type: {$matches: '^application/json'}}
+      body:
+        {
+          jsonrpc: '2.0',
+          id: 3,
+          error: {code: -32601, message: 'Method not found: resources/list'},
+          result: {$exists: false},
+        }
+  - note: 150-char method name, message keeps the first 100
+    http:
+      {
+        body:
+          {
+            jsonrpc: '2.0',
+            id: 4,
+            method: 'mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm',
+          },
+      }
+    expect:
+      {
+        status: 200,
+        body:
+          {
+            id: 4,
+            error:
+              {
+                code: -32601,
+                message: 'Method not found: mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm',
+              },
+          },
+      }

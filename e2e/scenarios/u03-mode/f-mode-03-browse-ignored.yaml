@@ -1,0 +1,17 @@
+id: F-MODE-03
+title: m is ignored in browse; mode unchanged after going back to the diff
+steps:
+  - keys: F
+  - keys: src/a.ts<Enter>
+  - expectScreen: {line: {row: 0, matches: '^\[browse\] \[solarized\] \[mcp: off\] \[cursor L1:C1\] src/a\.ts'}}
+  - keys: m
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[browse\] \[solarized\] \[mcp: off\] \[cursor L1:C1\] src/a\.ts'}
+        - {row: 2, matches: '^   1  ▶export const a = 2;'}
+  - keys: <Esc>
+  - expectScreen:
+      {line: {row: 0, equals: '[all] [full] [unified] [solarized] [mcp: off] [1/4] [cursor L2:C1] README.md +2 -1'}}
+  - note: m still works in the diff view afterwards
+    keys: m
+  - expectScreen: {line: {row: 0, matches: '^\[staged\] '}}

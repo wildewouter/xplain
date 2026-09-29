@@ -1,0 +1,26 @@
+id: F-CFGUI-01
+title: on open, committed values and choice cursors reflect current state (flags + t/s/c changes, not config file)
+args: [--unstaged]
+files:
+  ${CONFIG}/xplain/config.json: {theme: solarized, app: {confirmQuit: false}, mcp: {autostart: true}}
+steps:
+  - expectScreen: {line: {row: 0, matches: '^\[unstaged\] \[full\] \[unified\] \[solarized\] \[mcp: on\] '}}
+  - note: t cycles theme to vibrant, s split on, c changes scope
+    keys: tsc
+  - expectScreen: {line: {row: 0, matches: '^\[unstaged\] \[changes\] \[split\] \[vibrant\] '}}
+  - keys: C
+  - expectScreen:
+      matches:
+        - '│> theme +solarized +\[vibrant\] +dull +› +│'
+        - '│  mode +all +staged +\[unstaged\] +│'
+        - '│  split +off +\[on\] +│'
+        - '│  view +full +\[changes\] +│'
+        - '│  confirm quit {4}\[off\] +on +│'
+        - '│  mcp on startup +off +\[on\] +│'
+  - note: choice cursor on the current theme
+    expectCell: {at: {text: '[vibrant]', row: 17, offset: 1}, inverse: true}
+  - expectCell: {at: {text: 'solarized', row: 17}, inverse: false}
+  - note: moving to the mode row puts its choice cursor on the current mode
+    keys: j
+  - expectCell: {at: {text: '[unstaged]', row: 18, offset: 1}, inverse: true}
+  - expectCell: {at: {text: '[vibrant]', row: 17, offset: 1}, inverse: false}

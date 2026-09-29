@@ -1,0 +1,14 @@
+id: F-MCPSRV-01
+title: token file cannot be written (state dir path is a file) - start fails, stays off, error row shows fs error
+size: 80x24
+files:
+  ${STATE}/xplain: "i am a file, not a dir\n"
+steps:
+  - keys: M<Enter>
+  - note: power row still off, a non-empty error row directly below it, then the clients row
+    expectScreen:
+      line: {row: 0, contains: '[mcp: off]'}
+      matches: '│> ○ off +│\n +│ \S.*│\n +│ clients 0 pending 0 delivered 0'
+  - note: error row in dels color (solarized)
+    expectCell: {at: {row: 9, col: 10}, fg: '#dc322f'}
+  - expectFile: {path: '${STATE}/xplain', equals: "i am a file, not a dir\n"}

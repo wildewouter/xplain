@@ -1,0 +1,6 @@
+id: F-CLI-03
+title: '--unstaged shortcut = --mode unstaged'
+args: [--unstaged]
+steps:
+  - expectScreen:
+      line: {row: 0, matches: '^\[unstaged\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/3\] '}

@@ -1,0 +1,16 @@
+id: F-EXPORT-02
+title: 'code fence length = max(3, longest backtick run + 1); inline code backticks = fence-2, padded when content starts/ends with a backtick'
+size: 250x20
+files:
+  '`q```.txt': "one\ntwo ```` two\nthree\n"
+steps:
+  - keys: <S-Tab><S-Tab>
+  - expectScreen: {line: {row: 0, contains: '`q```.txt'}}
+  - keys: ':2<Enter>'
+  - expectScreen: {line: {row: 0, contains: '[cursor L2:C1] `q```.txt'}}
+  - keys: aticks<Enter>E
+  - expectScreen: {line: {row: -1, matches: '^exported 1 comment -> '}}
+  - note: path has a run of 3 -> fence 4 -> inline 2 backticks, padded (starts with a backtick); code has a run of 4 -> fence 5
+    expectFile:
+      glob: xplain-review-*.md
+      contains: "## `` `q```.txt ``\n\n### 1. new side, line 2\n\n- origin: human\n- state: saved\n\nLine:\n\n`````\ntwo ```` two\n`````\n\nContext:\n\n`````\none\ntwo ```` two\nthree\n`````\n\n**Comment:**\n\n> ticks\n"

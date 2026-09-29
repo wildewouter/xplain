@@ -1,0 +1,37 @@
+id: F-NAV-08
+title: c (scope) and s (effective layout, cols >= 100) re-place the cursor
+size: 120x8
+steps:
+  - keys: <Tab>G
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[full\] \[unified\] .*\[2/4\] \[cursor L60:C1\] src/big\.ts '}
+        - {row: -1, matches: '^\(58-62/62\) '}
+  - keys: c
+  - note: changes scope - first row (hunk header), top 0
+    expectScreen:
+      line:
+        - {row: 0, matches: '\[changes\] .*\[2/4\] \[cursor r1:C1\] src/big\.ts '}
+        - {row: 2, matches: '^@@ '}
+        - {row: -1, matches: '^\(1-5/9\) '}
+  - keys: G
+  - expectScreen: {line: {row: 0, matches: '\[changes\] .*\[cursor L33:C1\] src/big\.ts '}}
+  - keys: c
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[full\] .*\[cursor L30:C1\] src/big\.ts '}
+        - {row: -1, matches: '^\(29-33/62\) '}
+  - keys: G
+  - expectScreen: {line: {row: 0, matches: '\[cursor L60:C1\] src/big\.ts '}}
+  - keys: s
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[split\] .*\[cursor new L30:C1\] src/big\.ts '}
+        - {row: -1, matches: '^\(29-33/61\) '}
+  - keys: G
+  - expectScreen: {line: {row: 0, matches: '\[cursor new L60:C1\] src/big\.ts '}}
+  - keys: s
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[unified\] .*\[cursor L30:C1\] src/big\.ts '}
+        - {row: -1, matches: '^\(29-33/62\) '}

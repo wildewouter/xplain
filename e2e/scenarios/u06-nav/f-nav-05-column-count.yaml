@@ -1,0 +1,129 @@
+id: F-NAV-05
+title: '] and [ keep the desired column and ignore (and clear) a count'
+# m.txt rows (full scope): 6 del L5 'line 5', 7 add L5 'line 5 changed', 22/23 del L20/L21, 24/25 add L20/L21,
+# 34 del L30, 40 add L35 'inserted'. Change starts: 6, 22, 34, 40.
+fixture: empty
+size: 80x16
+steps:
+  - note: committed base, then a working tree with four separate change runs; r loads it
+    writeFile:
+      path: m.txt
+      content: |
+        line 1
+        line 2
+        line 3
+        line 4
+        line 5
+        line 6
+        line 7
+        line 8
+        line 9
+        line 10
+        line 11
+        line 12
+        line 13
+        line 14
+        line 15
+        line 16
+        line 17
+        line 18
+        line 19
+        line 20
+        line 21
+        line 22
+        line 23
+        line 24
+        line 25
+        line 26
+        line 27
+        line 28
+        line 29
+        line 30
+        line 31
+        line 32
+        line 33
+        line 34
+        line 35
+        line 36
+        line 37
+        line 38
+        line 39
+        line 40
+  - writeFile: {path: o.txt, content: "a\n"}
+  - git: add -A
+  - git: {args: [commit, -qm, base], code: 0}
+  - writeFile:
+      path: m.txt
+      content: |
+        line 1
+        line 2
+        line 3
+        line 4
+        line 5 changed
+        line 6
+        line 7
+        line 8
+        line 9
+        line 10
+        line 11
+        line 12
+        line 13
+        line 14
+        line 15
+        line 16
+        line 17
+        line 18
+        line 19
+        line 20 x
+        line 21 x
+        line 22
+        line 23
+        line 24
+        line 25
+        line 26
+        line 27
+        line 28
+        line 29
+        line 31
+        line 32
+        line 33
+        line 34
+        line 35
+        inserted
+        line 36
+        line 37
+        line 38
+        line 39
+        line 40
+  - writeFile: {path: o.txt, content: "b\n"}
+  - keys: r
+  - expectScreen: {line: {row: 0, matches: '\[1/2\] .*m\.txt \+4 -4$'}}
+  - note: Tab away and back so m.txt gets its initial position (first change start)
+    keys: <Tab><Tab>
+  - expectScreen: {line: {row: 0, matches: '\[cursor L5:C1\] m\.txt '}, matches: '^   5      -▶line 5\b'}
+  - keys: j10l
+  - expectScreen: {line: {row: 0, matches: '\[cursor L5:C11\] m\.txt '}, matches: '^        5 \+▶line 5 changed'}
+  - keys: ']'
+  - note: desired column 11 shown clamped to 'line 20' (7 chars)
+    expectScreen: {line: {row: 0, matches: '\[cursor L20:C7\] m\.txt '}, matches: '^  20      -▶line 20\b'}
+  - keys: ']'
+  - expectScreen: {line: {row: 0, matches: '\[cursor L30:C7\] m\.txt '}}
+  - keys: ']'
+  - expectScreen: {line: {row: 0, matches: '\[cursor L35:C8\] m\.txt '}, matches: '^       35 \+▶inserted'}
+  - keys: '[[['
+  - expectScreen: {line: {row: 0, matches: '\[cursor L5:C6\] m\.txt '}, matches: '^   5      -▶line 5\b'}
+  - keys: j
+  - note: desired column survived the jumps
+    expectScreen: {line: {row: 0, matches: '\[cursor L5:C11\] m\.txt '}, matches: '^        5 \+▶line 5 changed'}
+  - keys: 2]
+  - note: count ignored - one jump only (a second would reach L30)
+    expectScreen: {line: {row: 0, matches: '\[cursor L20:C7\] m\.txt '}, matches: '^  20      -▶line 20\b'}
+  - keys: j
+  - note: count was cleared by ] - j moves one row (del L21), not two (add L20)
+    expectScreen: {line: {row: 0, matches: '\[cursor L21:C7\] m\.txt '}, matches: '^  21      -▶line 21\b'}
+  - keys: 3[
+  - note: one jump back to the start of this run (row 22), not three
+    expectScreen: {line: {row: 0, matches: '\[cursor L20:C7\] m\.txt '}, matches: '^  20      -▶line 20\b'}
+  - keys: k
+  - note: count cleared by [ - k moves one row
+    expectScreen: {line: {row: 0, matches: '\[cursor L19:C7\] m\.txt '}, matches: '^  19   19  ▶line 19\b'}

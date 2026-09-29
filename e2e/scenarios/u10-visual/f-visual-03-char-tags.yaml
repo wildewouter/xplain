@@ -1,0 +1,27 @@
+id: F-VISUAL-03
+title: char selection tags `L<a>:C<x>-C<y>` (same row) and `L<a>:C<x>-L<b>:C<y>` (rows differ)
+fixture: empty
+size: 80x30
+files:
+  f.txt: "alpha beta\ntwo words here\n\nfourth line\nfifth\n"
+steps:
+  - keys: llvllll
+  - expectScreen: {line: {row: 0, matches: '\[visual L1:C7\] f\.txt '}}
+  - keys: <Enter>
+  - expectScreen:
+      contains: '│ selection L1:C3-C7 '
+      matches: '│ > pha b\s+│'
+  - keys: <Esc><Esc>
+  - expectScreen: {line: {row: 0, matches: '\[cursor L1:C7\] f\.txt '}, notContains: '╭'}
+  - keys: 0llvjh
+  - expectScreen: {line: {row: 0, matches: '\[visual L2:C2\] f\.txt '}}
+  - keys: a
+  - expectScreen:
+      contains: '│ selection L1:C3-L2:C2 '
+      matches: ['│ > pha beta\s+│', '│ > tw\s+│']
+  - keys: <Esc><Esc>
+  - note: backward selection - tag goes from first to last position
+    keys: ':4<Enter>lvkkkh'
+  - expectScreen: {line: {row: 0, matches: '\[visual L1:C1\] f\.txt '}}
+  - keys: a
+  - expectScreen: {contains: '│ selection L1:C1-L4:C2 '}

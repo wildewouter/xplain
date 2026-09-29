@@ -1,0 +1,21 @@
+id: F-CLI-01
+title: '-h prints the exact usage text plus newline on stdout, exit 0, nothing on stderr, no UI'
+tui: false
+args: [-h]
+steps:
+  - expectExit: 0
+  - expectStdout:
+      equals: |
+        usage: xplain [--cwd dir] [--config file] [--mode all|staged|unstaged | --staged | --unstaged] [git diff args...]
+          --mode <m>   all (git diff HEAD, default), staged (--cached), unstaged
+          --staged     same as --mode staged
+          --unstaged   same as --mode unstaged
+          --split      start in side-by-side view (s toggles)
+          --changes-only  start with git hunks only, not the full file (c toggles)
+          --theme <t>  solarized, vibrant, dull, contrast, colorblind, light (first is default) (t cycles)
+          --config <f> config file (default $XPLAIN_CONFIG or ~/.config/xplain/config.json)
+          -h, --help   show this help
+        xplain config path  print the resolved config path
+        extra git args replace HEAD in "all" mode, and are appended in the other modes.
+        keys: ? help, s split/unified, c full/changes, ]/[ next/prev change, m cycles mode, t cycles theme, C config, q quits
+  - expectStderr: {equals: ''}
