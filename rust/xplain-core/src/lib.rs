@@ -43,6 +43,7 @@ pub mod rows;
 pub mod screen;
 pub mod search;
 pub mod state;
+pub mod textinput;
 pub mod textutil;
 pub mod theme;
 pub mod thread;

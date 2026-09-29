@@ -25,8 +25,6 @@ use crate::rows;
 use crate::state::{Overlay, Pending, State};
 use crate::thread_layout::{self, ThreadInfo};
 
-const MCP_OFF: &str = "MCP is off (M to start)";
-
 /// Per-thread scroll (F-ASK-07). A thread without an entry starts at the top with follow on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ThreadScroll {
@@ -60,10 +58,6 @@ pub fn on_mcp_stopped(state: &mut State) {
     state.thread.chosen = None;
 }
 
-fn note(state: &mut State, text: &str) {
-    state.note = Some(text.to_string());
-}
-
 /// `J` `K` `)` `(` in cursor/browse/visual context (focus and numbered jumps). True when consumed.
 pub fn on_cursor_key(state: &mut State, key: KeyEvent, fx: &mut Fx) -> bool {
     if key.mods.ctrl {
@@ -74,7 +68,7 @@ pub fn on_cursor_key(state: &mut State, key: KeyEvent, fx: &mut Fx) -> bool {
             state.nav.count = 0;
             let list = comments::ids_in_file(state);
             if list.is_empty() {
-                note(state, "no comments");
+                state.set_note("no comments");
                 return true;
             }
             let fo = state.nav.focused_comment.as_ref().and_then(|f| list.iter().position(|x| x == f));
@@ -111,7 +105,7 @@ pub fn on_cursor_key(state: &mut State, key: KeyEvent, fx: &mut Fx) -> bool {
 fn num_jump(state: &mut State, dir: i32, fx: &mut Fx) {
     let mut list: Vec<&Comment> = state.comments.iter().filter(|c| c.number.is_some()).collect();
     if list.is_empty() {
-        note(state, "no numbered comments");
+        state.set_note("no numbered comments");
         return;
     }
     list.sort_by_key(|c| (c.number, c.seq));
@@ -180,7 +174,7 @@ fn finish_jump(state: &mut State) {
     if visible {
         focus(state, &id);
     } else {
-        note(state, "comment not in view");
+        state.set_note("comment not in view");
     }
 }
 
@@ -236,7 +230,7 @@ pub fn on_focused_key(state: &mut State, key: KeyEvent, fx: &mut Fx) -> bool {
         }
         Key::Char('a') => {
             state.nav.count = 0;
-            ask_focused(state, &id, fx);
+            ask::ask_focused(state, &id, fx);
             return true;
         }
         Key::Char('A') => {
@@ -320,31 +314,7 @@ fn copy_block(state: &mut State, info: &ThreadInfo, i: usize, fx: &mut Fx) {
     let code = info.btns[i].1.clone();
     let n = code.split('\n').count();
     fx.push(Effect::Clipboard(code));
-    state.note = Some(format!("copied {n} line{}", if n == 1 { "" } else { "s" }));
-}
-
-/// `a` on the focused comment (F-ASK-02).
-fn ask_focused(state: &mut State, id: &str, fx: &mut Fx) {
-    let Some(c) = comments::find(state, id) else { return };
-    let latest = comments::latest_answer(c);
-    if latest.is_some_and(comments::is_live) {
-        note(state, "still waiting for the agent");
-        return;
-    }
-    let done = latest.is_some_and(|a| a.status == comments::AnswerStatus::Done);
-    let agent = comments::is_agent_note(c);
-    if done || (agent && comments::can_follow_up(c)) {
-        crate::editor::open_follow_up(state, id);
-    } else if agent {
-        note(state, "can't reply to this note yet");
-    } else if !comments::can_ask(c) {
-        note(state, "can't retry a follow-up yet");
-    } else if !state.mcp.running {
-        note(state, MCP_OFF);
-    } else {
-        ask::ask_comment(state, id, fx);
-        note(state, "question queued");
-    }
+    state.set_note(format!("copied {n} line{}", if n == 1 { "" } else { "s" }));
 }
 
 /// Key while `Overlay::DeleteComment` (y/Enter delete, n/Esc cancel; `q` quits).
@@ -360,7 +330,7 @@ pub fn on_delete_dialog_key(state: &mut State, key: KeyEvent, _fx: &mut Fx) {
             let next = list.iter().position(|x| *x == id).and_then(|i| list.get(i + 1)).cloned();
             comments::remove(state, &id);
             state.overlay = Overlay::None;
-            note(state, "comment deleted");
+            state.set_note("comment deleted");
             match next {
                 Some(n) => focus(state, &n),
                 None => unfocus(state),

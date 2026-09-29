@@ -7,14 +7,13 @@
 //! Must not render (box drawing = `view::thread_box`, layout = `thread_layout`).
 
 use crate::ask;
-use crate::comments::{self, Turn};
+use crate::comments;
 use crate::effect::Fx;
 use crate::keys::{Key, KeyEvent};
+use crate::messages::MCP_OFF;
 use crate::nav;
 use crate::state::{EditorKind, EditorState, Overlay, State};
-use crate::thread::ThreadScroll;
-
-const MCP_OFF: &str = "MCP is off (M to start)";
+use crate::textinput::{self, NewlinePolicy};
 
 /// Private editor state (add fields here).
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -26,15 +25,14 @@ pub fn effective_ask(state: &State, ed: &EditorState) -> bool {
 }
 
 /// Mode a new editor starts in: `ask` while MCP runs unless the user chose `save`; else `save`.
-fn default_ask(state: &mut State) -> bool {
-    if !state.mcp.running {
-        state.thread.chosen = None;
-        return false;
-    }
-    state.thread.chosen.unwrap_or(true)
+fn default_ask(state: &State) -> bool {
+    state.mcp.running && state.thread.chosen.unwrap_or(true)
 }
 
 fn open(state: &mut State, kind: EditorKind, text: String) {
+    if matches!(kind, EditorKind::New) && !state.mcp.running {
+        state.thread.chosen = None;
+    }
     let ask_mode = matches!(kind, EditorKind::New) && default_ask(state);
     let caret = text.chars().count();
     state.nav.count = 0;
@@ -59,7 +57,7 @@ pub fn on_cursor_key(state: &mut State, key: KeyEvent, _fx: &mut Fx) -> bool {
 pub fn open_edit(state: &mut State, id: &str) {
     let Some(c) = comments::find(state, id) else { return };
     if comments::turn_count(c) > 1 {
-        state.note = Some("can't edit after follow-ups".to_string());
+        state.set_note("can't edit after follow-ups");
         return;
     }
     let text = c.message.clone();
@@ -72,16 +70,6 @@ pub fn open_follow_up(state: &mut State, id: &str) {
         return;
     }
     open(state, EditorKind::FollowUp { id: id.to_string() }, String::new());
-}
-
-fn byte_at(s: &str, chars: usize) -> usize {
-    s.char_indices().nth(chars).map_or(s.len(), |(i, _)| i)
-}
-
-fn insert_text(ed: &mut EditorState, s: &str) {
-    let at = byte_at(&ed.text, ed.caret);
-    ed.text.insert_str(at, s);
-    ed.caret += s.chars().count();
 }
 
 /// Key while `Overlay::Editor`.
@@ -106,25 +94,21 @@ pub fn on_key(state: &mut State, key: KeyEvent, fx: &mut Fx) {
                 state.thread.chosen = Some(true);
             } else {
                 state.thread.chosen = None;
-                state.note = Some(MCP_OFF.to_string());
+                state.set_note(MCP_OFF);
             }
         }
         Key::Left => ed.caret = ed.caret.saturating_sub(1),
         Key::Right => ed.caret = (ed.caret + 1).min(ed.text.chars().count()),
         Key::Backspace | Key::Delete => {
-            if ed.caret > 0 {
-                let from = byte_at(&ed.text, ed.caret - 1);
-                let to = byte_at(&ed.text, ed.caret);
-                ed.text.replace_range(from..to, "");
-                ed.caret -= 1;
-            }
+            textinput::backspace(&mut ed.text, &mut ed.caret);
         }
         Key::Char(c) if !key.mods.ctrl && !key.mods.alt => {
-            if c == '\r' || c == '\n' {
-                insert_text(ed, " ");
-            } else {
-                insert_text(ed, c.encode_utf8(&mut [0; 4]));
-            }
+            textinput::insert(
+                &mut ed.text,
+                &mut ed.caret,
+                c.encode_utf8(&mut [0; 4]),
+                NewlinePolicy::Collapse,
+            );
         }
         _ => {}
     }
@@ -133,20 +117,7 @@ pub fn on_key(state: &mut State, key: KeyEvent, fx: &mut Fx) {
 /// Bracketed paste into the editor: each CR/LF run becomes one space (F-COMMENT-02). True when consumed.
 pub fn on_paste(state: &mut State, text: &str) -> bool {
     let Overlay::Editor(ed) = &mut state.overlay else { return false };
-    let mut s = String::with_capacity(text.len());
-    let mut in_break = false;
-    for c in text.chars() {
-        if c == '\r' || c == '\n' {
-            if !in_break {
-                s.push(' ');
-            }
-            in_break = true;
-        } else {
-            in_break = false;
-            s.push(c);
-        }
-    }
-    insert_text(ed, &s);
+    textinput::insert(&mut ed.text, &mut ed.caret, text, NewlinePolicy::Collapse);
     true
 }
 
@@ -160,18 +131,10 @@ fn submit(state: &mut State, fx: &mut Fx) {
     let kind = ed.kind.clone();
     let ask_now = effective_ask(state, ed);
     match kind {
-        EditorKind::FollowUp { id } => follow_up(state, &id, message, fx),
+        EditorKind::FollowUp { id } => follow_up(state, &id, &message, fx),
         EditorKind::Edit { id } => {
-            if let Some(c) = state.comments.iter_mut().find(|c| c.id == id) {
-                if c.turns.len() <= 1 {
-                    c.message = message.clone();
-                    match c.turns.first_mut() {
-                        Some(t) => t.message = message,
-                        None => c.turns.push(Turn { message, answer: None, prior: Vec::new() }),
-                    }
-                }
-            }
-            state.note = Some("comment updated".to_string());
+            comments::edit_message(state, &id, &message);
+            state.set_note("comment updated");
             close(state);
         }
         EditorKind::New => {
@@ -181,12 +144,12 @@ fn submit(state: &mut State, fx: &mut Fx) {
             if ask_now {
                 if state.mcp.running {
                     ask::ask_comment(state, &id, fx);
-                    state.note = Some("question sent to agent".to_string());
+                    state.set_note("question sent to agent");
                 } else {
-                    state.note = Some(MCP_OFF.to_string());
+                    state.set_note(MCP_OFF);
                 }
             } else {
-                state.note = Some(format!("question saved ({})", state.comments.len()));
+                state.set_note(format!("question saved ({})", state.comments.len()));
             }
             close(state);
         }
@@ -199,29 +162,17 @@ fn close(state: &mut State) {
 }
 
 /// Follow-up submit (F-ASK-03): new turn queued, or the editor stays with a note.
-fn follow_up(state: &mut State, id: &str, message: String, fx: &mut Fx) {
-    if !state.mcp.running {
-        state.note = Some(MCP_OFF.to_string());
-        return;
+fn follow_up(state: &mut State, id: &str, message: &str, fx: &mut Fx) {
+    if ask::follow_up(state, id, message, fx) {
+        close(state);
     }
-    let can = comments::find(state, id).is_some_and(comments::can_follow_up);
-    if !can {
-        state.note = Some("can't follow up yet".to_string());
-        return;
-    }
-    if let Some(c) = state.comments.iter_mut().find(|c| c.id == id) {
-        c.turns.push(Turn { message, answer: None, prior: Vec::new() });
-    }
-    ask::ask_comment(state, id, fx);
-    state.thread.scrolls.insert(id.to_string(), ThreadScroll { off: 0, follow: true });
-    state.note = Some("follow-up queued".to_string());
-    close(state);
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::comments::Turn;
     use crate::comments::testutil::{comment, ctx, state_with};
 
     fn key(state: &mut State, k: Key) {

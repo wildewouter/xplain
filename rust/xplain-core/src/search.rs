@@ -9,6 +9,7 @@ use crate::event::ReqId;
 use crate::fuzzy::{PathHit, match_paths};
 use crate::keys::{Key, KeyEvent};
 use crate::state::{Overlay, Pending, SearchState, State};
+use crate::textinput::{self, NewlinePolicy};
 
 /// Private search state (add fields here).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -56,7 +57,7 @@ pub fn on_key(state: &mut State, key: KeyEvent, fx: &mut Fx) {
             s.sel = 0;
         }
         Key::Char(c) if !ctrl && !key.mods.alt => {
-            s.query.push(c);
+            textinput::push(&mut s.query, c.encode_utf8(&mut [0; 4]), NewlinePolicy::Drop);
             s.sel = 0;
         }
         _ => {}
@@ -76,7 +77,7 @@ fn sel_of(state: &State) -> usize {
 
 pub fn on_paste(state: &mut State, text: &str) -> bool {
     let Overlay::Search(s) = &mut state.overlay else { return false };
-    s.query.extend(text.chars().filter(|c| *c != '\n' && *c != '\r'));
+    textinput::push(&mut s.query, text, NewlinePolicy::Drop);
     s.sel = 0;
     true
 }

@@ -6,6 +6,13 @@
 
 use crate::errors::{IoReason, fail_msg};
 
+/// Note when an action needs the MCP server but it is stopped (F-COMMENT-02, F-ASK-02).
+pub const MCP_OFF: &str = "MCP is off (M to start)";
+/// Note when a follow-up is refused (F-ASK-03).
+pub const CANT_FOLLOW_UP: &str = "can't follow up yet";
+/// Note after a follow-up turn is queued (F-ASK-03).
+pub const FOLLOW_UP_QUEUED: &str = "follow-up queued";
+
 /// `cannot run git: <reason>` (F-MODE-04).
 pub fn cannot_run_git(reason: IoReason) -> String {
     fail_msg("cannot run git", reason)

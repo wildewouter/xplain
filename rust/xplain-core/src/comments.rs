@@ -196,7 +196,7 @@ pub fn from_cursor(state: &mut State, message: &str) -> Comment {
     let side = nav::side(state);
     let sel = visual::selection(state);
     let head = cursor_head(state);
-    let (last, cur) = (state.rows.rows.len().saturating_sub(1), nav::cursor_row(state));
+    let (last, cur) = (nav::last_row(state), nav::cursor_row(state));
     let cur_row = state.rows.rows.get(cur);
     let cur_line = cur_row.and_then(|r| rows::row_no(r, side));
     let (first, ar) = match &sel {
@@ -326,6 +326,32 @@ pub fn can_follow_up(c: &Comment) -> bool {
         Some(a) => !is_live(a),
         None => is_agent_note(c) && turn_count(c) == 1,
     }
+}
+
+/// The `a` key opens the follow-up editor: latest answer done, or an agent note awaiting a first reply (F-ASK-02).
+pub fn can_reply(c: &Comment) -> bool {
+    latest_answer(c).is_some_and(|a| a.status == AnswerStatus::Done) || (is_agent_note(c) && can_follow_up(c))
+}
+
+/// Replace the message of comment `id` (and its first turn). Refused once follow-ups exist (F-COMMENT-07).
+pub fn edit_message(state: &mut State, id: &str, message: &str) -> bool {
+    let Some(c) = state.comments.iter_mut().find(|c| c.id == id) else { return false };
+    if c.turns.len() > 1 {
+        return false;
+    }
+    c.message = message.to_string();
+    match c.turns.first_mut() {
+        Some(t) => t.message = message.to_string(),
+        None => c.turns.push(Turn { message: message.to_string(), answer: None, prior: Vec::new() }),
+    }
+    true
+}
+
+/// Append an unanswered follow-up turn to comment `id`. Returns the new 1-based turn number.
+pub fn append_turn(state: &mut State, id: &str, message: &str) -> Option<u32> {
+    let c = state.comments.iter_mut().find(|c| c.id == id)?;
+    c.turns.push(Turn { message: message.to_string(), answer: None, prior: Vec::new() });
+    Some(c.turns.len() as u32)
 }
 
 /// Human comment, one turn, no answer or error/cancelled answer (F-ASK-02).
@@ -643,5 +669,31 @@ mod tests {
         c.origin = Origin::Agent;
         c.turns[0].answer = None;
         assert!(!can_ask(&c) && can_follow_up(&c), "agent note with no reply yet");
+    }
+
+    #[test]
+    fn f_ask_02_can_reply_rule() {
+        use super::testutil::answer;
+        let mut c = comment("q1", 1, 1, "m");
+        assert!(!can_reply(&c));
+        c.turns[0].answer = Some(answer(AnswerStatus::Done, "a"));
+        assert!(can_reply(&c));
+        c.turns[0].answer = Some(answer(AnswerStatus::Error, "e"));
+        assert!(!can_reply(&c));
+        c.origin = Origin::Agent;
+        c.turns[0].answer = None;
+        assert!(can_reply(&c), "agent note awaiting a first reply");
+    }
+
+    #[test]
+    fn f_comment_07_edit_message_and_append_turn() {
+        let mut s = state_with(vec![]);
+        s.comments.push(comment("q1", 1, 1, "old"));
+        assert!(edit_message(&mut s, "q1", "new"));
+        assert_eq!((s.comments[0].message.as_str(), s.comments[0].turns[0].message.as_str()), ("new", "new"));
+        assert_eq!(append_turn(&mut s, "q1", "more"), Some(2));
+        assert!(!edit_message(&mut s, "q1", "again"), "no edit after follow-ups");
+        assert_eq!(s.comments[0].message, "new");
+        assert_eq!(append_turn(&mut s, "zz", "x"), None);
     }
 }

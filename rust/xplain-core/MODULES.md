@@ -11,7 +11,7 @@ module up front. Handlers share one shape: `fn(&mut State, KeyEvent, &mut Fx) ->
 | -------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | A `parse`      | `diff.rs`, `config.rs`, `theme.rs`, `fuzzy.rs`, `messages.rs`, `errors.rs`, `options.rs` | F-EDGE-01..08, F-MODE-01/02 (argv, untracked), F-SCOPE-01, F-CONFIG-01..05, F-THEME-02, Colors, F-SEARCH-01 (matcher), Messages                      |
 | B `nav`        | `rows.rs`, `textutil.rs`, `nav/{mod,motion,word,viewport,visual}.rs`                     | F-CURSOR-01..10, F-VISUAL-01/02, F-NAV-01..04/07/09/10, F-LAYOUT-03..05 (row model), F-HEADER-03 (tag), F-LAYOUT-01 (H)                              |
-| C `navops`     | `jump.rs`, `find.rs`, `picker.rs`, `search.rs`, `browse.rs`, `help.rs`                   | F-NAV-05/06/08, F-RELOAD-03 (cursor memo), F-FIND-01..03, F-GOTO-01/02, F-FILES-01/02, F-SEARCH-01/02, F-BROWSE-01/02, F-HELP-01..04                 |
+| C `navops`     | `jump.rs`, `find.rs`, `picker.rs`, `search.rs`, `browse.rs`, `help.rs`, `textinput.rs`        | F-NAV-05/06/08, F-RELOAD-03 (cursor memo), F-FIND-01..03, F-GOTO-01/02, F-FILES-01/02, F-SEARCH-01/02, F-BROWSE-01/02, F-HELP-01..04                 |
 | D `comments`   | `comments.rs`, `editor.rs`, `thread.rs`, `thread_layout.rs`                              | F-COMMENT-01..10, F-VISUAL-03, F-ASK-03 (editor), F-ASK-05..08 (thread body layout)                                                                  |
 | E `agent`      | `mcp/{mod,http,rpc,tools,hub,token}.rs`, `ask.rs`, `export.rs`                           | F-MCPSRV-01..11, F-ASK-01/02/04/09, F-EXPORT-01/02, F-RELOAD-02 (trigger), Test seams (port)                                                         |
 | G `shell`      | `state.rs`, `update.rs`, `reload.rs`, `quit.rs`, `config_ui.rs`, `mcp_ui.rs`             | F-CLI-05, F-MODE-03..05, F-SCOPE-02, F-THEME-01, F-RELOAD-01/03, F-QUIT-01, F-CFGUI-01..03, F-MCPUI-01..04, F-INTEG-02..06 (flow), F-LAYOUT-04 (`s`) |
@@ -30,7 +30,8 @@ module up front. Handlers share one shape: `fn(&mut State, KeyEvent, &mut Fx) ->
 - Help (C): `help::footer_hints` used by `view::header`; `help::{help_ctx,entries_for}` by `view::help_panel`.
 - Reload (G): `jump::{remember,restore,open_file}` (C), `diff::parse_raw` (A).
 - Modals: state in `state.overlay`; behavior in `picker/search/config_ui/mcp_ui/quit/thread`; drawing only in `view::modals` (F1).
-- Notes: any module sets `state.note = Some(..)`; strings from `messages.rs` (A) or local consts.
+- Notes: any module calls `state.set_note(..)`; shared strings (`MCP_OFF`, follow-up notes) live in `messages.rs` (A), single-use ones stay local consts.
+- Text inputs: find, goto, search and the comment editor share `textinput` (insert/backspace/push, explicit `NewlinePolicy`: Collapse for find/editor, Drop for goto/search). `ask::ask_focused` is the only `a` handler; `comments::{can_reply,edit_message,append_turn}` own the reply rule and turn edits.
 
 ## Rules
 

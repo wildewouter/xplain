@@ -168,7 +168,7 @@ fn shown_path(state: &State) -> Option<String> {
 
 pub fn remember(state: &State) -> CursorMemo {
     let side = PaneSide::from(state.nav.pane);
-    let row = state.rows.rows.get(state.nav.row.min(state.rows.rows.len().saturating_sub(1)));
+    let row = state.rows.rows.get(crate::nav::cursor_row(state));
     CursorMemo {
         path: shown_path(state),
         row: state.nav.row,

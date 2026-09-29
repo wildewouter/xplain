@@ -10,6 +10,7 @@ use crate::jump::{nearest, new_nos};
 use crate::keys::{Key, KeyEvent};
 use crate::rows;
 use crate::state::{Overlay, PaneChoice, State};
+use crate::textinput::{self, NewlinePolicy};
 
 /// Private find state (add fields here).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -60,12 +61,8 @@ fn rows_matching(state: &State, term: &str) -> Vec<usize> {
         .collect()
 }
 
-fn cursor_row(state: &State) -> usize {
-    state.nav.row.min(state.rows.rows.len().saturating_sub(1))
-}
-
 fn not_found(state: &mut State, term: &str) {
-    state.note = Some(format!("pattern not found: {term}"));
+    state.set_note(format!("pattern not found: {term}"));
 }
 
 /// Cursor to `row`, column of the first hit (cursor pane text, else first row text), selection cleared.
@@ -95,7 +92,7 @@ fn find_next(state: &mut State, forward: bool, term: &str) {
     if ms.is_empty() {
         return not_found(state, term);
     }
-    let cur = cursor_row(state);
+    let cur = crate::nav::cursor_row(state);
     let row = if forward {
         ms.iter().copied().find(|x| *x > cur).unwrap_or(ms[0])
     } else {
@@ -121,14 +118,16 @@ pub fn on_find_key(state: &mut State, key: KeyEvent, _fx: &mut Fx) {
             if ms.is_empty() {
                 return not_found(state, &text);
             }
-            let cur = cursor_row(state);
+            let cur = crate::nav::cursor_row(state);
             let row = ms.iter().copied().find(|x| *x >= cur).unwrap_or(ms[0]);
             go_row(state, row, &text);
         }
         Key::Backspace | Key::Delete => {
             text.pop();
         }
-        Key::Char(c) if plain(&key) => text.push_str(&collapse_newlines(&c.to_string())),
+        Key::Char(c) if plain(&key) => {
+            textinput::push(text, c.encode_utf8(&mut [0; 4]), NewlinePolicy::Collapse)
+        }
         _ => {}
     }
 }
@@ -148,7 +147,7 @@ pub fn on_goto_key(state: &mut State, key: KeyEvent, _fx: &mut Fx) {
         Key::Backspace | Key::Delete => {
             text.pop();
         }
-        Key::Char(c) if plain(&key) && c != '\n' && c != '\r' => text.push(c),
+        Key::Char(c) if plain(&key) => textinput::push(text, c.encode_utf8(&mut [0; 4]), NewlinePolicy::Drop),
         _ => {}
     }
 }
@@ -156,26 +155,26 @@ pub fn on_goto_key(state: &mut State, key: KeyEvent, _fx: &mut Fx) {
 /// `goLine`: jump to new-side line `s` (nearest row when not in view).
 fn go_line(state: &mut State, s: &str) {
     if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
-        state.note = Some(format!("not a line number: {s}"));
+        state.set_note(format!("not a line number: {s}"));
         return;
     }
     let n = s.parse::<u64>().unwrap_or(u64::MAX);
     if n < 1 {
-        state.note = Some(format!("not a line number: {s}"));
+        state.set_note(format!("not a line number: {s}"));
         return;
     }
     let nos = new_nos(&state.rows.rows);
     let Some(i) = nearest(&nos, n) else {
-        state.note = Some("no lines in view".into());
+        state.set_note("no lines in view");
         return;
     };
     let top = nos.iter().flatten().copied().max().unwrap_or(0);
     if (state.settings.full || state.browse.is_some()) && n > u64::from(top) {
-        state.note = Some(format!("line {n} out of range (1-{top})"));
+        state.set_note(format!("line {n} out of range (1-{top})"));
         return;
     }
     if let Some(found) = nos[i].filter(|v| u64::from(*v) != n) {
-        state.note = Some(format!("line {n} not in view, nearest L{found}"));
+        state.set_note(format!("line {n} not in view, nearest L{found}"));
     }
     state.nav.focused_comment = None;
     state.nav.pane = PaneChoice::New;
@@ -184,33 +183,15 @@ fn go_line(state: &mut State, s: &str) {
     crate::nav::place(state, i, Some(0));
 }
 
-/// Each run of CR/LF becomes one space (find input paste).
-fn collapse_newlines(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut in_run = false;
-    for c in s.chars() {
-        if c == '\n' || c == '\r' {
-            if !in_run {
-                out.push(' ');
-            }
-            in_run = true;
-        } else {
-            in_run = false;
-            out.push(c);
-        }
-    }
-    out
-}
-
 /// Paste into the open find/goto input (newline runs collapse). False if neither is open.
 pub fn on_paste(state: &mut State, text: &str) -> bool {
     match &mut state.overlay {
         Overlay::Find { text: t } => {
-            t.push_str(&collapse_newlines(text));
+            textinput::push(t, text, NewlinePolicy::Collapse);
             true
         }
         Overlay::Goto { text: t } => {
-            t.extend(text.chars().filter(|c| *c != '\n' && *c != '\r'));
+            textinput::push(t, text, NewlinePolicy::Drop);
             true
         }
         _ => false,

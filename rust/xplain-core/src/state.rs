@@ -331,6 +331,11 @@ pub enum DiffNav {
 }
 
 impl State {
+    /// Show `text` as the status note.
+    pub fn set_note(&mut self, text: impl Into<String>) {
+        self.note = Some(text.into());
+    }
+
     /// Build the initial state and the initial effects (diff load). Loading frame is shown until
     /// `Event::DiffLoaded` arrives.
     pub fn new(init: Init, integrations: Integrations) -> (State, Vec<crate::Effect>) {

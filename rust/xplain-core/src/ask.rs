@@ -13,6 +13,7 @@ use crate::effect::{Effect, Fx};
 use crate::event::TimerId;
 use crate::mcp::tools::sanitize;
 use crate::mcp::{HubEvent, McpOutput, OutQuestion};
+use crate::messages::{CANT_FOLLOW_UP, FOLLOW_UP_QUEUED, MCP_OFF};
 use crate::state::State;
 use crate::thread::ThreadScroll;
 
@@ -22,7 +23,6 @@ pub const SPINNER_MS: u64 = 80;
 pub const SPINNER_FRAMES: usize = 10;
 
 const NOTE_TURN: &str = "(note you added with annotate)";
-const MCP_OFF: &str = "MCP is off (M to start)";
 
 /// Ask bookkeeping (add fields here), e.g. spinner running flag.
 #[derive(Debug, Clone, Default)]
@@ -30,10 +30,6 @@ pub struct AskState {
     pub spinner_running: bool,
     /// `thread id -> agent name` of the last delivery (answers carry it, F-ASK-05).
     pub agents: HashMap<String, String>,
-}
-
-fn add_line(v: &mut Vec<String>, s: impl Into<String>) {
-    v.push(s.into());
 }
 
 /// File / side / lines / code block + surrounding context (no question text), F-MCPSRV-06.
@@ -45,28 +41,25 @@ pub fn build_context(c: &Comment) -> String {
         _ => sel_start.or(c.line).map(|n| n.to_string()),
     };
     let mut l: Vec<String> = Vec::new();
-    add_line(&mut l, format!("File: {}", c.file));
-    add_line(
-        &mut l,
-        format!(
-            "Side: {}",
-            if c.side == PaneSide::Old { "old (before the change)" } else { "new (after the change)" }
-        ),
-    );
+    l.push(format!("File: {}", c.file));
+    l.push(format!(
+        "Side: {}",
+        if c.side == PaneSide::Old { "old (before the change)" } else { "new (after the change)" }
+    ));
     if let Some(r) = range {
-        add_line(&mut l, format!("Lines: {r}"));
+        l.push(format!("Lines: {r}"));
     }
-    add_line(&mut l, "");
-    add_line(&mut l, if sel_start.is_some() { "Selected code:" } else { "Code at cursor line:" });
-    add_line(&mut l, "```");
-    add_line(&mut l, c.text.clone());
-    add_line(&mut l, "```");
+    l.push("".into());
+    l.push((if sel_start.is_some() { "Selected code:" } else { "Code at cursor line:" }).into());
+    l.push("```".into());
+    l.push(c.text.clone());
+    l.push("```".into());
     if !c.context.is_empty() {
-        add_line(&mut l, "");
-        add_line(&mut l, "Surrounding context:");
-        add_line(&mut l, "```");
+        l.push("".into());
+        l.push("Surrounding context:".into());
+        l.push("```".into());
         l.extend(c.context.iter().cloned());
-        add_line(&mut l, "```");
+        l.push("```".into());
     }
     l.join("\n")
 }
@@ -75,17 +68,17 @@ pub fn build_context(c: &Comment) -> String {
 fn note_context(c: &Comment) -> String {
     let mut l: Vec<String> = Vec::new();
     match c.number {
-        Some(n) => add_line(&mut l, format!("Reply to your annotate note #{n}:")),
-        None => add_line(&mut l, "Reply to your annotate note:"),
+        Some(n) => l.push(format!("Reply to your annotate note #{n}:")),
+        None => l.push("Reply to your annotate note:".into()),
     }
-    add_line(&mut l, format!("File: {}", c.file));
-    add_line(&mut l, format!("Side: {}", if c.side == PaneSide::Old { "old" } else { "new" }));
+    l.push(format!("File: {}", c.file));
+    l.push(format!("Side: {}", if c.side == PaneSide::Old { "old" } else { "new" }));
     if let Some(n) = c.line {
-        add_line(&mut l, format!("Line: {n}"));
+        l.push(format!("Line: {n}"));
     }
-    add_line(&mut l, "");
-    add_line(&mut l, "Your note:");
-    add_line(&mut l, c.turns.first().map_or(c.message.as_str(), |t| t.message.as_str()));
+    l.push("".into());
+    l.push("Your note:".into());
+    l.push(c.turns.first().map_or(c.message.as_str(), |t| t.message.as_str()).into());
     l.join("\n")
 }
 
@@ -162,7 +155,7 @@ pub fn ask_comment(state: &mut State, id: &str, fx: &mut Fx) {
         return;
     }
     if !state.mcp.running {
-        state.note = Some(MCP_OFF.to_string());
+        state.set_note(MCP_OFF);
         return;
     }
     let turn = if pending_follow_up { turns as u32 } else { 1 };
@@ -174,46 +167,44 @@ pub fn ask_focused(state: &mut State, id: &str, fx: &mut Fx) {
     let Some(c) = comments::find(state, id) else { return };
     let latest = comments::latest_answer(c);
     if latest.is_some_and(comments::is_live) {
-        state.note = Some("still waiting for the agent".to_string());
+        state.set_note("still waiting for the agent");
         return;
     }
     let agent = comments::is_agent_note(c);
-    if latest.is_some_and(|a| a.status == AnswerStatus::Done) || (agent && comments::can_follow_up(c)) {
+    if comments::can_reply(c) {
         crate::editor::open_follow_up(state, id);
         return;
     }
     if agent {
-        state.note = Some("can't reply to this note yet".to_string());
+        state.set_note("can't reply to this note yet");
         return;
     }
     if !askable(state, id) {
-        state.note = Some("can't retry a follow-up yet".to_string());
+        state.set_note("can't retry a follow-up yet");
         return;
     }
     if !state.mcp.running {
-        state.note = Some(MCP_OFF.to_string());
+        state.set_note(MCP_OFF);
         return;
     }
     send_turn(state, id, 1, fx);
-    state.note = Some("question queued".to_string());
+    state.set_note("question queued");
 }
 
 /// Follow-up editor Enter (F-ASK-03): add turn `message`, queue it. `false` = refused (note set, editor stays).
 pub fn follow_up(state: &mut State, id: &str, message: &str, fx: &mut Fx) -> bool {
     if !state.mcp.running {
-        state.note = Some(MCP_OFF.to_string());
+        state.set_note(MCP_OFF);
         return false;
     }
-    let Some(c) = comment_mut(state, id) else { return false };
-    if !comments::can_follow_up(c) {
-        state.note = Some("can't follow up yet".to_string());
+    if !comments::find(state, id).is_some_and(comments::can_follow_up) {
+        state.set_note(CANT_FOLLOW_UP);
         return false;
     }
-    c.turns.push(Turn { message: message.to_string(), answer: None, prior: Vec::new() });
-    let turn = c.turns.len() as u32;
+    let Some(turn) = comments::append_turn(state, id, message) else { return false };
     state.thread.scrolls.insert(id.to_string(), ThreadScroll { off: 0, follow: true });
     send_turn(state, id, turn, fx);
-    state.note = Some("follow-up queued".to_string());
+    state.set_note(FOLLOW_UP_QUEUED);
     true
 }
 
@@ -222,18 +213,18 @@ pub fn ask_all(state: &mut State, fx: &mut Fx) {
     let todo: Vec<String> =
         comments::ids_in_file(state).into_iter().filter(|id| askable(state, id)).collect();
     if todo.is_empty() {
-        state.note = Some("nothing to ask".to_string());
+        state.set_note("nothing to ask");
         return;
     }
     if !state.mcp.running {
-        state.note = Some(MCP_OFF.to_string());
+        state.set_note(MCP_OFF);
         return;
     }
     for id in &todo {
         send_turn(state, id, 1, fx);
     }
     let n = todo.len();
-    state.note = Some(format!("queued {n} question{}", if n == 1 { "" } else { "s" }));
+    state.set_note(format!("queued {n} question{}", if n == 1 { "" } else { "s" }));
 }
 
 /// Whether a comment may be asked now (F-ASK-02 preconditions).
