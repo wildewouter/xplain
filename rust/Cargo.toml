@@ -39,8 +39,7 @@ unsafe_code = "forbid"
 unused_must_use = "deny"
 
 [workspace.lints.clippy]
-# skeleton phase: todo!() allowed. Workers remove nothing here; they just stop using todo!().
-todo = "allow"
+todo = "deny"
 unwrap_used = "warn"
 expect_used = "warn"
 panic = "warn"

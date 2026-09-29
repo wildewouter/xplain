@@ -28,8 +28,8 @@ const BINARY_MSG: &str = "binary file, not shown";
 /// Emit `Effect::LoadDiff` for the current settings (allocates req, `Pending::Diff`).
 pub fn request_load(state: &mut State, fx: &mut Fx) {
     let req = state.alloc_req();
-    state.pending.insert(req, Pending::Diff);
-    state.diff_req = Some(req);
+    state.loader.pending.insert(req, Pending::Diff);
+    state.loader.diff_req = Some(req);
     let spec = DiffSpec {
         cwd: state.options.cwd.clone(),
         mode: state.settings.mode,
@@ -40,7 +40,7 @@ pub fn request_load(state: &mut State, fx: &mut Fx) {
 }
 
 fn request_kind(state: &mut State, kind: DiffLoadKind, fx: &mut Fx) {
-    state.diff_kind = kind;
+    state.loader.diff_kind = kind;
     request_load(state, fx);
 }
 
@@ -52,28 +52,18 @@ pub fn on_key(state: &mut State, key: KeyEvent, fx: &mut Fx) -> bool {
     let Key::Char(c) = key.key else {
         return false;
     };
+    // In browse, `s c m` are consumed but do nothing.
     let browse = state.browse.is_some();
     match c {
-        's' | 'c' | 'm' => {
-            if !browse {
-                match c {
-                    's' => toggle_split(state, !state.settings.split),
-                    'c' => change_scope(state, !state.settings.full, fx),
-                    _ => change_mode(state, state.settings.mode.next(), fx),
-                }
-            }
-            true
-        }
-        't' => {
-            state.settings.theme = state.settings.theme.next();
-            true
-        }
-        'r' => {
-            reload_now(state, fx);
-            true
-        }
-        _ => false,
+        's' if !browse => toggle_split(state, !state.settings.split),
+        'c' if !browse => change_scope(state, !state.settings.full, fx),
+        'm' if !browse => change_mode(state, state.settings.mode.next(), fx),
+        's' | 'c' | 'm' => {}
+        't' => set_theme(state, state.settings.theme.next()),
+        'r' => reload_now(state, fx),
+        _ => return false,
     }
+    true
 }
 
 /// `r`: note, diff reload, browse re-read.
@@ -91,29 +81,23 @@ fn reread_browse(state: &mut State, fx: &mut Fx) {
             None => path.clone(),
         };
         let req = state.alloc_req();
-        state.pending.insert(req, Pending::BrowseReload { path });
+        state.loader.pending.insert(req, Pending::BrowseReload { path });
         fx.push(Effect::ReadFile { req, path: full });
     }
 }
 
-/// `Event::FileRead` for a `Pending::BrowseReload` request. True when the request was ours.
-pub fn on_browse_reread(
-    state: &mut State,
-    req: ReqId,
-    result: Result<Vec<u8>, crate::errors::IoReason>,
-) -> bool {
-    let Some(Pending::BrowseReload { path }) = state.pending.get(&req).cloned() else {
-        return false;
+/// `Event::FileRead` for a `Pending::BrowseReload` request (errors ignored, cursor kept). Other requests are
+/// left alone.
+pub fn on_browse_reread(state: &mut State, req: ReqId, result: Result<Vec<u8>, crate::errors::IoReason>) {
+    let Some(Pending::BrowseReload { path }) = state.loader.pending.get(&req).cloned() else {
+        return;
     };
-    state.pending.remove(&req);
-    let Ok(bytes) = result else {
-        return true;
-    };
-    let Some(b) = state.browse.as_mut() else {
-        return true;
+    state.loader.pending.remove(&req);
+    let (Ok(bytes), Some(b)) = (result, state.browse.as_mut()) else {
+        return;
     };
     if b.path != path {
-        return true;
+        return;
     }
     let lines = decode_lines(&bytes);
     if lines != b.lines {
@@ -122,7 +106,6 @@ pub fn on_browse_reread(
         rows::ensure(state);
         nav::clamp_cursor(state);
     }
-    true
 }
 
 fn decode_lines(bytes: &[u8]) -> Vec<String> {
@@ -138,7 +121,7 @@ fn change_mode(state: &mut State, mode: DiffMode, fx: &mut Fx) {
     state.settings.mode = mode;
     viewport::reset_top_keep_cursor(state);
     let memo = jump::remember(state);
-    state.diff_nav = Some(DiffNav::Mode(memo));
+    state.loader.diff_nav = Some(DiffNav::Mode(memo));
     request_kind(state, DiffLoadKind::Effect, fx);
 }
 
@@ -146,7 +129,7 @@ fn change_mode(state: &mut State, mode: DiffMode, fx: &mut Fx) {
 fn change_scope(state: &mut State, full: bool, fx: &mut Fx) {
     let keep = state.files.get(state.nav.file_index).map(|f| f.path.clone());
     state.settings.full = full;
-    state.diff_nav = Some(DiffNav::Scope(keep));
+    state.loader.diff_nav = Some(DiffNav::Scope(keep));
     if state.browse.is_none() {
         reset_cursor(state);
     }
@@ -175,13 +158,13 @@ fn toggle_split(state: &mut State, split: bool) {
 /// `Event::DiffLoaded`: stale dropped; Ok -> parse, replace files, bump `files_gen`, cursor per F-RELOAD-03 or
 /// F-NAV-08 (first load: set `ready`), no-changes state; Err -> `LoadState::Error`.
 pub fn on_diff_loaded(state: &mut State, req: ReqId, result: Result<RawDiff, String>, _fx: &mut Fx) {
-    if state.pending.remove(&req).is_none() || state.diff_req != Some(req) {
+    if state.loader.pending.remove(&req).is_none() || state.loader.diff_req != Some(req) {
         return;
     }
-    state.diff_req = None;
-    let action = state.diff_nav.take();
-    let kind = if action.is_some() || !state.ready { DiffLoadKind::Effect } else { state.diff_kind };
-    state.diff_kind = DiffLoadKind::Effect;
+    state.loader.diff_req = None;
+    let action = state.loader.diff_nav.take();
+    let kind = if action.is_some() || !state.ready { DiffLoadKind::Effect } else { state.loader.diff_kind };
+    state.loader.diff_kind = DiffLoadKind::Effect;
     match result {
         Err(msg) => {
             match kind {
@@ -341,7 +324,7 @@ mod tests {
         assert_eq!(s.load, LoadState::Loading);
         assert!(!s.is_ready());
         assert_eq!(s.integration_state.len(), 2);
-        assert_eq!(s.pending.len(), 1);
+        assert_eq!(s.loader.pending.len(), 1);
     }
 
     #[test]
@@ -366,7 +349,7 @@ mod tests {
                 }
             }]
         );
-        assert_eq!(s.pending.get(&ReqId(1)), Some(&Pending::Diff));
+        assert_eq!(s.loader.pending.get(&ReqId(1)), Some(&Pending::Diff));
     }
 
     #[test]
@@ -390,7 +373,7 @@ mod tests {
         let fx = key(&mut s, 'c');
         assert!(!s.settings.full);
         assert!(matches!(&fx[0], Effect::LoadDiff { spec, .. } if !spec.full));
-        assert_eq!(s.diff_nav, Some(DiffNav::Scope(Some("a.txt".into()))));
+        assert_eq!(s.loader.diff_nav, Some(DiffNav::Scope(Some("a.txt".into()))));
     }
 
     #[test]
@@ -452,7 +435,7 @@ mod tests {
         let fx = key(&mut s, 'r');
         assert_eq!(s.note.as_deref(), Some("reloaded"));
         assert!(matches!(fx.as_slice(), [Effect::LoadDiff { .. }]));
-        assert_eq!(s.diff_kind, DiffLoadKind::Manual);
+        assert_eq!(s.loader.diff_kind, DiffLoadKind::Manual);
     }
 
     #[test]
@@ -465,7 +448,8 @@ mod tests {
         let Effect::ReadFile { req, path } = &fx[1] else { panic!() };
         assert_eq!(path, "/w/a.txt");
         // read error ignored, old text kept
-        assert!(on_browse_reread(&mut s, *req, Err(crate::errors::IoReason::NotFound)));
+        on_browse_reread(&mut s, *req, Err(crate::errors::IoReason::NotFound));
+        assert!(!s.loader.pending.contains_key(req));
         assert_eq!(s.browse.as_ref().map(|b| b.lines.clone()), Some(vec!["old".to_string()]));
         assert_eq!(s.note.as_deref(), Some("reloaded"));
     }
@@ -483,7 +467,9 @@ mod tests {
             Some(vec!["new".to_string(), "lines".to_string()])
         );
         assert_eq!(s.files_gen, gen0 + 1);
-        assert!(!on_browse_reread(&mut s, ReqId(999), Ok(vec![])));
+        s.loader.pending.insert(ReqId(999), Pending::FileList);
+        on_browse_reread(&mut s, ReqId(999), Ok(vec![]));
+        assert!(s.loader.pending.contains_key(&ReqId(999)));
     }
 
     #[test]
@@ -511,7 +497,7 @@ mod tests {
         assert_eq!(s.load, LoadState::Ready);
         assert_eq!(s.files.len(), 1);
         assert_eq!(s.files[0].path, "a.txt");
-        assert!(s.pending.is_empty());
+        assert!(s.loader.pending.is_empty());
     }
 
     #[test]
@@ -608,11 +594,11 @@ mod tests {
         let mut s = fake_state();
         on_diff_loaded(&mut s, ReqId(1), Ok(raw()), &mut Vec::new());
         let fx = key(&mut s, 'm');
-        assert!(matches!(s.diff_nav, Some(DiffNav::Mode(_))));
+        assert!(matches!(s.loader.diff_nav, Some(DiffNav::Mode(_))));
         on_diff_loaded(&mut s, load_req(&fx), Ok(RawDiff::default()), &mut Vec::new());
         assert!(s.files.is_empty());
         assert_eq!(s.nav.file_index, 0);
-        assert!(s.diff_nav.is_none());
+        assert!(s.loader.diff_nav.is_none());
     }
 
     #[test]
@@ -622,7 +608,7 @@ mod tests {
         let fx = key(&mut s, 'm');
         on_diff_loaded(&mut s, load_req(&fx), Err("bad rev".into()), &mut Vec::new());
         assert_eq!(s.load, LoadState::Error("bad rev".into()));
-        assert!(s.diff_nav.is_none());
+        assert!(s.loader.diff_nav.is_none());
     }
 
     #[test]

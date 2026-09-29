@@ -229,7 +229,7 @@ mod tests {
         let mut s = fake_state();
         s.size = Size { cols: 80, rows: 24 };
         let raw = RawDiff { tracked: rust_file(n, tag), untracked: vec![] };
-        let req = s.diff_req.unwrap_or(ReqId(1));
+        let req = s.loader.diff_req.unwrap_or(ReqId(1));
         let fx = update(&mut s, Event::DiffLoaded { req, result: Ok(raw) });
         run_fx(&mut s, fx);
         s
@@ -408,7 +408,7 @@ mod tests {
         let mut s = fake_state();
         let n = MAX_LINES as usize + 1;
         let raw = RawDiff { tracked: rust_file(n, "a"), untracked: vec![] };
-        let req = s.diff_req.unwrap_or(ReqId(1));
+        let req = s.loader.diff_req.unwrap_or(ReqId(1));
         let fx = update(&mut s, Event::DiffLoaded { req, result: Ok(raw) });
         assert!(highlights(&fx).is_empty());
         let fx = key(&mut s, 'G');
@@ -422,7 +422,7 @@ mod tests {
             tracked: "diff --git a/a.zzz b/a.zzz\n--- a/a.zzz\n+++ b/a.zzz\n@@ -1 +1 @@\n-y\n+z\n".into(),
             untracked: vec![],
         };
-        let req = s.diff_req.unwrap_or(ReqId(1));
+        let req = s.loader.diff_req.unwrap_or(ReqId(1));
         let fx = update(&mut s, Event::DiffLoaded { req, result: Ok(raw) });
         assert!(highlights(&fx).is_empty());
     }
@@ -435,7 +435,7 @@ mod tests {
                 .into(),
             untracked: vec![],
         };
-        let req = s.diff_req.unwrap_or(ReqId(1));
+        let req = s.loader.diff_req.unwrap_or(ReqId(1));
         let fx = update(&mut s, Event::DiffLoaded { req, result: Ok(raw) });
         let hs = highlights(&fx);
         // new side: two hunks; old side: two delete runs

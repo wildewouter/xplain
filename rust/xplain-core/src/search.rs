@@ -25,7 +25,7 @@ pub fn on_normal_key(state: &mut State, key: KeyEvent, fx: &mut Fx) -> bool {
     }
     state.nav.count = 0;
     let req = state.alloc_req();
-    state.pending.insert(req, Pending::FileList);
+    state.loader.pending.insert(req, Pending::FileList);
     state.overlay =
         Overlay::Search(SearchState { ext: SearchExt { req: Some(req) }, ..SearchState::default() });
     fx.push(Effect::ListFiles { req, cwd: state.options.cwd.clone() });
@@ -84,7 +84,7 @@ pub fn on_paste(state: &mut State, text: &str) -> bool {
 
 /// `Event::FilesListed`: drop if `req` unknown/stale, fill `SearchState::files`.
 pub fn on_files_listed(state: &mut State, req: ReqId, files: Vec<String>) {
-    if !matches!(state.pending.remove(&req), Some(Pending::FileList)) {
+    if !matches!(state.loader.pending.remove(&req), Some(Pending::FileList)) {
         return;
     }
     if let Overlay::Search(s) = &mut state.overlay
@@ -113,7 +113,7 @@ mod tests {
     fn open(s: &mut State) -> (ReqId, Fx) {
         let mut fx = Vec::new();
         assert!(on_normal_key(s, KeyEvent::ch('F'), &mut fx));
-        let req = ReqId(s.next_req);
+        let req = ReqId(s.loader.next_req);
         (req, fx)
     }
 
@@ -135,7 +135,7 @@ mod tests {
         s.nav.count = 3;
         let (req, fx) = open(&mut s);
         assert_eq!(fx, vec![Effect::ListFiles { req, cwd: Some("/repo".into()) }]);
-        assert_eq!(s.pending.get(&req), Some(&Pending::FileList));
+        assert_eq!(s.loader.pending.get(&req), Some(&Pending::FileList));
         assert_eq!(s.nav.count, 0);
         assert!(search(&s).files.is_empty());
     }
@@ -145,7 +145,7 @@ mod tests {
         let mut s = state(Vec::new());
         let (req, _) = open(&mut s);
         on_files_listed(&mut s, req, vec!["a.txt".into(), "README.md".into(), "readme.md".into()]);
-        assert!(s.pending.is_empty());
+        assert!(s.loader.pending.is_empty());
         assert_eq!(hits(&s).len(), 3);
         for c in "rm".chars() {
             press(&mut s, KeyEvent::ch(c));
@@ -174,7 +174,7 @@ mod tests {
         press(&mut s, KeyEvent::plain(Key::Esc));
         on_files_listed(&mut s, req, vec!["x".into()]);
         assert_eq!(s.overlay, Overlay::None);
-        assert!(s.pending.is_empty());
+        assert!(s.loader.pending.is_empty());
     }
 
     #[test]

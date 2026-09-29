@@ -422,7 +422,7 @@ pub(crate) mod testutil {
     /// State with file `a.rs` and the given (unified) rows; no rows-cache rebuild needed.
     pub fn state_with(rows: Vec<ShownRow>) -> State {
         let mut st = crate::state::testutil::fake_state();
-        st.pending.clear();
+        st.loader.pending.clear();
         st.load = LoadState::Ready;
         st.ready = true;
         st.files = vec![file("a.rs")];

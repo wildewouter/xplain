@@ -30,11 +30,8 @@ impl DiffMode {
     }
     /// `m` key order: all, staged, unstaged, all.
     pub fn next(self) -> Self {
-        match self {
-            DiffMode::All => DiffMode::Staged,
-            DiffMode::Staged => DiffMode::Unstaged,
-            DiffMode::Unstaged => DiffMode::All,
-        }
+        let i = Self::ALL.iter().position(|m| *m == self).unwrap_or(0);
+        Self::ALL[(i + 1) % Self::ALL.len()]
     }
 }
 

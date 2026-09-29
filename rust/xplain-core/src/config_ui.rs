@@ -117,13 +117,13 @@ fn select(state: &mut State, fx: &mut Fx) {
     };
     reload::apply_setting_change(state, change.clone(), fx);
     let req = state.alloc_req();
-    state.pending.insert(req, Pending::ConfigSave);
+    state.loader.pending.insert(req, Pending::ConfigSave);
     fx.push(Effect::SaveConfig { req, path: state.env.config_path.clone(), change });
 }
 
 /// `Event::ConfigSaved`: clears the note on success, error notes per F-CFGUI-03 / `ConfigSaveError`.
 pub fn on_saved(state: &mut State, req: ReqId, result: Result<(), ConfigSaveError>) {
-    if state.pending.remove(&req).is_none() {
+    if state.loader.pending.remove(&req).is_none() {
         return;
     }
     let path = state.env.config_path.clone();
@@ -294,13 +294,13 @@ mod tests {
     fn f_cfgui_03_saved_notes() {
         let mut s = fake_state();
         s.note = Some("x".into());
-        s.pending.insert(ReqId(5), Pending::ConfigSave);
+        s.loader.pending.insert(ReqId(5), Pending::ConfigSave);
         on_saved(&mut s, ReqId(5), Ok(()));
         assert_eq!(s.note, None);
-        s.pending.insert(ReqId(6), Pending::ConfigSave);
+        s.loader.pending.insert(ReqId(6), Pending::ConfigSave);
         on_saved(&mut s, ReqId(6), Err(ConfigSaveError::Unreadable));
         assert_eq!(s.note.as_deref(), Some("config unreadable, not saved (/cfg/config.json)"));
-        s.pending.insert(ReqId(7), Pending::ConfigSave);
+        s.loader.pending.insert(ReqId(7), Pending::ConfigSave);
         on_saved(&mut s, ReqId(7), Err(ConfigSaveError::Io(IoReason::PermissionDenied)));
         assert_eq!(s.note.as_deref(), Some("config save failed: /cfg/config.json: permission denied"));
     }

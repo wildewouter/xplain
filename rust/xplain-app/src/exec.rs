@@ -202,7 +202,7 @@ impl Executor for RealExecutor {
                 self.spawn_event(async move {
                     let n = lines.len();
                     let job = tokio::task::spawn_blocking(move || {
-                        xplain_core::highlight::highlight_lines(&lang, &lines, carry.as_ref())
+                        xplain_core::highlight_lines(&lang, &lines, carry.as_ref())
                     })
                     .await;
                     let (runs, end) = job.unwrap_or_else(|_| (vec![Vec::new(); n], None));
@@ -301,8 +301,8 @@ mod tests {
 
     #[tokio::test]
     async fn highlight_runs_off_loop_and_counts_as_pending() {
-        use xplain_core::comments::PaneSide;
-        use xplain_core::hlcache::HlKey;
+        use xplain_core::HlKey;
+        use xplain_core::PaneSide;
         let (mut ex, mut rx, pending) = make();
         let key = HlKey { path: "a.rs".into(), side: PaneSide::New, hash: 7 };
         ex.dispatch(Effect::Highlight {

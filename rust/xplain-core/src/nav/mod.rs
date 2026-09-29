@@ -17,10 +17,6 @@ use crate::keys::{Key, KeyEvent};
 use crate::screen::Size;
 use crate::state::{PaneChoice, State};
 
-/// Private nav state (add fields here). Example: remembered goal column for vertical moves.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct NavExt {}
-
 /// Viewport height H = max(3, rows-3) (F-LAYOUT-01).
 pub fn body_height(size: Size) -> usize {
     usize::from(size.rows).saturating_sub(3).max(3)

@@ -375,13 +375,7 @@ mod tests {
     }
 
     fn editor(kind: EditorKind) -> Overlay {
-        Overlay::Editor(EditorState {
-            kind,
-            text: String::new(),
-            caret: 0,
-            ask_mode: false,
-            ext: Default::default(),
-        })
+        Overlay::Editor(EditorState { kind, text: String::new(), caret: 0, ask_mode: false })
     }
 
     const DIFF_L1: &[&str] = &[

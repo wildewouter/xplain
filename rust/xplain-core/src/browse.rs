@@ -24,7 +24,7 @@ fn full_path(state: &State, path: &str) -> String {
 /// Start opening `path` (repo relative) in browse: allocate req, `Pending::Browse`, `Effect::ReadFile`.
 pub fn open(state: &mut State, path: &str, fx: &mut Fx) {
     let req = state.alloc_req();
-    state.pending.insert(req, Pending::Browse { path: path.to_string() });
+    state.loader.pending.insert(req, Pending::Browse { path: path.to_string() });
     fx.push(Effect::ReadFile { req, path: full_path(state, path) });
 }
 
@@ -41,7 +41,7 @@ fn split_lines(bytes: &[u8]) -> Vec<String> {
 /// `Event::FileRead`: stale ids dropped; Err -> note `messages::cannot_read`; binary (NUL) handling;
 /// success sets `state.browse`, bumps `files_gen`, cursor to row 0, closes search overlay.
 pub fn on_file_read(state: &mut State, req: ReqId, result: Result<Vec<u8>, IoReason>, _fx: &mut Fx) {
-    let Some(Pending::Browse { path }) = state.pending.remove(&req) else { return };
+    let Some(Pending::Browse { path }) = state.loader.pending.remove(&req) else { return };
     let same = state.browse.as_ref().is_some_and(|b| b.path == path);
     let bytes = match result {
         Ok(b) => b,
@@ -112,7 +112,7 @@ mod tests {
     fn read(s: &mut State, path: &str, bytes: &[u8]) {
         let mut fx = Vec::new();
         open(s, path, &mut fx);
-        let req = ReqId(s.next_req);
+        let req = ReqId(s.loader.next_req);
         on_file_read(s, req, Ok(bytes.to_vec()), &mut fx);
     }
 
@@ -130,7 +130,7 @@ mod tests {
         fx.clear();
         open(&mut s, "d/a.txt", &mut fx);
         assert!(matches!(fx.as_slice(), [Effect::ReadFile { path, .. }] if path == "/r/d/a.txt"));
-        assert_eq!(s.pending.len(), 2);
+        assert_eq!(s.loader.pending.len(), 2);
     }
 
     #[test]
@@ -162,7 +162,7 @@ mod tests {
         assert_eq!(s.overlay, Overlay::None);
         assert!(s.files_gen > gen0);
         assert_eq!((s.nav.row, s.nav.col, s.nav.top), (0, 0, 0));
-        assert!(s.pending.is_empty());
+        assert!(s.loader.pending.is_empty());
     }
 
     #[test]
@@ -171,7 +171,7 @@ mod tests {
         s.options.cwd = Some("/r".into());
         let mut fx = Vec::new();
         open(&mut s, "a.txt", &mut fx);
-        let req = ReqId(s.next_req);
+        let req = ReqId(s.loader.next_req);
         on_file_read(&mut s, req, Err(IoReason::NotFound), &mut fx);
         assert_eq!(s.note.as_deref(), Some("cannot read /r/a.txt: not found"));
         assert!(s.browse.is_none());

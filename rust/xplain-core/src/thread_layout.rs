@@ -1047,13 +1047,7 @@ mod tests {
     #[test]
     fn f_comment_01_editor_box_layout() {
         let mut s = st();
-        let ed = EditorState {
-            kind: EditorKind::New,
-            text: "abc".into(),
-            caret: 1,
-            ask_mode: false,
-            ext: Default::default(),
-        };
+        let ed = EditorState { kind: EditorKind::New, text: "abc".into(), caret: 1, ask_mode: false };
         s.overlay = Overlay::Editor(ed.clone());
         let b = editor_box(&s, &ed, 60);
         let t = texts(&b);
@@ -1068,13 +1062,7 @@ mod tests {
     #[test]
     fn f_comment_01_editor_caret_at_end_is_space_and_long_text_windows() {
         let s = st();
-        let ed = EditorState {
-            kind: EditorKind::New,
-            text: "x".repeat(100),
-            caret: 100,
-            ask_mode: false,
-            ext: Default::default(),
-        };
+        let ed = EditorState { kind: EditorKind::New, text: "x".repeat(100), caret: 100, ask_mode: false };
         let b = editor_box(&s, &ed, 30);
         let input = &b.lines[1];
         assert_eq!(
@@ -1106,7 +1094,6 @@ mod tests {
             text: String::new(),
             caret: 0,
             ask_mode: false,
-            ext: Default::default(),
         };
         let t = texts(&editor_box(&s, &fu, 60));
         assert_eq!(t.len(), 5);
@@ -1126,13 +1113,7 @@ mod tests {
             anchor_row: 0,
             anchor_col: 0,
         });
-        let ed = EditorState {
-            kind: EditorKind::New,
-            text: String::new(),
-            caret: 0,
-            ask_mode: false,
-            ext: Default::default(),
-        };
+        let ed = EditorState { kind: EditorKind::New, text: String::new(), caret: 0, ask_mode: false };
         let t = texts(&editor_box(&s, &ed, 60));
         assert_eq!(t.len(), 4 + 1 + 5 + 1);
         assert!(t[1].starts_with("│ selection L1-8"));
@@ -1155,7 +1136,6 @@ mod tests {
             text: String::new(),
             caret: 0,
             ask_mode: false,
-            ext: Default::default(),
         });
         assert_eq!(row_extra_height(&s, 1), 4 + 5 + 4);
         let b = boxes_at(&s, 1);
@@ -1190,7 +1170,6 @@ mod tests {
             text: String::new(),
             caret: 0,
             ask_mode: false,
-            ext: Default::default(),
         });
         assert_eq!(thread_info(&s, &c).v, base - ASK_H);
     }

@@ -1,9 +1,33 @@
 # xplain-core modules
 
-Pure crate. Boundary files (frozen): `event, effect, keys, screen, options, integration, errors`, the outline of
-`state`, `theme` ids, `config`/`diff` types. Registries (`lib.rs`, `nav/mod.rs`, `mcp/mod.rs`, `view.rs`) list every
-module up front. Handlers share one shape: `fn(&mut State, KeyEvent, &mut Fx) -> bool` (consumed) or `fn(&mut State, ..., &mut Fx)`.
-`Fx = Vec<Effect>`. Private per-module state lives in `Ext`/`Ui` structs already embedded in `State` (only `shell` edits `state.rs`).
+Pure crate: no IO, clock, async or agent names. Handlers share one shape: `fn(&mut State, KeyEvent, &mut Fx) -> bool`
+(consumed) or `fn(&mut State, ..., &mut Fx)`. `Fx = Vec<Effect>`. One `State` (Elm style, `&mut State` handlers by design);
+per-feature bookkeeping lives in sub-structs (`Loader`, `McpUi`, `ThreadUi`, `AskState`, `PickerUi`, `HlCache`, ...).
+`lib.rs` registers every module up front. Only the boundary API is public: `event, effect, keys, screen, options,
+integration, errors, state, config, diff, mcp, theme` plus root re-exports (`State, update, view, Event, Effect, Screen,
+PaneSide, HlKey, highlight_lines`). `comments`, `highlight`, `hlcache`, `view` are crate-private.
+
+## Layers (a module may use modules of its own layer or below; never above)
+
+```
+L5 view      canvas  view  view/{header,modals,help_panel,rows,thread_box}
+               |  reads &State, produces Screen
+L4 shell     update  reload  quit  config_ui  mcp_ui
+               |  routing + lifecycle (diff load, config, MCP start/stop, integrations flow)
+L3 features  nav/{motion,word,viewport,visual}  jump  find  picker  search  browse  help
+             comments  editor  thread  thread_layout  ask  export  hlcache  rows
+               |  one feature each, mutate State through small APIs
+L2 state     state  (Loader, McpUi, Overlay, Nav, ...)  mcp/{mod,hub,rpc,tools,http,token}
+               |  data + `Overlay::route_key` dispatch, `State::{current_path,alloc_req,set_note}`
+L1 parse     diff  config  theme  fuzzy  highlight  textutil  textinput  messages
+               |
+L0 boundary  event  effect  keys  screen  errors  options  integration
+```
+
+`state` calls feature handlers only in `Overlay::route_key`; everything else in `state` is data. `Pending` and `Loader`
+map outstanding `ReqId`s back to their purpose, stale ids are dropped.
+
+## Ownership
 
 ## Ownership
 
@@ -20,7 +44,7 @@ module up front. Handlers share one shape: `fn(&mut State, KeyEvent, &mut Fx) ->
 
 ## Interfaces (who calls whom)
 
-- `update` (G) routes per the order in its doc; all feature code is behind the fns named there.
+- `update` (G) routes per the order in its doc (overlay keys via `Overlay::route_key`); all feature code is behind the fns named there.
 - Cursor: everyone moves the cursor via `nav::place(state,row,col)` (B); viewport via `nav::viewport::*` (B). Rows: `rows::ensure(state)` after
   changing `file_index`/`split`/`browse`/`files`; readers use `state.rows.rows` and `rows::{row_no,row_code,pane_of,...}`.
 - Viewport needs comment box heights: `thread_layout::row_extra_height` (D). View draws boxes from `thread_layout::boxes_at` (D) via `view::thread_box` (F2).
@@ -36,13 +60,13 @@ module up front. Handlers share one shape: `fn(&mut State, KeyEvent, &mut Fx) ->
 ## Rules
 
 - Spec ID in doc comments and test names (`f_nav_05_...`). Unit tests in-file. No unwrap/expect/panic in runtime paths.
-- No agent names. No IO. Fill `todo!()` only; never edit files of another component. Need a signature change -> report it.
+- No agent names. No IO. `todo!()` is denied by lint. Need a signature change in another component -> report it.
 
 ## Design moves during implementation (add-only)
 
-- State: diff_req/diff_kind/diff_nav/last_token/autostart_req; DiffLoadKind, DiffNav; IntegrationState.keep_note; Pending::BrowseReload{path}.
+- State: `loader` (pending, next_req, diff_req, diff_kind, diff_nav), `mcp_ui` (last_token, autostart_req); DiffLoadKind, DiffNav; IntegrationState.keep_note; Pending::BrowseReload{path}.
 - ThreadUi: heads, chosen, num_go, num_last, seen.
-- update runs rows::ensure and thread::sync after every event; FileRead goes to reload::on_browse_reread first.
+- update runs rows::ensure and thread::sync after every event; FileRead for a `Pending::BrowseReload` request goes to reload::on_browse_reread, others to browse::on_file_read.
 - MCP stop: thread::on_mcp_stopped + ask::cancel_live; McpState::reset_hub on new start.
 - HttpResponse headers already include content-type; runtime must not add it.
 - config.rs has private ordered JSON writer (key order stable).

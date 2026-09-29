@@ -164,7 +164,7 @@ fn finish_jump(state: &mut State) {
         return;
     }
     if !same_file {
-        let reading = state.pending.values().any(|p| matches!(p, Pending::Browse { .. }));
+        let reading = state.loader.pending.values().any(|p| matches!(p, Pending::Browse { .. }));
         if !reading {
             state.thread.num_go = None; // open failed (note set by browse)
         }

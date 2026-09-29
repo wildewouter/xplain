@@ -247,7 +247,7 @@ pub(crate) mod testkit {
         s.files_gen += 1;
         s.load = LoadState::Ready;
         s.ready = true;
-        s.pending.clear();
+        s.loader.pending.clear();
         crate::rows::ensure(&mut s);
         s
     }
