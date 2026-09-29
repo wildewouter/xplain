@@ -81,6 +81,7 @@ pub fn update(state: &mut State, event: Event) -> Vec<Effect> {
 /// Key routing (see the module doc for the order).
 fn on_key(state: &mut State, key: KeyEvent, fx: &mut Fx) {
     if help::on_key(state, key, fx) {
+        nav::clear_count(state);
         return;
     }
     match state.overlay {
@@ -101,7 +102,8 @@ fn on_key(state: &mut State, key: KeyEvent, fx: &mut Fx) {
     if state.browse.is_some() && browse::on_key(state, key, fx) {
         return;
     }
-    let _ = quit::on_normal_key(state, key, fx)
+    // Every shell handler that claims a key clears the pending count (F-CURSOR-05).
+    let shell = quit::on_normal_key(state, key, fx)
         || reload::on_key(state, key, fx)
         || jump::on_key(state, key, fx)
         || find::on_normal_key(state, key, fx)
@@ -111,8 +113,12 @@ fn on_key(state: &mut State, key: KeyEvent, fx: &mut Fx) {
         || thread::on_cursor_key(state, key, fx)
         || export::on_key(state, key, fx)
         || config_ui::on_normal_key(state, key, fx)
-        || mcp_ui::on_normal_key(state, key, fx)
-        || nav::on_key(state, key, fx);
+        || mcp_ui::on_normal_key(state, key, fx);
+    if shell {
+        nav::clear_count(state);
+    } else {
+        let _ = nav::on_key(state, key, fx);
+    }
 }
 
 #[cfg(test)]
@@ -149,6 +155,16 @@ mod tests {
             Overlay::DeleteComment { id: "q1".into() },
             Overlay::Quit,
         ]
+    }
+
+    #[test]
+    fn f_cursor_05_shell_keys_clear_count() {
+        for c in ['?', 'r', 'M', 'F', 'f', 'C', 'E', 'n', 'N', 'q'] {
+            let mut s = fake_state();
+            s.nav.count = 3;
+            key(&mut s, c);
+            assert_eq!(s.nav.count, 0, "key {c}");
+        }
     }
 
     #[test]
