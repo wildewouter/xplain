@@ -60,6 +60,17 @@ fn key_item(key: Key, mods: Mods) -> Option<InputItem> {
 }
 
 /// Parse one plain (non-ESC) key at the head of `b`.
+/// Unbracketed paste: one write holding printable text and CR/LF (no controls, no ESC). Length of that
+/// run, when it holds a newline and something else. Typed keys arrive one per write, so this is a paste.
+fn raw_paste_len(b: &[u8]) -> Option<usize> {
+    let n = b.iter().position(|&c| c == 0x1b).unwrap_or(b.len());
+    let run = std::str::from_utf8(&b[..n]).ok()?;
+    let has_nl = run.contains(['\r', '\n']);
+    let has_text = run.chars().any(|c| !matches!(c, '\r' | '\n'));
+    let clean = run.chars().all(|c| matches!(c, '\r' | '\n') || !c.is_control());
+    (has_nl && has_text && clean).then_some(n)
+}
+
 fn parse_plain(b: &[u8]) -> Parsed {
     let Some(&c) = b.first() else { return Parsed::More };
     let plain = |k: Key| Parsed::Item(1, key_item(k, Mods::default()));
@@ -155,7 +166,14 @@ impl InputDecoder {
             if rest.is_empty() {
                 break;
             }
-            let parsed = if rest[0] == 0x1b { self.parse_esc(rest) } else { parse_plain(rest) };
+            let parsed = if rest[0] == 0x1b {
+                self.parse_esc(rest)
+            } else if let Some(n) = raw_paste_len(rest) {
+                let text = String::from_utf8_lossy(&rest[..n]).into_owned();
+                Parsed::Item(n, Some(InputItem::Paste(text)))
+            } else {
+                parse_plain(rest)
+            };
             match parsed {
                 Parsed::More => break,
                 Parsed::Item(n, item) => {
@@ -351,6 +369,16 @@ mod tests {
             keys(false, b"\x1b[200~a\nb\x1b[201~x"),
             vec![InputItem::Paste("a\nb".into()), k(Key::Char('x'))]
         );
+    }
+
+    #[test]
+    fn f_cli_05_raw_paste_chunk() {
+        assert_eq!(
+            keys(true, b"a\r\n\r\nb\nc\x1b[9999~"),
+            vec![InputItem::Paste("a\r\n\r\nb\nc".into()), InputItem::Barrier(BarrierKind::Idle)]
+        );
+        assert_eq!(keys(false, b"\r"), vec![k(Key::Enter)]);
+        assert_eq!(keys(false, b"\r\n"), vec![k(Key::Enter), k(Key::Enter)]);
     }
 
     #[test]
