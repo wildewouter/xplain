@@ -92,11 +92,13 @@ pub fn draw_body(c: &mut Canvas, state: &State, theme: &Theme, area: Rect) {
 
 /// Width of the two number columns of unified rows for `n` (widens above 9999) (F-LAYOUT-03).
 /// `OOOO NNNN` without the trailing space: `2 * max(4, digits) + 1`.
+#[cfg(test)]
 pub fn gutter_width(max_no: u32) -> u16 {
     let w = pad_width(max_no);
     (2 * w + 1) as u16
 }
 
+#[cfg(test)]
 fn pad_width(n: u32) -> usize {
     n.to_string().len().max(4)
 }

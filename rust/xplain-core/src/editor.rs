@@ -15,10 +15,6 @@ use crate::nav;
 use crate::state::{EditorKind, EditorState, Overlay, State};
 use crate::textinput::{self, NewlinePolicy};
 
-/// Private editor state (add fields here).
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct EditorExt {}
-
 /// Save/ask mode in effect for `ed`: ask only while MCP runs (F-COMMENT-02).
 pub fn effective_ask(state: &State, ed: &EditorState) -> bool {
     state.mcp.running && ed.ask_mode
@@ -36,7 +32,7 @@ fn open(state: &mut State, kind: EditorKind, text: String) {
     let ask_mode = matches!(kind, EditorKind::New) && default_ask(state);
     let caret = text.chars().count();
     state.nav.count = 0;
-    state.overlay = Overlay::Editor(EditorState { kind, text, caret, ask_mode, ext: EditorExt::default() });
+    state.overlay = Overlay::Editor(EditorState { kind, text, caret, ask_mode });
     nav::viewport::follow(state);
 }
 

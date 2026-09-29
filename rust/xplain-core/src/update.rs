@@ -7,9 +7,7 @@
 //! Key routing order (first handler that consumes wins; mirrors the `useInput` order in `src/app.tsx`):
 //! 1. Ctrl+C -> `Effect::Exit{0}` in every state (after `mcp_ui`-style stop is NOT needed: exit is immediate).
 //! 2. `help::on_key` (panel open / `?`).
-//! 3. Overlay by kind: Editor -> `editor::on_key`; Find -> `find::on_find_key`; Goto -> `find::on_goto_key`;
-//!    DeleteComment -> `thread::on_delete_dialog_key`; Quit -> `quit::on_key`; Search -> `search::on_key`;
-//!    Mcp -> `mcp_ui::on_key`; Config -> `config_ui::on_key`; Picker -> `picker::on_key`.
+//! 3. Open overlay -> `Overlay::route_key` (the per-modal dispatch lives beside the `Overlay` type in `state`).
 //! 4. Focused comment -> `thread::on_focused_key`.
 //! 5. Browse-only keys -> `browse::on_key`.
 //! 6. Normal keys, in order: `quit::on_normal_key`, `reload::on_key`, `jump::on_key`, `find::on_normal_key`,
@@ -24,12 +22,13 @@
 //! After every event: `rows::ensure`, `thread::sync`, `hlcache::sync` (requests highlights near the viewport).
 //! `Highlighted` -> `hlcache::on_highlighted`.
 //!
-//! `FileRead` first goes to `reload::on_browse_reread` (browse re-read on `r`), which claims its own requests.
+//! `FileRead` for a `Pending::BrowseReload` request goes to `reload::on_browse_reread` (browse re-read on `r`),
+//! every other one to `browse::on_file_read`.
 
 use crate::effect::{Effect, Fx};
 use crate::event::{Event, TimerId};
 use crate::keys::KeyEvent;
-use crate::state::{Overlay, State};
+use crate::state::{Overlay, Pending, State};
 use crate::{
     ask, browse, config_ui, editor, export, find, help, hlcache, jump, mcp_ui, nav, picker, quit, reload,
     rows, search, thread,
@@ -62,11 +61,10 @@ pub fn update(state: &mut State, event: Event) -> Vec<Effect> {
         Event::Timer(id) => mcp_ui::on_timer(state, id, &mut fx),
         Event::DiffLoaded { req, result } => reload::on_diff_loaded(state, req, result, &mut fx),
         Event::FilesListed { req, files } => search::on_files_listed(state, req, files),
-        Event::FileRead { req, result } => {
-            if !reload::on_browse_reread(state, req, result.clone()) {
-                browse::on_file_read(state, req, result, &mut fx);
-            }
-        }
+        Event::FileRead { req, result } => match state.loader.pending.get(&req) {
+            Some(Pending::BrowseReload { .. }) => reload::on_browse_reread(state, req, result),
+            _ => browse::on_file_read(state, req, result, &mut fx),
+        },
         Event::ConfigSaved { req, result } => config_ui::on_saved(state, req, result),
         Event::ExportWritten { req, result } => export::on_written(state, req, result),
         Event::CommandDone { req, result } => mcp_ui::on_command_done(state, req, result, &mut fx),
@@ -90,17 +88,8 @@ fn on_key(state: &mut State, key: KeyEvent, fx: &mut Fx) {
         nav::clear_count(state);
         return;
     }
-    match state.overlay {
-        Overlay::Editor(_) => return editor::on_key(state, key, fx),
-        Overlay::Find { .. } => return find::on_find_key(state, key, fx),
-        Overlay::Goto { .. } => return find::on_goto_key(state, key, fx),
-        Overlay::DeleteComment { .. } => return thread::on_delete_dialog_key(state, key, fx),
-        Overlay::Quit => return quit::on_key(state, key, fx),
-        Overlay::Search(_) => return search::on_key(state, key, fx),
-        Overlay::Mcp(_) => return mcp_ui::on_key(state, key, fx),
-        Overlay::Config(_) => return config_ui::on_key(state, key, fx),
-        Overlay::Picker { .. } => return picker::on_key(state, key, fx),
-        Overlay::None => {}
+    if Overlay::route_key(state, key, fx) {
+        return;
     }
     if state.nav.focused_comment.is_some() && thread::on_focused_key(state, key, fx) {
         return;
@@ -152,7 +141,6 @@ mod tests {
                 text: String::new(),
                 caret: 0,
                 ask_mode: false,
-                ext: Default::default(),
             }),
             Overlay::Picker { sel: 0 },
             Overlay::Search(Default::default()),

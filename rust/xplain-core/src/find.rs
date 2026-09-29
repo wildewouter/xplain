@@ -12,10 +12,6 @@ use crate::rows;
 use crate::state::{Overlay, PaneChoice, State};
 use crate::textinput::{self, NewlinePolicy};
 
-/// Private find state (add fields here).
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct FindExt {}
-
 fn plain(key: &KeyEvent) -> bool {
     !key.mods.ctrl && !key.mods.alt
 }

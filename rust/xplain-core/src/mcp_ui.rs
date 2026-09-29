@@ -148,7 +148,7 @@ fn mask(text: &str, token: &str) -> String {
 }
 
 fn token_of(state: &State) -> String {
-    state.mcp.endpoint.as_ref().map(|e| e.token.clone()).unwrap_or_else(|| state.last_token.clone())
+    state.mcp.endpoint.as_ref().map(|e| e.token.clone()).unwrap_or_else(|| state.mcp_ui.last_token.clone())
 }
 
 /// `Event::Started`: autostart when configured (F-MCPUI-04).
@@ -158,7 +158,7 @@ pub fn on_started(state: &mut State, fx: &mut Fx) {
     }
     start_server(state, fx);
     if let Some(req) = state.mcp.starting {
-        state.autostart_req = Some(req);
+        state.mcp_ui.autostart_req = Some(req);
     } else if !state.mcp.running {
         if let Some(e) = state.mcp.start_error.clone() {
             state.note = Some(format!("mcp autostart failed: {e}"));
@@ -180,7 +180,7 @@ pub fn start_server(state: &mut State, fx: &mut Fx) {
         }
     };
     let req = state.alloc_req();
-    state.pending.insert(req, Pending::McpStart);
+    state.loader.pending.insert(req, Pending::McpStart);
     state.mcp.starting = Some(req);
     fx.push(Effect::McpStart { req, port, state_dir: state.env.state_dir.clone() });
 }
@@ -202,7 +202,7 @@ pub fn stop_server(state: &mut State, fx: &mut Fx) {
         e.ask_mode = false;
     }
     let req = state.alloc_req();
-    state.pending.insert(req, Pending::McpStop);
+    state.loader.pending.insert(req, Pending::McpStop);
     fx.push(Effect::McpStop { req });
 }
 
@@ -219,14 +219,14 @@ fn cancel_live(state: &mut State) {
 }
 
 pub fn on_mcp_started(state: &mut State, req: ReqId, result: Result<McpEndpoint, String>, fx: &mut Fx) {
-    if state.pending.remove(&req).is_none() || state.mcp.starting != Some(req) {
+    if state.loader.pending.remove(&req).is_none() || state.mcp.starting != Some(req) {
         return;
     }
     state.mcp.starting = None;
-    let auto = state.autostart_req.take() == Some(req);
+    let auto = state.mcp_ui.autostart_req.take() == Some(req);
     match result {
         Ok(ep) => {
-            state.last_token = ep.token.clone();
+            state.mcp_ui.last_token = ep.token.clone();
             state.mcp.running = true;
             state.mcp.endpoint = Some(ep);
             state.mcp.start_error = None;
@@ -243,12 +243,12 @@ pub fn on_mcp_started(state: &mut State, req: ReqId, result: Result<McpEndpoint,
 }
 
 pub fn on_mcp_stopped(state: &mut State, req: ReqId, _fx: &mut Fx) {
-    state.pending.remove(&req);
+    state.loader.pending.remove(&req);
 }
 
 fn run(state: &mut State, fx: &mut Fx, integration: usize, purpose: CommandPurpose, cmd: CommandSpec) {
     let req = state.alloc_req();
-    state.pending.insert(req, Pending::Command { integration, purpose });
+    state.loader.pending.insert(req, Pending::Command { integration, purpose });
     fx.push(Effect::RunCommand { req, cmd });
 }
 
@@ -315,7 +315,7 @@ fn failure_text(label: &str, what: &str, result: &CommandResult) -> Option<Strin
 
 /// `Event::CommandDone` for integration checks/registrations (F-INTEG-02..04).
 pub fn on_command_done(state: &mut State, req: ReqId, result: CommandResult, fx: &mut Fx) {
-    let Some(Pending::Command { integration: i, purpose }) = state.pending.remove(&req) else {
+    let Some(Pending::Command { integration: i, purpose }) = state.loader.pending.remove(&req) else {
         return;
     };
     if i >= state.integrations.len() || i >= state.integration_state.len() {
@@ -415,7 +415,7 @@ mod tests {
     }
 
     fn done_last(s: &mut State, res: CommandResult, fx: &mut Fx) {
-        let req = ReqId(s.next_req);
+        let req = ReqId(s.loader.next_req);
         on_command_done(s, req, res, fx);
     }
 
@@ -498,7 +498,7 @@ mod tests {
         on_mcp_started(&mut s, req, Ok(ep()), &mut fx2);
         assert!(s.mcp.running);
         assert_eq!(s.mcp.start_error, None);
-        assert_eq!(s.last_token, "secrettoken");
+        assert_eq!(s.mcp_ui.last_token, "secrettoken");
         // only the registrable integration is checked
         assert_eq!(fx2.len(), 1);
         assert!(matches!(&fx2[0], Effect::RunCommand { cmd, .. } if cmd.args == ["get"]));
@@ -809,7 +809,6 @@ mod tests {
             text: String::new(),
             caret: 0,
             ask_mode: true,
-            ext: Default::default(),
         });
         s.thread.chosen = Some(false);
         let mut fx = Vec::new();

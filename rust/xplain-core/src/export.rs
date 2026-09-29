@@ -249,14 +249,14 @@ pub fn on_key(state: &mut State, key: KeyEvent, fx: &mut Fx) -> bool {
     };
     let contents = render_markdown(&state.comments, &meta);
     let req = state.alloc_req();
-    state.pending.insert(req, Pending::Export { path: path.clone(), count: state.comments.len() });
+    state.loader.pending.insert(req, Pending::Export { path: path.clone(), count: state.comments.len() });
     fx.push(Effect::WriteExport { req, path, contents });
     true
 }
 
 /// `Event::ExportWritten`: success/failed note (F-EXPORT-01).
 pub fn on_written(state: &mut State, req: ReqId, result: Result<(), IoReason>) {
-    let Some(Pending::Export { path, count }) = state.pending.remove(&req) else { return };
+    let Some(Pending::Export { path, count }) = state.loader.pending.remove(&req) else { return };
     state.note = Some(match result {
         Ok(()) => format!("exported {count} comment{} -> {path}", if count == 1 { "" } else { "s" }),
         Err(reason) => crate::messages::export_failed(&path, reason),
@@ -442,21 +442,21 @@ mod tests {
             }
             other => panic!("{other:?}"),
         };
-        assert_eq!(st.pending.get(&req), Some(&Pending::Export { path: path.clone(), count: 1 }));
+        assert_eq!(st.loader.pending.get(&req), Some(&Pending::Export { path: path.clone(), count: 1 }));
         on_written(&mut st, req, Ok(()));
         assert_eq!(st.note.as_deref(), Some(format!("exported 1 comment -> {path}").as_str()));
-        assert!(st.pending.is_empty());
+        assert!(st.loader.pending.is_empty());
     }
 
     #[test]
     fn f_export_01_written_failure_and_plural() {
         let mut st = state_with(Vec::new());
         let req = st.alloc_req();
-        st.pending.insert(req, Pending::Export { path: "/p/x.md".into(), count: 2 });
+        st.loader.pending.insert(req, Pending::Export { path: "/p/x.md".into(), count: 2 });
         on_written(&mut st, req, Err(IoReason::PermissionDenied));
         assert_eq!(st.note.as_deref(), Some("export failed: /p/x.md: permission denied"));
         let req = st.alloc_req();
-        st.pending.insert(req, Pending::Export { path: "/p/y.md".into(), count: 2 });
+        st.loader.pending.insert(req, Pending::Export { path: "/p/y.md".into(), count: 2 });
         on_written(&mut st, req, Ok(()));
         assert_eq!(st.note.as_deref(), Some("exported 2 comments -> /p/y.md"));
         // stale request: ignored
