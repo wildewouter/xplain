@@ -11,8 +11,18 @@ pub struct PathHit {
     pub idx: Vec<usize>,
 }
 
-fn lower(c: char) -> String {
-    c.to_lowercase().collect()
+/// `c` is its own lowercase form (JS `c.toLowerCase() === c`).
+fn is_lower_stable(c: char) -> bool {
+    if c.is_ascii() { !c.is_ascii_uppercase() } else { c.to_lowercase().eq(std::iter::once(c)) }
+}
+
+/// Case-insensitive equality by full lowercase mapping (JS `a.toLowerCase() === b.toLowerCase()`), no allocation.
+fn eq_ignore_case(a: char, b: char) -> bool {
+    if a.is_ascii() && b.is_ascii() {
+        a.eq_ignore_ascii_case(&b)
+    } else {
+        a.to_lowercase().eq(b.to_lowercase())
+    }
 }
 
 const DELIM: &str = "_-. ";
@@ -30,7 +40,7 @@ fn boundary(t: &[char], i: usize) -> i64 {
         return 8;
     }
     let c = t[i];
-    if lower(p) != p.to_string() || lower(c) == c.to_string() {
+    if !is_lower_stable(p) || is_lower_stable(c) {
         return 0;
     }
     7
@@ -92,7 +102,7 @@ pub fn match_paths(query: &str, paths: &[String]) -> Vec<PathHit> {
         return paths.iter().map(|p| PathHit { path: p.clone(), idx: Vec::new() }).collect();
     }
     let case_sensitive = query != query.to_lowercase();
-    let eq = move |a: char, b: char| if case_sensitive { a == b } else { lower(a) == lower(b) };
+    let eq = move |a: char, b: char| if case_sensitive { a == b } else { eq_ignore_case(a, b) };
     let q: Vec<char> = query.chars().collect();
     struct Scored {
         path: String,
@@ -178,6 +188,16 @@ mod tests {
     fn f_search_01_code_point_idx() {
         let r = match_paths("b", &v(&["\u{e9}\u{1F600}b"]));
         assert_eq!(r[0].idx, vec![2]);
+    }
+
+    #[test]
+    fn f_search_01_non_ascii_case_folding() {
+        assert!(eq_ignore_case('\u{c9}', '\u{e9}'));
+        assert!(eq_ignore_case('K', '\u{212a}'));
+        assert!(!eq_ignore_case('a', 'b'));
+        assert_eq!(paths("\u{e9}", &["\u{c9}a", "b"]), ["\u{c9}a"]);
+        assert!(is_lower_stable('a') && is_lower_stable('_') && is_lower_stable('\u{e9}'));
+        assert!(!is_lower_stable('A') && !is_lower_stable('\u{c9}'));
     }
 
     #[test]

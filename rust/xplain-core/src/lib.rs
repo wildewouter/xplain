@@ -29,6 +29,7 @@ pub mod help;
 mod highlight;
 mod hlcache;
 pub mod integration;
+mod json_ordered;
 pub mod jump;
 pub mod keys;
 pub mod mcp;

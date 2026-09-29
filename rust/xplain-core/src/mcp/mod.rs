@@ -4,12 +4,13 @@
 //! Spec: F-MCPSRV-01..11, F-ASK-01/09, F-MCPUI-03 (stop semantics), F-RELOAD-02. Owner: component `agent` (E).
 //! This file holds the boundary types and entry points; implementation is split into the submodules below
 //! (`http` request checks, `rpc` JSON-RPC envelope + methods, `tools` tool table and calls, `hub` queue/pollers/
-//! clients/counters, `token` token + port helpers).
+//! clients/counters, `text` sanitizing and char caps shared by hub/rpc/tools, `token` token + port helpers).
 //! Must not: open sockets, read time, generate randomness (runtime supplies both in [`HttpRequest`]).
 
 pub mod http;
 pub mod hub;
 pub mod rpc;
+pub mod text;
 pub mod token;
 pub mod tools;
 
@@ -100,9 +101,26 @@ pub struct OutQuestion {
     pub turn: u32,
     /// Fully composed `<q>` text (context included per F-MCPSRV-06).
     pub question: String,
+    /// Bare message shown by `get_questions` as `preview` (sanitized by the ask flow).
+    pub preview: String,
     pub follow_up: bool,
     /// `(turn, question, answer)` of earlier turns, oldest first (core trims to last 5 / 4000 chars).
     pub previous: Vec<(u32, String, String)>,
+}
+
+/// Lifecycle of the listening server (F-MCPUI-03): stopped (with the last start failure, shown in the modal
+/// until the next start attempt, F-MCPUI-01), start requested and result pending, or listening.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ServerState {
+    Stopped { last_error: Option<String> },
+    Starting(ReqId),
+    Running(McpEndpoint),
+}
+
+impl Default for ServerState {
+    fn default() -> Self {
+        ServerState::Stopped { last_error: None }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -117,13 +135,7 @@ pub struct ClientInfo {
 /// Hub + server state (fields outlined; the mcp lead owns the internals).
 #[derive(Debug, Clone, Default)]
 pub struct McpState {
-    /// Server listening.
-    pub running: bool,
-    /// Start requested, result pending (`… starting`).
-    pub starting: Option<ReqId>,
-    pub endpoint: Option<McpEndpoint>,
-    /// Last start failure, shown in the modal until next start attempt (F-MCPUI-01).
-    pub start_error: Option<String>,
+    pub server: ServerState,
     pub clients: Vec<ClientInfo>,
     pub queue: Vec<OutQuestion>,
     pub delivered: u32,
@@ -132,17 +144,60 @@ pub struct McpState {
 }
 
 impl McpState {
+    /// Server listening.
+    pub fn is_running(&self) -> bool {
+        matches!(self.server, ServerState::Running(_))
+    }
+
+    /// Start requested, result pending (`... starting`).
+    pub fn starting(&self) -> Option<ReqId> {
+        match self.server {
+            ServerState::Starting(req) => Some(req),
+            _ => None,
+        }
+    }
+
+    /// Coordinates of the listening server.
+    pub fn endpoint(&self) -> Option<&McpEndpoint> {
+        match &self.server {
+            ServerState::Running(ep) => Some(ep),
+            _ => None,
+        }
+    }
+
+    /// Last start failure, kept until the next start attempt.
+    pub fn start_error(&self) -> Option<&str> {
+        match &self.server {
+            ServerState::Stopped { last_error } => last_error.as_deref(),
+            _ => None,
+        }
+    }
+
+    /// Test seam: flip between a listening server (dummy endpoint) and a stopped one.
+    #[cfg(test)]
+    pub fn set_running(&mut self, running: bool) {
+        self.server = if running {
+            ServerState::Running(McpEndpoint {
+                url: "http://127.0.0.1:1/mcp".into(),
+                token: "t".into(),
+                port: 1,
+            })
+        } else {
+            ServerState::default()
+        };
+    }
+
     /// Handle one HTTP request: F-MCPSRV-02 checks, JSON-RPC (F-MCPSRV-03..05), tools (06..10).
-    /// The active bearer token is `self.endpoint`'s; `now_ms` is `State::clock.unix_ms`.
-    pub fn handle_http(&mut self, req: HttpRequest, now_ms: i64) -> McpOutput {
-        let (token, port) = self.endpoint.as_ref().map_or((String::new(), 0), |e| (e.token.clone(), e.port));
-        if let Err(response) = http::precheck(&req, &token, port) {
+    /// The active bearer token is the running endpoint's; without one every request fails auth.
+    pub fn handle_http(&mut self, req: HttpRequest) -> McpOutput {
+        let token = self.endpoint().map(|e| e.token.as_str());
+        if let Err(response) = http::precheck(&req, token) {
             return McpOutput {
                 effects: vec![Effect::HttpReply { conn: req.conn, response }],
                 events: Vec::new(),
             };
         }
-        rpc::dispatch(self, req, now_ms)
+        rpc::dispatch(self, req)
     }
 
     /// A parked long poll timed out (`TimerId::PollTimeout`).
@@ -153,7 +208,7 @@ impl McpState {
             self.inner.events.push(HubEvent::ClientsChanged);
             self.inner.backlog.push(hub::Resolved {
                 poller,
-                result: rpc::timeout_result(),
+                result: hub::PollResult::NoQuestion,
                 cancel_timer: false,
             });
         }
@@ -174,15 +229,8 @@ impl McpState {
     }
 
     /// Queue a question for delivery (F-ASK-01); may complete a waiting poll immediately.
-    pub fn enqueue(&mut self, q: OutQuestion) -> McpOutput {
-        let preview = q.question.clone();
-        self.enqueue_with_preview(q, &preview)
-    }
-
-    /// Like [`McpState::enqueue`], with the text `get_questions` shows as `preview` (the bare message).
-    pub fn enqueue_with_preview(&mut self, mut q: OutQuestion, preview: &str) -> McpOutput {
+    pub fn enqueue(&mut self, mut q: OutQuestion) -> McpOutput {
         hub::HubInner::trim_history(&mut q);
-        self.inner.previews.push((q.thread_id.clone(), q.turn, tools::sanitize(preview)));
         self.queue.push(q);
         self.dispatch();
         let mut out = McpOutput::default();

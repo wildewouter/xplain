@@ -24,7 +24,7 @@ fn seg(text: impl Into<String>, style: Style) -> Seg {
 
 /// `[mcp: on] ` / `[mcp: off] ` chip (view color). On only while the server runs (F-HEADER-01).
 fn mcp_chip(state: &State, theme: &Theme) -> Seg {
-    seg(format!("[mcp: {}] ", if state.mcp.running { "on" } else { "off" }), fg(theme.view))
+    seg(format!("[mcp: {}] ", if state.mcp.is_running() { "on" } else { "off" }), fg(theme.view))
 }
 
 /// Header runs. `tag` is the cursor tag text from `nav::visual::tag_text` (without brackets), only used in
@@ -216,7 +216,7 @@ mod tests {
         st.settings.full = false;
         st.settings.split = true;
         st.settings.mode = crate::options::DiffMode::Staged;
-        st.mcp.running = true;
+        st.mcp.set_running(true);
         let row = header_row(&st, "cursor L1:C1").row_text(0);
         assert!(row.starts_with("[staged] [changes] [split] [solarized] [mcp: on] [1/4] "), "{row}");
     }
@@ -224,7 +224,7 @@ mod tests {
     #[test]
     fn f_header_01_starting_is_off() {
         let mut st = diff_state(120);
-        st.mcp.starting = Some(crate::event::ReqId(1));
+        st.mcp.server = crate::mcp::ServerState::Starting(crate::event::ReqId(1));
         assert!(header_row(&st, "t").row_text(0).contains("[mcp: off]"));
     }
 

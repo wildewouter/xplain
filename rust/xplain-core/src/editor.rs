@@ -17,16 +17,16 @@ use crate::textinput::{self, NewlinePolicy};
 
 /// Save/ask mode in effect for `ed`: ask only while MCP runs (F-COMMENT-02).
 pub fn effective_ask(state: &State, ed: &EditorState) -> bool {
-    state.mcp.running && ed.ask_mode
+    state.mcp.is_running() && ed.ask_mode
 }
 
 /// Mode a new editor starts in: `ask` while MCP runs unless the user chose `save`; else `save`.
 fn default_ask(state: &State) -> bool {
-    state.mcp.running && state.thread.chosen.unwrap_or(true)
+    state.mcp.is_running() && state.thread.chosen.unwrap_or(true)
 }
 
 fn open(state: &mut State, kind: EditorKind, text: String) {
-    if matches!(kind, EditorKind::New) && !state.mcp.running {
+    if matches!(kind, EditorKind::New) && !state.mcp.is_running() {
         state.thread.chosen = None;
     }
     let ask_mode = matches!(kind, EditorKind::New) && default_ask(state);
@@ -82,10 +82,10 @@ pub fn on_key(state: &mut State, key: KeyEvent, fx: &mut Fx) {
             if !matches!(ed.kind, EditorKind::New) {
                 return;
             }
-            if state.mcp.running && ed.ask_mode {
+            if state.mcp.is_running() && ed.ask_mode {
                 ed.ask_mode = false;
                 state.thread.chosen = Some(false);
-            } else if state.mcp.running {
+            } else if state.mcp.is_running() {
                 ed.ask_mode = true;
                 state.thread.chosen = Some(true);
             } else {
@@ -138,7 +138,7 @@ fn submit(state: &mut State, fx: &mut Fx) {
             let id = comments::insert(state, comment);
             nav::visual::end(state);
             if ask_now {
-                if state.mcp.running {
+                if state.mcp.is_running() {
                     ask::ask_comment(state, &id, fx);
                     state.set_note("question sent to agent");
                 } else {
@@ -275,7 +275,7 @@ mod tests {
         assert_eq!(s.note.as_deref(), Some("MCP is off (M to start)"));
         assert!(!editor(&s).ask_mode);
         key(&mut s, Key::Esc);
-        s.mcp.running = true;
+        s.mcp.set_running(true);
         on_cursor_key(&mut s, KeyEvent::ch('a'), &mut Vec::new());
         assert!(editor(&s).ask_mode, "default ask while MCP runs");
         key(&mut s, Key::Tab);
@@ -285,7 +285,7 @@ mod tests {
         assert!(!editor(&s).ask_mode, "chosen mode kept");
         key(&mut s, Key::Tab);
         assert!(editor(&s).ask_mode);
-        s.mcp.running = false;
+        s.mcp.set_running(false);
         assert!(!effective_ask(&s, editor(&s)));
         key(&mut s, Key::Esc);
         on_cursor_key(&mut s, KeyEvent::ch('a'), &mut Vec::new());
@@ -360,7 +360,7 @@ mod tests {
         use crate::comments::AnswerStatus;
         use crate::comments::testutil::answer;
         let mut s = st();
-        s.mcp.running = true;
+        s.mcp.set_running(true);
         let mut c = comment("q1", 1, 2, "m");
         c.turns[0].answer = Some(answer(AnswerStatus::Streaming, ""));
         s.comments.push(c);

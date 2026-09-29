@@ -10,7 +10,7 @@ use std::collections::VecDeque;
 
 use serde_json::Value;
 
-use super::tools::sanitize;
+use super::text::{cap_chars, sanitize};
 use super::{ClientInfo, ConnId, HubEvent, McpState, OutQuestion};
 
 /// Max entries of `previous` and max chars per entry text (F-MCPSRV-06).
@@ -34,7 +34,6 @@ pub struct Cont {
     pub entropy: [u8; 16],
     /// Number of `initialize` calls so far in this request (session id derivation).
     pub inits: u8,
-    pub now_ms: i64,
 }
 
 /// One parked `next_question` long poll.
@@ -71,12 +70,8 @@ pub struct HubInner {
     pub pollers: Vec<Poller>,
     /// `thread_id -> client_id` stickiness.
     pub sticky: Vec<(String, String)>,
-    /// Delivered questions kept for `get_questions`.
-    pub delivered_log: Vec<OutQuestion>,
     /// `thread_id -> last delivered turn`.
     pub turns: Vec<(String, u32)>,
-    /// `(thread_id, turn, preview)` of queued questions.
-    pub previews: Vec<(String, u32, String)>,
     /// Polls resolved by a tool call, waiting for the request to continue (drained by `settle`).
     pub backlog: Vec<Resolved>,
     /// Hub events emitted outside a tool call result.
@@ -104,21 +99,7 @@ impl HubInner {
     }
 }
 
-/// First `n` chars.
-pub fn cap_chars(s: &str, n: usize) -> String {
-    s.chars().take(n).collect()
-}
-
 impl McpState {
-    /// Fresh hub for a new server start: clients, queue, pollers, counters cleared (`delivered` back to 0,
-    /// F-MCPUI-03). Keeps `running`, `starting`, `endpoint`, `start_error`.
-    pub fn reset_hub(&mut self) {
-        self.clients.clear();
-        self.queue.clear();
-        self.delivered = 0;
-        self.inner = HubInner::default();
-    }
-
     /// Client name for an id (`unknown` when not registered).
     pub fn client_name(&self, id: &str) -> String {
         self.clients.iter().find(|c| c.id == id).map_or_else(|| "unknown".to_string(), |c| c.name.clone())
@@ -173,9 +154,6 @@ impl McpState {
         self.delivered += 1;
         HubInner::upsert(&mut self.inner.sticky, &q.thread_id, client_id.to_string());
         HubInner::upsert(&mut self.inner.turns, &q.thread_id, q.turn);
-        if let Some(p) = self.inner.previews.iter().position(|(t, n, _)| *t == q.thread_id && *n == q.turn) {
-            self.inner.previews.remove(p);
-        }
         let client_name = self.client_name(client_id);
         self.inner.events.push(HubEvent::Delivered {
             thread_id: q.thread_id.clone(),
@@ -242,15 +220,6 @@ impl McpState {
     pub(super) fn delivered_turn(&self, thread_id: &str) -> Option<u32> {
         self.inner.turns.iter().find(|(t, _)| t == thread_id).map(|(_, n)| *n)
     }
-
-    /// Preview text (first 200 chars of the message) of a queued question.
-    pub(super) fn preview_of(&self, q: &OutQuestion) -> String {
-        self.inner
-            .previews
-            .iter()
-            .find(|(t, n, _)| *t == q.thread_id && *n == q.turn)
-            .map_or_else(|| cap_chars(&q.question, 200), |(_, _, p)| cap_chars(p, 200))
-    }
 }
 
 #[cfg(test)]
@@ -262,6 +231,7 @@ mod tests {
             thread_id: thread.into(),
             turn,
             question: format!("{thread}/{turn}"),
+            preview: format!("{thread}/{turn}"),
             follow_up: turn > 1,
             previous: Vec::new(),
         }

@@ -203,7 +203,7 @@ mod tests {
         assert_eq!(exit, Some(fx.len() - 1));
         let last_reply = fx.iter().rposition(|e| matches!(e, Effect::HttpReply { .. }));
         assert!(last_reply.is_none_or(|r| Some(r) < stop));
-        assert!(!s.mcp.running);
+        assert!(!s.mcp.is_running());
     }
 
     #[test]
@@ -238,7 +238,7 @@ mod tests {
         update(&mut s, Event::McpStarted { req: ReqId(51), result: Ok(crate::state::testutil::ep()) });
         update(&mut s, Event::ConfigSaved { req: ReqId(52), result: Ok(()) });
         update(&mut s, Event::DiffLoaded { req: ReqId(53), result: Err("x".into()) });
-        assert!(!s.mcp.running);
+        assert!(!s.mcp.is_running());
         assert_eq!(s.load, LoadState::Loading);
         assert_eq!(s.note, before);
     }

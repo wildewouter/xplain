@@ -8,13 +8,12 @@
 //! Must not render (`view::modals` draws from `state.overlay`, `state.mcp`, `state.integration_state`).
 
 use crate::ask;
-use crate::comments::AnswerStatus;
 use crate::effect::{Effect, Fx};
 use crate::errors::{IoReason, fail_msg};
 use crate::event::{ReqId, TimerId};
 use crate::integration::{CommandError, CommandResult, CommandSpec, RegStatus};
 use crate::keys::{Key, KeyEvent};
-use crate::mcp::{self, ConnId, HttpRequest, McpEndpoint};
+use crate::mcp::{self, ConnId, HttpRequest, McpEndpoint, ServerState};
 use crate::state::{CommandPurpose, McpModal, Overlay, Pending, State};
 
 const START_FIRST: &str = "start MCP first";
@@ -69,7 +68,7 @@ fn handle_key(state: &mut State, m: &mut McpModal, key: KeyEvent, fx: &mut Fx) -
         Key::Char('k') | Key::Up => pick(m, -1, count),
         Key::Enter | Key::Char(' ') if m.row == 0 => {
             m.note = None;
-            if state.mcp.running {
+            if state.mcp.is_running() {
                 stop_server(state, fx);
             } else {
                 start_server(state, fx);
@@ -86,7 +85,7 @@ fn handle_key(state: &mut State, m: &mut McpModal, key: KeyEvent, fx: &mut Fx) -
             }
         }
         Key::Char('R') => {
-            if state.mcp.running {
+            if state.mcp.is_running() {
                 check_all(state, fx, None);
             } else {
                 m.note = Some(START_FIRST.to_string());
@@ -116,7 +115,7 @@ fn on_enter_or_d(state: &State, m: &mut McpModal, i: usize, is_d: bool) {
             m.note = None;
             m.confirm = Some((i, false));
         }
-    } else if !state.mcp.running {
+    } else if !state.mcp.is_running() {
         m.note = Some(START_FIRST.to_string());
     } else if status == RegStatus::Registered {
         m.note = Some("already registered (d to remove)".to_string());
@@ -127,7 +126,7 @@ fn on_enter_or_d(state: &State, m: &mut McpModal, i: usize, is_d: bool) {
 }
 
 fn copy_text(state: &State, m: &mut McpModal, i: usize, register: bool, fx: &mut Fx) {
-    let Some(ep) = state.mcp.endpoint.clone().filter(|_| state.mcp.running) else {
+    let Some(ep) = state.mcp.endpoint().cloned().filter(|_| state.mcp.is_running()) else {
         m.preview = None;
         m.note = Some(START_FIRST.to_string());
         return;
@@ -148,7 +147,7 @@ fn mask(text: &str, token: &str) -> String {
 }
 
 fn token_of(state: &State) -> String {
-    state.mcp.endpoint.as_ref().map(|e| e.token.clone()).unwrap_or_else(|| state.mcp_ui.last_token.clone())
+    state.mcp.endpoint().map(|e| e.token.clone()).unwrap_or_else(|| state.mcp_ui.last_token.clone())
 }
 
 /// `Event::Started`: autostart when configured (F-MCPUI-04).
@@ -157,46 +156,40 @@ pub fn on_started(state: &mut State, fx: &mut Fx) {
         return;
     }
     start_server(state, fx);
-    if let Some(req) = state.mcp.starting {
+    if let Some(req) = state.mcp.starting() {
         state.mcp_ui.autostart_req = Some(req);
-    } else if !state.mcp.running {
-        if let Some(e) = state.mcp.start_error.clone() {
-            state.note = Some(format!("mcp autostart failed: {e}"));
-        }
+    } else if let Some(e) = state.mcp.start_error().map(str::to_string) {
+        state.note = Some(format!("mcp autostart failed: {e}"));
     }
 }
 
 /// Emit `Effect::McpStart` (validates `env.mcp_port_raw` via `mcp::parse_port`).
 pub fn start_server(state: &mut State, fx: &mut Fx) {
-    if state.mcp.running || state.mcp.starting.is_some() {
+    if !matches!(state.mcp.server, ServerState::Stopped { .. }) {
         return;
     }
-    state.mcp.start_error = None;
     let port = match mcp::parse_port(state.env.mcp_port_raw.as_deref()) {
         Ok(p) => p,
         Err(msg) => {
-            state.mcp.start_error = Some(msg);
+            state.mcp.server = ServerState::Stopped { last_error: Some(msg) };
             return;
         }
     };
     let req = state.alloc_req();
     state.loader.pending.insert(req, Pending::McpStart);
-    state.mcp.starting = Some(req);
+    state.mcp.server = ServerState::Starting(req);
     fx.push(Effect::McpStart { req, port, state_dir: state.env.state_dir.clone() });
 }
 
 /// Stop: waiting polls answered `closed`, live answers cancelled, then `McpStop` (F-MCPUI-03).
 pub fn stop_server(state: &mut State, fx: &mut Fx) {
-    if !state.mcp.running && state.mcp.endpoint.is_none() {
+    if !state.mcp.is_running() {
         return;
     }
     let out = state.mcp.stop();
     ask::apply_output(state, out, fx);
-    state.mcp.running = false;
-    state.mcp.endpoint = None;
-    state.mcp.clients.clear();
-    state.mcp.queue.clear();
-    cancel_live(state);
+    state.mcp.server = ServerState::default();
+    ask::cancel_live(state);
     crate::thread::on_mcp_stopped(state);
     if let Overlay::Editor(e) = &mut state.overlay {
         e.ask_mode = false;
@@ -206,30 +199,15 @@ pub fn stop_server(state: &mut State, fx: &mut Fx) {
     fx.push(Effect::McpStop { req });
 }
 
-fn cancel_live(state: &mut State) {
-    for c in &mut state.comments {
-        if let Some(a) = c.turns.last_mut().and_then(|t| t.answer.as_mut()) {
-            if matches!(a.status, AnswerStatus::Pending | AnswerStatus::Streaming) {
-                a.status = AnswerStatus::Cancelled;
-                a.text = "MCP stopped".to_string();
-                a.agent = None; // oracle `setAnswer({status, text})` replaces the answer, dropping the agent
-            }
-        }
-    }
-}
-
 pub fn on_mcp_started(state: &mut State, req: ReqId, result: Result<McpEndpoint, String>, fx: &mut Fx) {
-    if state.loader.pending.remove(&req).is_none() || state.mcp.starting != Some(req) {
+    if state.loader.pending.remove(&req).is_none() || state.mcp.starting() != Some(req) {
         return;
     }
-    state.mcp.starting = None;
     let auto = state.mcp_ui.autostart_req.take() == Some(req);
     match result {
         Ok(ep) => {
             state.mcp_ui.last_token = ep.token.clone();
-            state.mcp.running = true;
-            state.mcp.endpoint = Some(ep);
-            state.mcp.start_error = None;
+            state.mcp.server = ServerState::Running(ep);
             state.mcp.delivered = 0;
             check_all(state, fx, None);
         }
@@ -237,7 +215,7 @@ pub fn on_mcp_started(state: &mut State, req: ReqId, result: Result<McpEndpoint,
             if auto {
                 state.note = Some(format!("mcp autostart failed: {e}"));
             }
-            state.mcp.start_error = Some(e);
+            state.mcp.server = ServerState::Stopped { last_error: Some(e) };
         }
     }
 }
@@ -254,7 +232,7 @@ fn run(state: &mut State, fx: &mut Fx, integration: usize, purpose: CommandPurpo
 
 /// Registration check of every registrable integration (F-INTEG-02). `keep` keeps that row's note.
 fn check_all(state: &mut State, fx: &mut Fx, keep: Option<usize>) {
-    let Some(ep) = state.mcp.endpoint.clone() else {
+    let Some(ep) = state.mcp.endpoint().cloned() else {
         return;
     };
     for i in 0..state.integrations.len() {
@@ -269,7 +247,7 @@ fn check_all(state: &mut State, fx: &mut Fx, keep: Option<usize>) {
 }
 
 fn start_register(state: &mut State, i: usize, fx: &mut Fx) {
-    let Some(ep) = state.mcp.endpoint.clone() else {
+    let Some(ep) = state.mcp.endpoint().cloned() else {
         return;
     };
     let cmds = state.integrations[i].register_commands(&ep);
@@ -326,7 +304,7 @@ pub fn on_command_done(state: &mut State, req: ReqId, result: CommandResult, fx:
     match purpose {
         CommandPurpose::Check => {
             let keep = std::mem::take(&mut state.integration_state[i].keep_note);
-            let Some(ep) = state.mcp.endpoint.clone() else {
+            let Some(ep) = state.mcp.endpoint().cloned() else {
                 return;
             };
             let st = &mut state.integration_state[i];
@@ -336,7 +314,7 @@ pub fn on_command_done(state: &mut State, req: ReqId, result: CommandResult, fx:
             }
         }
         CommandPurpose::Register(step) => {
-            let Some(ep) = state.mcp.endpoint.clone() else {
+            let Some(ep) = state.mcp.endpoint().cloned() else {
                 set_busy(state, i, false);
                 return;
             };
@@ -366,7 +344,7 @@ fn finish(state: &mut State, i: usize, msg: String, token: &str, fx: &mut Fx) {
 
 /// `Event::McpHttp`: `state.mcp.handle_http`, then `ask::apply_output`.
 pub fn on_http(state: &mut State, req: HttpRequest, fx: &mut Fx) {
-    let out = state.mcp.handle_http(req, state.clock.unix_ms);
+    let out = state.mcp.handle_http(req);
     ask::apply_output(state, out, fx);
 }
 
@@ -375,14 +353,12 @@ pub fn on_conn_closed(state: &mut State, conn: ConnId, fx: &mut Fx) {
     ask::apply_output(state, out, fx);
 }
 
-/// `Event::Timer(PollTimeout)` / `Spinner` routing for MCP-owned timers.
+/// `Event::Timer(PollTimeout)`: a parked long poll timed out.
 pub fn on_timer(state: &mut State, id: TimerId, fx: &mut Fx) {
-    match id {
-        TimerId::PollTimeout(conn) => {
-            let out = state.mcp.poll_timeout(conn);
-            ask::apply_output(state, out, fx);
-        }
-        TimerId::Spinner => ask::on_spinner(state, fx),
+    // `Timer(Spinner)` is routed by `update` to `ask::on_spinner`; only the poll timer reaches here.
+    if let TimerId::PollTimeout(conn) = id {
+        let out = state.mcp.poll_timeout(conn);
+        ask::apply_output(state, out, fx);
     }
 }
 
@@ -394,6 +370,7 @@ pub fn start_error_text(port: u16, reason: IoReason) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::comments::AnswerStatus;
     use crate::state::testutil::{ep, fake_state, k, ok, running_state};
 
     fn open(s: &mut State) {
@@ -471,7 +448,7 @@ mod tests {
         assert!(
             matches!(fx.as_slice(), [Effect::McpStart { port: 47615, state_dir, .. }] if state_dir == "/state")
         );
-        assert!(s.mcp.starting.is_some());
+        assert!(s.mcp.starting().is_some());
         // second Enter while starting: nothing
         assert!(press(&mut s, k(' ')).is_empty());
     }
@@ -483,21 +460,21 @@ mod tests {
         let mut fx = Vec::new();
         start_server(&mut s, &mut fx);
         assert!(fx.is_empty());
-        assert_eq!(s.mcp.start_error.as_deref(), Some("invalid XPLAIN_MCP_PORT \"70000\" (0-65535)"));
-        assert!(!s.mcp.running);
+        assert_eq!(s.mcp.start_error(), Some("invalid XPLAIN_MCP_PORT \"70000\" (0-65535)"));
+        assert!(!s.mcp.is_running());
     }
 
     #[test]
     fn f_mcpui_03_started_runs_checks_and_clears_error() {
         let mut s = fake_state();
-        s.mcp.start_error = Some("x".into());
+        s.mcp.server = ServerState::Stopped { last_error: Some("x".into()) };
         let mut fx = Vec::new();
         start_server(&mut s, &mut fx);
         let Effect::McpStart { req, .. } = fx[0] else { panic!() };
         let mut fx2 = Vec::new();
         on_mcp_started(&mut s, req, Ok(ep()), &mut fx2);
-        assert!(s.mcp.running);
-        assert_eq!(s.mcp.start_error, None);
+        assert!(s.mcp.is_running());
+        assert_eq!(s.mcp.start_error(), None);
         assert_eq!(s.mcp_ui.last_token, "secrettoken");
         // only the registrable integration is checked
         assert_eq!(fx2.len(), 1);
@@ -511,10 +488,8 @@ mod tests {
         start_server(&mut s, &mut fx);
         let Effect::McpStart { req, .. } = fx[0] else { panic!() };
         on_mcp_started(&mut s, req, Err(mcp::port_busy_message(47615)), &mut Vec::new());
-        assert!(!s.mcp.running);
-        assert!(
-            s.mcp.start_error.as_deref().is_some_and(|e| e.starts_with("MCP port 47615 is already in use"))
-        );
+        assert!(!s.mcp.is_running());
+        assert!(s.mcp.start_error().is_some_and(|e| e.starts_with("MCP port 47615 is already in use")));
         assert_eq!(s.note, None);
     }
 
@@ -522,7 +497,7 @@ mod tests {
     fn stale_start_result_ignored() {
         let mut s = fake_state();
         on_mcp_started(&mut s, ReqId(999), Ok(ep()), &mut Vec::new());
-        assert!(!s.mcp.running);
+        assert!(!s.mcp.is_running());
     }
 
     #[test]
@@ -818,9 +793,9 @@ mod tests {
         assert!(matches!(fx.last(), Some(Effect::McpStop { .. })));
         assert!(fx[..fx.len() - 1].iter().all(|e| !matches!(e, Effect::McpStop { .. })));
         let a = s.comments[0].turns[0].answer.as_ref().map(|a| (a.status, a.text.clone()));
-        assert_eq!(a, Some((AnswerStatus::Cancelled, "MCP stopped".to_string())));
+        assert_eq!(a, Some((AnswerStatus::Cancelled, ask::MCP_STOPPED.to_string())));
         assert!(matches!(&s.overlay, Overlay::Editor(e) if !e.ask_mode));
-        assert!(!s.mcp.running && s.mcp.endpoint.is_none());
+        assert!(!s.mcp.is_running() && s.mcp.endpoint().is_none());
         // stopping again is a no-op
         let mut fx = Vec::new();
         stop_server(&mut s, &mut fx);
