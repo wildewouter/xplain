@@ -3,6 +3,7 @@
 //! Spec: F-INTEG-01..06 rows for `opencode`. Owner: integrations lead.
 //! Must not: perform IO; use only `xplain_core::integration` types.
 
+use crate::common;
 use xplain_core::integration::{AgentIntegration, CommandResult, CommandSpec, RegStatus};
 use xplain_core::mcp::McpEndpoint;
 
@@ -25,25 +26,97 @@ impl AgentIntegration for OpenCode {
     fn needs_restart(&self) -> bool {
         false
     }
-    fn register_text(&self, _ep: &McpEndpoint) -> String {
-        todo!("F-INTEG-05 text")
+    fn register_text(&self, ep: &McpEndpoint) -> String {
+        format!(
+            "Add to opencode.json (project) or ~/.config/opencode/opencode.json:\n\
+\n\
+\"mcp\": {{\n\
+\x20 \"xplain\": {{\n\
+\x20   \"type\": \"remote\",\n\
+\x20   \"url\": \"{url}\",\n\
+\x20   \"enabled\": true,\n\
+\x20   \"oauth\": false,\n\
+\x20   \"timeout\": 120000,\n\
+\x20   \"headers\": {{\"Authorization\": \"Bearer {token}\"}}\n\
+\x20 }}\n\
+}}\n\
+\n\
+Optional, to skip approval prompts:\n\
+\"permission\": {{\"xplain_*\": \"allow\"}}\n\
+\n\
+Tool names are prefixed by the server name (xplain_next_question).\n\
+Restart opencode after editing.",
+            url = ep.url,
+            token = ep.token
+        )
     }
     fn watch_prompt(&self, _ep: &McpEndpoint) -> String {
-        todo!("F-INTEG-06 text")
+        common::watch_prompt(self.poll_seconds())
+            .replace("`next_question`", "`xplain_next_question`")
+            .replace("`answer`", "`xplain_answer`")
+            .replace("`files_changed`", "`xplain_files_changed`")
     }
     fn check_command(&self, _ep: &McpEndpoint) -> Option<CommandSpec> {
-        todo!("F-INTEG-01/02 check argv")
+        None
     }
     fn parse_check(&self, _ep: &McpEndpoint, _result: &CommandResult) -> RegStatus {
-        todo!("F-INTEG-02")
+        RegStatus::NotRegistered
     }
     fn register_commands(&self, _ep: &McpEndpoint) -> Vec<CommandSpec> {
-        todo!("F-INTEG-03 remove then add argv")
+        Vec::new()
     }
     fn register_hint(&self, _ep: &McpEndpoint) -> String {
-        todo!("F-INTEG-03 hint")
+        String::new()
     }
     fn unregister_command(&self) -> Option<CommandSpec> {
-        todo!("F-INTEG-04 remove argv")
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use xplain_core::integration::CommandOutput;
+
+    fn ep() -> McpEndpoint {
+        McpEndpoint { url: "http://127.0.0.1:4321/mcp".into(), token: "sekret".into(), port: 4321 }
+    }
+
+    #[test]
+    fn catalog() {
+        let i = OpenCode;
+        assert_eq!(i.id(), "opencode");
+        assert_eq!(i.label(), "OpenCode");
+        assert_eq!(i.poll_seconds(), 45);
+        assert!(!i.can_register());
+        assert!(!i.needs_restart());
+    }
+
+    #[test]
+    fn empties() {
+        let e = ep();
+        let i = OpenCode;
+        assert!(i.check_command(&e).is_none());
+        assert!(i.register_commands(&e).is_empty());
+        assert!(i.unregister_command().is_none());
+        assert_eq!(i.register_hint(&e), "");
+        let out = Ok(CommandOutput { code: 0, stdout: "http://x".into(), stderr: String::new() });
+        assert_eq!(i.parse_check(&e, &out), RegStatus::NotRegistered);
+    }
+
+    #[test]
+    fn text() {
+        let want = "Add to opencode.json (project) or ~/.config/opencode/opencode.json:\n\n\"mcp\": {\n  \"xplain\": {\n    \"type\": \"remote\",\n    \"url\": \"http://127.0.0.1:4321/mcp\",\n    \"enabled\": true,\n    \"oauth\": false,\n    \"timeout\": 120000,\n    \"headers\": {\"Authorization\": \"Bearer sekret\"}\n  }\n}\n\nOptional, to skip approval prompts:\n\"permission\": {\"xplain_*\": \"allow\"}\n\nTool names are prefixed by the server name (xplain_next_question).\nRestart opencode after editing.";
+        assert_eq!(OpenCode.register_text(&ep()), want);
+    }
+
+    #[test]
+    fn prompt_prefixed() {
+        let p = OpenCode.watch_prompt(&ep());
+        assert!(p.starts_with("Loop forever: call the `xplain_next_question` tool from the `xplain` MCP server with wait_seconds=45."));
+        assert!(p.contains("answer it with the `xplain_answer` tool"));
+        assert!(p.contains("call the `xplain_files_changed` tool"));
+        assert!(!p.contains("`next_question`"));
+        assert_eq!(p.lines().count(), 7);
     }
 }
