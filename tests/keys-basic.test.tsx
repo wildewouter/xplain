@@ -2,9 +2,9 @@ import {render} from 'ink-testing-library';
 import App from '../src/app.js';
 import {join} from 'node:path';
 import {existsSync, readFileSync} from 'node:fs';
-import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
+import {cwd, ok, keyPress, tmpDir, finish, until, booted} from './keysHelpers.js';
 const {stdin, lastFrame} = render(<App args={[]} cwd={cwd} />);
-await tick();
+await booted({lastFrame});
 const pr = keyPress({stdin, lastFrame});
 const f = () => lastFrame() ?? '';
 ok('loaded', f().includes('[1/'));
@@ -142,7 +142,7 @@ ok('s -> unified', f().includes('[unified]') && !f().includes('│'));
 {
 	const r = render(<App args={[]} cwd={cwd} />);
 	Object.defineProperty(r.stdout, 'rows', {value: 60});
-	await tick();
+	await booted(r);
 	const g = () => r.lastFrame() ?? '';
 	await keyPress(r)('?');
 	ok(
@@ -160,13 +160,13 @@ ok('s -> unified', f().includes('[unified]') && !f().includes('│'));
 }
 const nar = render(<App args={[]} cwd={cwd} split />);
 Object.defineProperty(nar.stdout, 'columns', {value: 80});
-await tick();
+await booted(nar);
 nar.stdin.write('s');
 await keyPress(nar)('s');
 ok('narrow fallback', (nar.lastFrame() ?? '').includes('too narrow for split'));
 {
 	const r = render(<App args={[]} cwd={cwd} />);
-	await tick();
+	await booted(r);
 	await keyPress(r)('\t');
 	const g = () => r.lastFrame() ?? '';
 	ok('full: big.ts', g().includes('big.ts') && g().includes('[full]'));
@@ -180,21 +180,23 @@ ok('narrow fallback', (nar.lastFrame() ?? '').includes('too narrow for split'));
 	await keyPress(r)('[');
 	ok('[ no earlier change, stays', g().includes('[cursor L30:C1]') && g().includes('v30 = 2'));
 	await keyPress(r)('c');
+	await until(r, (f) => f.includes('[changes]') && Number(/\/(\d+)\)/.exec(f)?.[1]) < total); // rows load async
 	const t2 = Number(/\/(\d+)\)/.exec(g())?.[1]);
 	ok(
 		'c -> changes-only, fewer rows',
 		g().includes('[changes]') && g().includes('big.ts') && t2 < total && !g().includes('v1 = 1'),
 	);
 	await keyPress(r)('c');
+	await until(r, (f) => f.includes('[full]') && Number(/\/(\d+)\)/.exec(f)?.[1]) === total);
 	ok('c -> full again, same file', g().includes('[full]') && g().includes('big.ts') && g().includes('v27 = 1'));
 	console.log(g());
 }
 {
 	const d = render(<App args={[]} cwd={cwd} />);
-	await tick();
+	await booted(d);
 	ok('theme default solarized', (d.lastFrame() ?? '').includes('[solarized]'));
 	const r = render(<App args={[]} cwd={cwd} theme="vibrant" />);
-	await tick();
+	await booted(r);
 	const g = () => r.lastFrame() ?? '';
 	ok('theme prop vibrant', g().includes('[vibrant]'));
 	for (const n of ['dull', 'contrast', 'colorblind', 'light', 'solarized', 'vibrant']) {
@@ -214,7 +216,7 @@ ok('narrow fallback', (nar.lastFrame() ?? '').includes('too narrow for split'));
 	const dir = tmpDir('keys-cfg');
 	const cp = join(dir, `c${Date.now()}.json`);
 	const r = render(<App args={[]} cwd={cwd} theme="vibrant" configPath={cp} />);
-	await tick();
+	await booted(r);
 	await keyPress(r)('t');
 	ok('t does not write config', !existsSync(cp));
 }
@@ -222,7 +224,7 @@ ok('narrow fallback', (nar.lastFrame() ?? '').includes('too narrow for split'));
 	const dir = tmpDir('keys-cfg');
 	const cp = join(dir, `cm${Date.now()}.json`);
 	const r = render(<App args={[]} cwd={cwd} theme="vibrant" configPath={cp} />);
-	await tick();
+	await booted(r);
 	const g = () => r.lastFrame() ?? '';
 	const cfg = () => JSON.parse(readFileSync(cp, 'utf8'));
 	await keyPress(r)('C');
@@ -270,7 +272,7 @@ ok('narrow fallback', (nar.lastFrame() ?? '').includes('too narrow for split'));
 {
 	const b = render(<App args={[]} cwd={cwd} />);
 	const bf = () => b.lastFrame() ?? '';
-	await tick();
+	await booted(b);
 	await keyPress(b)('F');
 	ok('F opens search', bf().includes('Search ('));
 	b.stdin.write('j');
@@ -279,10 +281,12 @@ ok('narrow fallback', (nar.lastFrame() ?? '').includes('too narrow for split'));
 	b.stdin.write('\x7f');
 	b.stdin.write('\x7f');
 	await keyPress(b)('big');
+	await until(b, 'Search (1/'); // file list loads async
 	ok('backspace + fuzzy', bf().includes('> big') && bf().includes('Search (1/1)'));
 	await keyPress(b)('\x1b');
 	ok('esc closes search', !bf().includes('Search (') && bf().includes('[1/'));
 	await keyPress(b)('F');
+	await until(b, 'x.bin'); // reopening reloads the list
 	ok('empty query lists all', bf().includes('README.md') && bf().includes('x.bin'));
 	await keyPress(b)('\x0e');
 	ok('ctrl-n moves', bf().includes('Search (2/'));
@@ -290,7 +294,7 @@ ok('narrow fallback', (nar.lastFrame() ?? '').includes('too narrow for split'));
 	ok('ctrl-p moves', bf().includes('Search (1/'));
 	await keyPress(b)('a.ts');
 	await keyPress(b)('\r');
-	await tick();
+	await until(b, '[browse]');
 	ok('enter -> browse', bf().includes('[browse]') && bf().includes('src/a.ts') && !bf().includes('Search ('));
 	ok('browse no diff header', !bf().includes('[all]') && !bf().includes('[1/'));
 	ok('browse one gutter', !/^\s*1\s+1\s/m.test(bf()) && /^\s*1\s/m.test(bf()));
@@ -320,12 +324,14 @@ ok('narrow fallback', (nar.lastFrame() ?? '').includes('too narrow for split'));
 	sh('git -c user.email=a@b -c user.name=n commit -qm init');
 	const n = render(<App args={[]} cwd={dir} />);
 	const nf = () => n.lastFrame() ?? '';
-	await new Promise((r) => setTimeout(r, 400));
+	await booted(n);
 	ok('no changes shown', nf().includes('No changes'));
 	await keyPress(n)('F');
 	ok('no-changes F opens search', nf().includes('Search ('));
 	await keyPress(n)('hello');
+	await until(n, 'Search (1/');
 	await keyPress(n)('\r');
+	await until(n, '[browse]');
 	ok('no-changes browse shows content', nf().includes('[browse]') && nf().includes('hello world'));
 	await keyPress(n)('\x1b');
 	await keyPress(n)('?');
@@ -333,7 +339,9 @@ ok('narrow fallback', (nar.lastFrame() ?? '').includes('too narrow for split'));
 	await keyPress(n)('?');
 	await keyPress(n)('F');
 	await keyPress(n)('bin');
+	await until(n, 'Search (1/');
 	await keyPress(n)('\r');
+	await until(n, 'binary file, not shown');
 	ok('binary file not shown', nf().includes('binary file, not shown'));
 	n.unmount();
 }

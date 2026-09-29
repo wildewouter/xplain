@@ -12,4 +12,4 @@ steps:
       notContains: '[browse]'
       line:
         - {row: 0, matches: '^\[all\] .*\[1/4\] \[cursor L2:C1\] README\.md'}
-        - {row: -1, matches: "^ENOENT: no such file or directory, open 'nope\\.txt' \\| "}
+        - {row: -1, matches: '^cannot read nope\.txt: not found \| '}

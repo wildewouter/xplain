@@ -12,5 +12,5 @@ steps:
         - {row: 0, matches: '^\[all\] \[full\] \[unified\] .*\[1/4\] \[cursor L2:C1\] README\.md '}
         - {
             row: -1,
-            matches: "^ENOENT: no such file or directory, open 'package\\.json' \\| \\(1-5/5\\) hjkl move  enter ask  J/K comments  \\? help$",
+            matches: "^cannot read package\\.json: not found \\| \\(1-5/5\\) hjkl move  enter ask  J/K comments  \\? help$",
           }

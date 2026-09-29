@@ -6,6 +6,9 @@
 	"scripts": {
 		"test": "sh tests/run.sh",
 		"e2e": "tsx e2e/run.ts",
+		"e2e:bin": "npm run build:bin && XPLAIN_BIN=dist/bin/xplain tsx e2e/run.ts",
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"check": "sh scripts/check.sh",
 		"dev": "tsx src/cli.tsx",
 		"build": "tsc -p tsconfig.build.json",
 		"start": "node dist/cli.js",

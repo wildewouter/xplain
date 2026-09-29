@@ -1,7 +1,8 @@
-import {existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync} from 'node:fs';
+import {existsSync, readFileSync, renameSync, unlinkSync, writeFileSync} from 'node:fs';
 import {homedir} from 'node:os';
 import {dirname, join} from 'node:path';
 import {MODES, type Mode} from './diff/load.js';
+import {ensureDir, failMsg} from './errors.js';
 import {isTheme, THEME_NAMES, type ThemeName} from './theme.js';
 
 export {DEFAULTS, type Config} from './defaults.js';
@@ -93,14 +94,14 @@ export function saveConfig(path: string, patch: Patch): string | undefined {
 	}
 	const tmp = `${path}.${process.pid}.tmp`;
 	try {
-		mkdirSync(dirname(path), {recursive: true});
+		ensureDir(dirname(path));
 		writeFileSync(tmp, JSON.stringify(merge(cur, patch), null, '\t') + '\n');
 		renameSync(tmp, path);
 	} catch (e) {
 		try {
 			unlinkSync(tmp);
 		} catch {}
-		return `config save failed: ${(e as Error).message}`;
+		return failMsg(`config save failed: ${path}`, e);
 	}
 }
 

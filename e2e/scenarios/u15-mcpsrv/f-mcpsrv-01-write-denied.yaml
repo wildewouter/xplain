@@ -1,0 +1,14 @@
+id: F-MCPSRV-01
+also: [F-MCPUI-01]
+title: 'token file cannot be written (state dir not writable): error row "cannot write <state dir>/mcp.json: permission denied"'
+size: 80x24
+# relative state base keeps the path short enough for the 64-col modal row
+env: {XDG_STATE_HOME: st}
+steps:
+  - mkdir: {path: st/xplain, mode: '555'}
+  - keys: M<Enter>
+  - expectScreen:
+      line: {row: 0, contains: '[mcp: off]'}
+      matches: '│> ○ off +│\n +│ cannot write st/xplain/mcp\.json: permission denied +│\n +│ clients 0 pending 0 delivered 0'
+  - chmod: {path: st/xplain, mode: '755'}
+  - expectFile: {glob: 'st/xplain/*', count: 0}

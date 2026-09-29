@@ -17,6 +17,7 @@ export type Step = Record<string, unknown>;
 export type Scenario = {
 	file: string;
 	id: string;
+	also: string[]; // extra spec feature ids this scenario covers (coverage only)
 	title: string;
 	args: string[];
 	env: Record<string, string | null>;
@@ -266,6 +267,7 @@ export const STEP_DEFS: Record<string, StepDef> = {
 export const STEPS = Object.keys(STEP_DEFS);
 const TOP: Record<string, S> = {
 	id: 'str',
+	also: {list: 'str', min: 1},
 	title: 'str',
 	args: {list: 'str'},
 	env: {map: {or: ['str', {enum: [null as unknown as string]}], name: 'string or null'}},
@@ -466,6 +468,11 @@ export function loadScenario(file: string): Scenario {
 	const te = check(raw, {obj: TOP, req: ['id', 'steps']}, 'top level');
 	if (te) bad(te);
 	if (!raw.id) bad('id must not be empty');
+	const also = ((raw.also ?? []) as string[]).map((a) => a.trim());
+	also.forEach((a, i) => {
+		if (!a) bad(`also[${i}] must not be empty`);
+		if (a === raw.id || also.indexOf(a) !== i) bad(`also[${i}]: duplicate id ${a}`);
+	});
 	const size = String(raw.size ?? '120x40');
 	const m = /^(\d+)x(\d+)$/.exec(size) ?? bad(`size must be COLSxROWS, got ${size}`);
 	const fixture = (raw.fixture ?? 'standard') as Scenario['fixture'];
@@ -584,6 +591,7 @@ export function loadScenario(file: string): Scenario {
 	return {
 		file,
 		id: raw.id as string,
+		also,
 		title: String(raw.title ?? ''),
 		args: ((raw.args ?? []) as unknown[]).map(String),
 		env: (raw.env ?? {}) as Record<string, string | null>,

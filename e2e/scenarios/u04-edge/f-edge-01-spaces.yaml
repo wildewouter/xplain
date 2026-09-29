@@ -1,0 +1,48 @@
+id: F-EDGE-01
+title: paths with spaces shown exactly (the TAB git appends after such names is not part of the path) - modified, added, deleted, untracked
+fixture: empty
+steps:
+  - expectScreen: {line: {row: 0, contains: 'No changes'}}
+  - writeFile: {path: my file.txt, content: "a\n"}
+  - writeFile: {path: del me.txt, content: "d1\nd2\n"}
+  - git: add -A
+  - git: commit -qm base
+  - writeFile: {path: my file.txt, content: "b\n"}
+  - removeFile: del me.txt
+  - writeFile: {path: new one.txt, content: "n\n"}
+  - git: [add, new one.txt]
+  - writeFile: {path: un tracked.txt, content: "u\n"}
+  - keys: r
+  - note: deleted file (`--- a/del me.txt<TAB>`)
+    expectScreen:
+      line:
+        - {
+            row: 0,
+            matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] \[cursor L1:C1\] del me\.txt \+0 -2$',
+          }
+        - {row: 2, matches: '^@@ -1,2 \+0,0 @@'}
+      notContains: /dev/null
+  - keys: <Tab>
+  - note: modified file (`--- a/my file.txt<TAB>`, `+++ b/my file.txt<TAB>`)
+    expectScreen:
+      line: {row: 0, matches: '\[2/4\] \[cursor L1:C1\] my file\.txt \+1 -1$'}
+  - keys: <Tab>
+  - note: added file (`+++ b/new one.txt<TAB>`)
+    expectScreen:
+      line:
+        - {row: 0, matches: '\[3/4\] \[cursor L1:C1\] new one\.txt \+1 -0$'}
+        - {row: 2, matches: '^@@ -0,0 \+1 @@'}
+      notContains: /dev/null
+  - keys: <Tab>
+  - note: untracked file
+    expectScreen:
+      line: {row: 0, matches: '\[4/4\] \[cursor L1:C1\] un tracked\.txt \+1 -0$'}
+  - keys: f
+  - note: picker rows - path, then one space and the counts (no tab cell)
+    expectScreen:
+      contains: ' Files (4/4)'
+      matches:
+        - '│ D del me\.txt \+0 -2\s+│'
+        - '│ M my file\.txt \+1 -1\s+│'
+        - '│ A new one\.txt \+1 -0\s+│'
+        - '│>A un tracked\.txt \+1 -0 \*\s+│'

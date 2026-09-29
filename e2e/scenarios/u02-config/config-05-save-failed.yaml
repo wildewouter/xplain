@@ -7,9 +7,9 @@ files:
 steps:
   - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] '}}
   - keys: Cll<Enter>
-  - note: error message text after the prefix is platform detail, not asserted
+  - note: mkdir of the parent fails, parent path is a regular file
     expectScreen:
       line:
         - {row: 0, matches: '^\[all\] \[full\] \[unified\] \[dull\] '}
-        - {row: -1, matches: '^config save failed: .+ \| \(1-5/5\) '}
+        - {row: -1, matches: '^config save failed: ${TMP}/plain/cfg\.json: not a directory \| \(1-5/5\) '}
   - expectFile: {path: '${TMP}/plain', equals: "i am a file\n"}

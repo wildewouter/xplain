@@ -1,4 +1,4 @@
-import {existsSync, mkdirSync, mkdtempSync, rmSync, statSync, readFileSync} from 'node:fs';
+import {existsSync, mkdirSync, mkdtempSync, rmSync, statSync, readFileSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {createServer} from 'node:net';
 import {waitFor} from './helpers.js';
@@ -232,6 +232,14 @@ const parse = (r: {content: {text: string}[]}) => JSON.parse(r.content[0]!.text)
 	ok('tools: clamp max', ms === 120000);
 	void callTool('next_question', {wait_seconds: -5}, {hub: h2, clientId: 'd'});
 	ok('tools: clamp min', ms === 1000);
+	for (const [w, want] of [
+		[0, 1000],
+		[0.5, 1000],
+		[200, 120000],
+	] as const) {
+		void callTool('next_question', {wait_seconds: w}, {hub: h2, clientId: `w${w}`});
+		ok(`tools: clamp ${w} -> ${want / 1000}s`, ms === want);
+	}
 	void callTool('next_question', {}, {hub: h2, clientId: 'e'});
 	ok('tools: default 45', ms === 45000);
 	h2.close();
@@ -287,6 +295,17 @@ const parse = (r: {content: {text: string}[]}) => JSON.parse(r.content[0]!.text)
 	const r = rotateToken(d);
 	ok('token: rotate changes', r.token !== a.token && loadOrCreateToken(d).token === r.token);
 	ok('token: rotate mode', (statSync(file).mode & 0o777) === 0o600);
+}
+{
+	const d = join(tmp(), 'state-file');
+	writeFileSync(d, 'not a dir');
+	let msg = '';
+	try {
+		loadOrCreateToken(d);
+	} catch (e) {
+		msg = (e as Error).message;
+	}
+	ok('token: write failure runtime-neutral', msg === `cannot write ${join(d, 'mcp.json')}: not a directory`);
 }
 
 // ---- server

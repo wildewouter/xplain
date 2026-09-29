@@ -1,0 +1,30 @@
+id: F-EDGE-04
+title: 'deleted empty tracked file (no hunks) shows note row "No textual changes"; mode change with content change shows hunks, no note'
+fixture: empty
+steps:
+  - writeFile: {path: both.sh, content: "echo a\n"}
+  - writeFile: {path: gone.txt, content: ''}
+  - git: add -A
+  - git: commit -qm base
+  - writeFile: {path: both.sh, content: "echo b\n", mode: '755'}
+  - removeFile: gone.txt
+  - expectScreen: {line: {row: 0, contains: 'No changes'}}
+  - keys: r
+  - note: mode + content change - hunks, no note
+    expectScreen:
+      line:
+        - {row: 0, matches: '\[1/2\] \[cursor L1:C1\] both\.sh \+1 -1$'}
+        - {row: 2, matches: '^@@ -1 \+1 @@'}
+      notContains: 'No textual changes'
+  - keys: <Tab>
+  - expectScreen:
+      line:
+        - {row: 0, matches: '\[2/2\] \[cursor r1:C1\] gone\.txt \+0 -0$'}
+        - {row: 2, matches: '^No textual changes'}
+        - {row: 3, equals: ''}
+      notContains: ['@@', 'Binary file', Renamed]
+  - keys: f
+  - expectScreen:
+      matches:
+        - '│ M both\.sh \+1 -1\s+│'
+        - '│>M gone\.txt \+0 -0 \*\s+│'

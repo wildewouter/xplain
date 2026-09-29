@@ -2,7 +2,7 @@ import {useEffect, useRef, useMemo, useState} from 'react';
 import {Box, Text, useApp, useInput, useStdin, useStdout} from 'ink';
 import {readFile, writeFile} from 'node:fs/promises';
 import {join, resolve} from 'node:path';
-import {loadDiff, listFiles, MODES, type DiffFile, type Mode} from './diff/load.js';
+import {loadDiff as loadDiff0, listFiles, MODES, type DiffFile, type Mode} from './diff/load.js';
 import {FileModal} from './components/FileModal.js';
 import {SearchModal, type Hit} from './components/SearchModal.js';
 import {matchPaths} from './match.js';
@@ -23,6 +23,7 @@ import {exportName, renderReviewMarkdown, type AskController, type Question} fro
 import {footerFor, hasMotions, helpCtx} from './keys.js';
 import {osc52Copy} from './clipboard.js';
 import {track} from './sync.js';
+import {failMsg} from './errors.js';
 import {
 	DiffView,
 	toRows,
@@ -100,6 +101,7 @@ export default function App({
 	onQuestionDelete,
 	mcp: mcp0,
 	copy = osc52Copy,
+	loadDiff = loadDiff0,
 }: {
 	args: string[];
 	cwd?: string;
@@ -116,6 +118,7 @@ export default function App({
 	onQuestionDelete?: (q: Question) => void; // sent comment deleted
 	onCursor?: (c: {index: number; row: Row | SRow | undefined}) => void; // cursor row hook (prompt anchor)
 	copy?: (text: string) => void; // clipboard for code block copy buttons
+	loadDiff?: typeof loadDiff0; // diff loader (tests: control load timing)
 }) {
 	const [note, setNote] = useState<string>();
 	const {exit} = useApp();
@@ -155,6 +158,7 @@ export default function App({
 	const cols = stdout.columns || 80;
 	const eff = split && cols >= 100;
 	const [full, setFull] = useState(full0);
+	const [scopeGen, setScopeGen] = useState(0); // bumped per scope toggle: reloads, resets cursor + viewport
 	const keep = useRef<string | undefined>(undefined);
 	// mode change: shown file stays until the new diff arrives, then file index 1 (cursor kept when same path)
 	const toFirst = useRef(false);
@@ -244,7 +248,7 @@ export default function App({
 		return () => {
 			live = false;
 		};
-	}, [mode, full]);
+	}, [mode, full, scopeGen]);
 
 	const [browsePath, setBrowsePath] = useState<string>();
 	const [browseText, setBrowseText] = useState('');
@@ -300,7 +304,8 @@ export default function App({
 	reloadRef.current = reload;
 	useEffect(() => mcp.onFilesChanged(() => reloadRef.current(false)), [mcp]);
 	const openBrowse = (p: string) => {
-		track(readFile(join(cwd ?? '.', p))).then(
+		const fp = join(cwd ?? '.', p);
+		track(readFile(fp)).then(
 			(buf) => {
 				const t = buf.subarray(0, 8000).includes(0) ? BINARY_MSG : buf.toString('utf8');
 				setBrowseText(t);
@@ -308,7 +313,7 @@ export default function App({
 				setOff(0);
 			},
 			(e) => {
-				setNote(String(e.message ?? e));
+				setNote(failMsg(`cannot read ${fp}`, e));
 				setNumGo(undefined);
 			},
 		);
@@ -505,29 +510,40 @@ export default function App({
 		setVline(false);
 	};
 	const fkey = browsePath !== undefined ? 'b:' + browsePath : 'd:' + file?.path;
-	const prev = useRef<{rows: readonly (Row | SRow)[]; key: string; full: boolean; eff: boolean}>(undefined);
-	const kept = useRef(false); // cursor kept across a rows change (reload of same file)
-	useEffect(() => {
-		const p = prev.current;
-		// `full` flips before its rows load: rows keep the `full` they were built under
-		prev.current = {rows, key: fkey, full: p && rows === p.rows ? p.full : full, eff};
+	// Cursor + viewport placement when rows change or scope is toggled, derived during render (React re-renders
+	// before committing): no frame shows new rows with a stale cursor, and no key can land in between.
+	// `gen` counts scope toggles; rows keep the `gen` they were built under, so a toggle resets now (old rows) and
+	// again when its rows arrive, even when toggled back before the load resolved.
+	const [nav, setNav] = useState<{
+		rows: readonly (Row | SRow)[];
+		key: string;
+		gen: number;
+		rowsGen: number;
+		eff: boolean;
+	}>();
+	if (!nav || nav.rows !== rows || nav.gen !== scopeGen) {
+		const p = nav;
+		const rowsGen = p && rows === p.rows ? p.rowsGen : scopeGen;
+		setNav({rows, key: fkey, gen: scopeGen, rowsGen, eff});
 		// same file reloaded: keep the cursor on its source line (`cur`/`side` still hold the old values)
 		const o =
-			p && p.key === fkey && p.full === full && p.eff === eff ? p.rows[Math.min(cur, p.rows.length - 1)] : undefined;
-		kept.current = !!o;
+			p && p.key === fkey && p.gen === scopeGen && p.rowsGen === rowsGen && p.eff === eff
+				? p.rows[Math.min(cur, p.rows.length - 1)]
+				: undefined;
 		if (o) {
 			const no = rowNo(o, side);
 			let i = no === undefined ? -1 : rows.findIndex((r) => anchors(r, no, isDel(o), side));
 			if (i < 0 && no !== undefined) i = nearest(newNos(rows), no);
-			setCur(i < 0 ? Math.min(cur, last) : i);
+			setCur(i < 0 ? Math.min(cur, last) : i); // viewport: the cursor-follow effect places it
 		} else {
 			setCur(full && starts.length ? starts[0]! : 0);
 			setCol(0);
 			setSide('new');
+			setOff(full && starts.length ? Math.min(max, Math.max(0, starts[0]! - CTX)) : 0);
 		}
 		endVis();
 		pend.current = 0;
-	}, [rows, full]);
+	}
 	// numbered comments across files, by label; ( ) jump, wrapping at the ends
 	const [numGo, setNumGo] = useState<string>();
 	const numLast = useRef<string>(undefined);
@@ -729,11 +745,6 @@ export default function App({
 		endVis();
 	};
 	const mvCur = (n: number) => setCur((c) => Math.min(last, Math.max(0, c + n)));
-	useEffect(() => {
-		// same file reloaded: cursor-follow effect already placed the view
-		if (kept.current) return;
-		setOff(full && starts.length ? Math.min(max, Math.max(0, starts[0]! - CTX)) : 0);
-	}, [rows, full]);
 	const sw = (d: number) => {
 		if (!files?.length) return;
 		setIdx((i) => (i + d + files.length) % files.length);
@@ -765,9 +776,10 @@ export default function App({
 			setOff(0);
 		},
 		full: (v) => {
+			if (v === full) return setOff(0); // current value: cursor kept, top reset (F-NAV-10)
 			keep.current = file?.path;
 			setFull(v);
-			setOff(0);
+			setScopeGen((g) => g + 1);
 		},
 	};
 	const cfgOpen = () => {
@@ -804,7 +816,7 @@ export default function App({
 		const md = renderReviewMarkdown(qs, {cwd: resolve(cwd ?? '.'), mode, args, date: now});
 		track(writeFile(path, md)).then(
 			() => setNote(`exported ${qs.length} comment${qs.length === 1 ? '' : 's'} -> ${path}`),
-			(e) => setNote(`export failed: ${e.message ?? e}`),
+			(e) => setNote(failMsg(`export failed: ${path}`, e)),
 		);
 	};
 
@@ -1214,7 +1226,7 @@ export default function App({
 			} else if (input === 'c') {
 				keep.current = file?.path;
 				setFull((v) => !v);
-				setOff(0);
+				setScopeGen((g) => g + 1);
 			} else if (input === 'm') cycleMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length]!);
 			else if (input === 'f') {
 				setSel(idx);

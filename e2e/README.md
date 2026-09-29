@@ -1,5 +1,7 @@
 # xplain e2e (black box)
 
+Pointing the suite at a new implementation (e.g. a rewrite): see [PORTING.md](../PORTING.md).
+
 Drives the real binary in a PTY, mirrors its output into a headless xterm and checks screen, files, HTTP (MCP) and
 fake external CLIs. Language agnostic: any implementation that honors the [app contract](#app-contract) can be tested
 with `XPLAIN_BIN`. The TS app is the oracle. Scenarios never run shell code: files, modes, links, git and fake CLIs
@@ -12,11 +14,13 @@ npm run e2e                          # all scenarios, concurrently
 npm run e2e -- F-NAV                 # filter: spec id (exact or prefix), path substring or glob (nav/*.yaml)
 npm run e2e -- --repeat 30 --jobs 16 # flake hunting
 npm run e2e -- --list
+npm run e2e -- --coverage            # spec coverage check only, no app launch
 XPLAIN_BIN=/path/to/xplain npm run e2e
 ```
 
 Output: `PASS <id> <file> <ms>` / `FAIL <id> <file> <ms> step <n>: <why>` plus the step and a full screen dump (or
-stdout/stderr for `tui: false`), then a per spec id summary. Exit code 1 on any failure.
+stdout/stderr for `tui: false`), then a per spec id summary and, for an unfiltered run, the
+[coverage](#coverage) check. Exit code 1 on any failure or coverage gap.
 
 | env            | default                             | meaning                                                                 |
 | -------------- | ----------------------------------- | ----------------------------------------------------------------------- |
@@ -26,9 +30,24 @@ stdout/stderr for `tui: false`), then a per spec id summary. Exit code 1 on any 
 | `E2E_REPEAT`   | `1`                                 | runs per scenario (`--repeat`)                                          |
 | `E2E_UPDATE=1` |                                     | rewrite `expectGolden` files instead of comparing                       |
 | `E2E_KEEP=1`   |                                     | keep scenario temp dirs                                                 |
+| `E2E_SPEC`     | `spec/SPEC.md`                      | spec whose coverage index the coverage check reads                      |
 
 No sleeps anywhere: every input is followed by a sync barrier and the runner waits for the app's reply. If the
 process exits while a step waits, the step fails at once (unless the next step is `expectExit`).
+
+## Coverage
+
+The `## Coverage index` table at the end of `spec/SPEC.md` lists every feature ID with Test `yes` (in scope) or
+`no (<why>)` (REMOVED / UNSPEC, out of scope). A scenario covers its `id` plus any ids in the optional `also: [...]`
+list. After an unfiltered run (and with `--coverage`, which only loads scenarios and never starts the app) the runner
+prints `--- coverage ---` and fails on:
+
+- `FAIL <id>: no scenario`: in-scope feature without a scenario (a gap)
+- `FAIL <file>: id|also <id> is out of scope (...)` / `... is not in the spec coverage index`
+- a malformed coverage index or unreadable spec; with `--coverage` also scenario load errors
+
+then `<covered>/<in scope> in-scope features covered, <gaps> gaps, <bad> bad ids, <n> scenarios (<m> out of scope)`.
+Filtered runs skip the check.
 
 ## Isolation
 
@@ -58,6 +77,7 @@ row).
 
 ```yaml
 id: F-NAV-01 # spec feature id (required); summary groups by it
+also: [F-NAV-05] # optional: more feature ids this scenario covers (coverage only)
 title: j scrolls one row
 args: [--split] # CLI args
 env: {FOO: bar, TERM_PROGRAM: null} # extra env; null removes a var
@@ -231,7 +251,7 @@ steps:
 
 What an implementation must do so these tests apply. Only active with `XPLAIN_SYNC=1`; without it nothing changes.
 
-**Launch.** The runner starts `sh -c 'stty -echo -icanon min 1 time 0; printf "\033]7770;ready\007"; exec $XPLAIN_BIN
+**Launch.** The runner starts `sh -c '/bin/stty -echo -icanon min 1 time 0; printf "\033]7770;ready\007"; exec $XPLAIN_BIN
 "$@"'` in a PTY (cols x rows from `size`), cwd `${REPO}` (or `cwd`), env as in [Isolation](#isolation). With
 `captureStderr` the exec gets `2><file>`: stderr is a regular file then, not the terminal. Input may arrive before the
 app puts the terminal in raw mode; the app sets raw mode itself. Exit code 0 on a normal quit.
@@ -279,6 +299,6 @@ as reported by xterm (`#rrggbb`, palette index or default), attributes. How the 
 
 ## Layout
 
-`run.ts` runner CLI; `lib/scenario.ts` load + strict validation (schemas); `lib/runner.ts` one scenario (isolation,
+`run.ts` runner CLI; `lib/scenario.ts` load + strict validation (schemas); `lib/coverage.ts` spec coverage check; `lib/runner.ts` one scenario (isolation,
 steps); `lib/session.ts` PTY + xterm + barriers; `lib/keys.ts` key notation; `lib/match.ts` matchers; `lib/shim.mjs`
 fake CLI; `fixture.sh` fixture repos; `scenarios/` by area; `golden/` screen snapshots.

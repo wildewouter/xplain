@@ -52,6 +52,22 @@ Everything test may touch:
 - Without `XPLAIN_SYNC`: input bytes and output unchanged (no barrier handling, no replies).
 - Tests wait only on barrier replies, process exit, HTTP responses and connection results. No sleeps, no timeouts, no screen polling.
 
+## Messages
+
+Error notes / screens the app words itself: `<action> <target>: <reason>`. Runtime (language, OS library) error texts never shown verbatim; only the error code picks `<reason>`:
+
+| code            | `<reason>`          |
+| --------------- | ------------------- |
+| ENOENT          | `not found`         |
+| EACCES, EPERM   | `permission denied` |
+| EISDIR          | `is a directory`    |
+| ENOTDIR         | `not a directory`   |
+| any other error | `failed`            |
+
+- `failed`: text after it UNSPEC (UNSPEC-42); tests assert prefix up to `failed` only.
+- Sites: `cannot run git: <reason>` (F-MODE-04), `cannot open directory <dir>: <reason>` (F-CLI-06), `cannot read <path>: <reason>` (F-BROWSE-01, F-COMMENT-09), `config save failed: <path>: <reason>` (F-CONFIG-05), `export failed: <path>: <reason>` (F-EXPORT-01), `cannot write <path>: <reason>` (F-MCPSRV-01 token file), `cannot listen on 127.0.0.1:<port>: <reason>` (F-MCPUI-03).
+- Not this form (quoted elsewhere): git's own stderr (F-MODE-04), port busy (F-MCPUI-03), `invalid XPLAIN_MCP_PORT ...` (Test seams), integration messages (F-INTEG-*), config load warnings (F-CONFIG-04).
+
 ## Colors
 
 Colors named ANSI (`gray`, `cyan`, `yellow`, `magenta`, `green`, `red`, `greenBright`, `redBright`, `black`, `white`) or 24-bit hex. Syntax highlighting: code highlighted by file extension (ts, tsx, mts, cts, js, jsx, mjs, cjs, json, md, css, html, xml, yml, yaml, sh, bash, zsh, py, go, rs, java, c, h, cpp, rb, sql, toml); token colors not specified. Other extension: plain. Token colors and language detection details: UNSPEC (UNSPEC-31).
@@ -159,7 +175,7 @@ keys: ? help, s split/unified, c full/changes, ]/[ next/prev change, m cycles mo
 
 - `--cwd`, `--config`, `--mode`, `--theme` (space form) take next argv item verbatim, even if it starts with `-`. E.g. `--cwd -h` sets cwd `-h` (no help); `--mode --staged` fails `invalid mode: --staged`.
 - `=` form only for `--config=`, `--mode=`, `--theme=`. `--cwd=<d>`, `--split=x`, `--staged=x` etc. not flags: passed to git as args (git then errors, F-MODE-04).
-- `--cwd` dir missing: git spawn fails, error screen text `spawn git ENOENT`.
+- `--cwd` dir checked before each diff load (git not spawned when bad): error screen (F-MODE-04) `cannot open directory <dir>: <reason>`, `<dir>` as given. Missing: `not found`; regular file: `not a directory`. Dir created later: `r` loads it.
 
 ## CONFIG
 
@@ -216,7 +232,7 @@ keys: ? help, s split/unified, c full/changes, ]/[ next/prev change, m cycles mo
 - Existing file must parse to JSON object, else note `config unreadable, not saved (<path>)`, file untouched.
 - Missing file: base `{"version": 1}`. Parent dirs created.
 - Patch deep-merged into existing object (other keys kept, unknown keys kept).
-- Written as JSON, tab indent, trailing `\n`. Failure: note `config save failed: <error message>`. Write mechanism (current: temp `<path>.<pid>.tmp` then rename, temp removed on failure): UNSPEC (UNSPEC-36).
+- Written as JSON, tab indent, trailing `\n`. Failure: note `config save failed: <path>: <reason>` (Messages; e.g. parent path a regular file: `not a directory`; dir not writable: `permission denied`). Write mechanism (current: temp `<path>.<pid>.tmp` then rename, temp removed on failure): UNSPEC (UNSPEC-36).
 - Success: note cleared.
 - Patch per setting: `theme` → `{"theme": v}`; mode → `{"view": {"mode": v}}`; split → `{"view": {"split": bool}}`; view → `{"view": {"full": bool}}`; confirm quit → `{"app": {"confirmQuit": bool}}`; mcp on startup → `{"mcp": {"autostart": bool}}`.
 - Example fresh file after selecting theme dull:
@@ -256,7 +272,7 @@ Diff source.
 
 ### F-MODE-04 git error screen
 
-- Diff load fails (not git repo, bad args, no HEAD, bad `--cwd`): whole screen replaced by error text (red): git stderr verbatim, or spawn error message when git never ran (e.g. `spawn git ENOENT`). Text always from the `git diff` command (F-MODE-01), never from the untracked listing (F-MODE-02), deterministic. Outside any repo: `git diff` stderr = git's `git diff --no-index` usage (long text). Header/footer gone. Stderr taller than screen: UNSPEC (UNSPEC-2).
+- Diff load fails (not git repo, bad args, no HEAD, bad `--cwd`): whole screen replaced by error text (red): git stderr verbatim; bad `--cwd`: `cannot open directory <dir>: <reason>` (F-CLI-06); git cannot be started (e.g. not on `PATH`): `cannot run git: <reason>` (not on `PATH`: `cannot run git: not found`). Text always from the `git diff` command (F-MODE-01), never from the untracked listing (F-MODE-02), deterministic. Outside any repo: `git diff` stderr = git's `git diff --no-index` usage (long text). Header/footer gone. Stderr taller than screen: UNSPEC (UNSPEC-2).
 - Keys on error screen: Ctrl+C exits (F-CLI-05); `r` retries load. Other keys: UNSPEC (UNSPEC-1).
 - Later successful load restores UI: `r` / agent reload (F-RELOAD-02) succeeding. `r` failing while on error screen: error screen stays.
 
@@ -275,6 +291,7 @@ Diff edge cases. Each file: path, adds, dels, rows.
 ### F-EDGE-01 paths
 
 - Only git's own `a/`, `b/` prefix stripped (once). Path whose own first dir is `a` or `b` shown in full: repo file `a/x.txt` shows `a/x.txt`, `b/a/y` shows `b/a/y` (header, picker, rename). Deleted file path = old path. Path relative to repo root (as git prints).
+- Path with spaces shown exactly: `my file.txt` shows `my file.txt` followed by one space and the counts (header, picker). The TAB git appends after such names in `---`/`+++` lines is not part of the path.
 
 ### F-EDGE-02 rename
 
@@ -287,7 +304,7 @@ Diff edge cases. Each file: path, adds, dels, rows.
 
 ### F-EDGE-04 no textual changes
 
-- File entry without hunks, not binary, not rename (mode change, empty new file): note row `No textual changes`.
+- File entry without hunks, not binary, not rename (mode change, empty new file, deleted empty file): note row `No textual changes`. Mode change with content change has hunks: no note.
 
 ### F-EDGE-05 status letters (picker)
 
@@ -532,7 +549,7 @@ Read-only file viewer.
 - File read `<cwd>/<path>`. First 8000 bytes contain NUL: content `binary file, not shown`.
 - Trailing single newline dropped; lines split on `\n`; empty file = one empty row. Line numbers 1..n.
 - Header F-HEADER-02 (cursor tag always). Cursor row 1, col 1, top 0.
-- Read error: note = error message (e.g. `ENOENT: no such file or directory, open '<path>'`; `<path>` = `<cwd>/<p>` with `--cwd`, else `<p>` as given), browse not opened.
+- Read error: note `cannot read <path>: <reason>` (Messages; e.g. `cannot read a.txt: not found`; `<path>` = `<cwd>/<p>` with `--cwd`, else `<p>` as given), browse not opened.
 - Only one trailing `\n` dropped: file `a\n\n` = rows `a`, empty.
 
 ### F-BROWSE-02 keys
@@ -743,7 +760,7 @@ In-memory comments. Lost on exit.
 - `)` next, `(` previous, wrapping. Start from focused numbered comment, else last jumped, else first (`)`) / last (`(`).
 - Target file in diff list: switch to it (leave browse). Else open file in browse (file unchanged or not in diff).
 - Focus target, cursor on its row. Anchor row missing (line not in shown rows): UNSPEC (UNSPEC-14).
-- None: note `no numbered comments`. Browse open error: note error message.
+- None: note `no numbered comments`. Browse open error: note `cannot read <path>: <reason>` (F-BROWSE-01).
 
 ### F-COMMENT-10 agent note render
 
@@ -816,7 +833,7 @@ Comment to agent via MCP.
 ### F-EXPORT-01 `E`
 
 - No comments: note `no comments to export`.
-- Writes `<abs cwd>/xplain-review-YYYYMMDD-HHMMSS.md` (local time). Note `exported <k> comment -> <path>` / `exported <k> comments -> <path>`. Write error: `export failed: <message>`.
+- Writes `<abs cwd>/xplain-review-YYYYMMDD-HHMMSS.md` (local time). Note `exported <k> comment -> <path>` / `exported <k> comments -> <path>`. Write error: note `export failed: <path>: <reason>` (Messages; e.g. cwd not writable: `permission denied`).
 - Includes agent notes.
 
 ### F-EXPORT-02 markdown format
@@ -939,7 +956,7 @@ Format `key :: description`, grouped `[group]`. L1 = level 1, L2 = level 2 (only
 ### F-RELOAD-01 `r`
 
 - Re-runs diff load with current mode/scope/args; re-reads browsed file (read error ignored, old text kept).
-- Note `reloaded` immediately (even when nothing changed); diff load error: note = error message made single line: each `\n` replaced by one space, then leading/trailing whitespace trimmed (footer stays one row; error screen not shown; old files kept).
+- Note `reloaded` immediately (even when nothing changed); diff load error: note = F-MODE-04 error text made single line: each `\n` replaced by one space, then leading/trailing whitespace trimmed (footer stays one row; error screen not shown; old files kept).
 - Works in diff, browse, focused comment, no-changes screen, error screen.
 - Result identical: no visible change. Else files replaced, same file path kept shown (missing: first file).
 
@@ -1025,7 +1042,7 @@ Format `key :: description`, grouped `[group]`. L1 = level 1, L2 = level 2 (only
 ### F-MCPUI-03 start/stop effects
 
 - Start: header `[mcp: on]`; new comments default ask mode; registration check runs (F-INTEG-02).
-- Start fail: stays off, error row shows message. Port busy: `MCP port <port> is already in use on 127.0.0.1. Stop the other process or choose another port.`
+- Start fail: stays off, error row shows message. Port busy: `MCP port <port> is already in use on 127.0.0.1. Stop the other process or choose another port.` Other listen failure: `cannot listen on 127.0.0.1:<port>: <reason>` (not black-box tested).
 - Stop: live answers become `cancelled` with text `MCP stopped`; every waiting `next_question` long poll answered at once, HTTP 200, result `{"status":"closed","note":"xplain closed the session. Stop."}` (F-MCPSRV-06), response fully written before server closes; header `[mcp: off]`; clients list cleared, pending 0; editor mode back to save. `delivered <d>` after stop: UNSPEC (UNSPEC-21); 0 after next start.
 - Integration statuses kept after stop (last known). Start error row stays until next start attempt.
 
@@ -1042,7 +1059,7 @@ HTTP JSON-RPC 2.0 MCP server (streamable HTTP, JSON responses only, no SSE).
 - Listens `127.0.0.1:<port>` (Test seams), URL `http://127.0.0.1:<port>/mcp`. Only while started.
 - Token file `<state dir>/mcp.json`, state dir `$XDG_STATE_HOME/xplain` or `$HOME/.local/state/xplain`. Dir created mode 0700; file mode 0600; content `{"token": "<t>"}` JSON 2-space indent + `\n`.
 - Existing file with string `token` length >= 16: reused, file untouched. Other fields (e.g. `port`): UNSPEC (UNSPEC-15). Missing/corrupt/short token: new token = 32 random bytes base64url (43 chars), file rewritten as `{"token": ...}` only.
-- Created on first start, not on launch. Token file write failure (e.g. state dir not writable): start fails, error row = fs error message.
+- Created on first start, not on launch. Token file write failure (e.g. state dir not writable): start fails, error `cannot write <state dir>/mcp.json: <reason>` (F-MCPUI-01 error row, F-MCPUI-04 note).
 - Dir mode 0700 only applied when dir created; file chmod 0600 on every write.
 
 ### F-MCPSRV-02 request checks
@@ -1131,7 +1148,7 @@ Tool `files_changed`:
 
 ### F-MCPSRV-06 next_question
 
-- `wait_seconds`: non-number: 45; floored; clamped 1..120.
+- `wait_seconds`: non-number: 45; floored; clamped 1..120 (clamp not black-box tested; out-of-range value is no error).
 - Queue non-empty (eligible item): returns immediately. Else waits until question enqueued or timeout.
 - Result texts (JSON):
   - question: `{"status":"question","thread_id":"q1","turn":1,"follow_up":false,"question":"<q>"}`; follow-up adds `"previous":[{"turn":1,"question":"...","answer":"..."}]` before `question` and `follow_up:true`.
@@ -1171,7 +1188,7 @@ Your note:
 - `previous`: earlier turns, last 5, each text max 4000 chars. `answer` = all answers of that turn joined `\n\n` (empty string if none). `question` of a human turn = message only (no context). Agent note turn 1: question `(note you added with annotate)`, answer = note text.
 - Example follow-up result: `{"status":"question","thread_id":"q1","turn":2,"follow_up":true,"previous":[{"turn":1,"question":"why?","answer":"because"}],"question":"Follow-up to your earlier answer (thread q1, turn 2): and?"}`.
 - Same client new poll while one pending: old poll answers `no_question_yet`.
-- HTTP connection dropped while waiting: poll cancelled. Question delivered but response not written (client gone): requeued at front, delivered count decremented. UI status meanwhile: UNSPEC (UNSPEC-23).
+- HTTP connection dropped while waiting: poll cancelled. Question delivered but response not written (client gone): requeued at front, delivered count decremented (not black-box tested). UI status meanwhile: UNSPEC (UNSPEC-23).
 - Sticky: follow-up turn of thread goes to client that got earlier turn while that client is polling; else any client.
 - Multiple pollers: queue dispatched in poller arrival order.
 - Delivery: UI answer status `streaming`, agent name = client name.
@@ -1194,7 +1211,7 @@ Your note:
 
 ### F-MCPSRV-10 files_changed
 
-- `paths` optional array; non-strings dropped; max 100, each max 500 chars. Result `{"ok":true}`. UI silent reload (F-RELOAD-02).
+- `paths` optional array (missing or not an array: no paths); non-strings dropped; max 100, each max 500 chars. Result `{"ok":true}`. UI silent reload (F-RELOAD-02).
 
 ### F-MCPSRV-11 clients and counters
 
@@ -1339,7 +1356,7 @@ Bugs / quirks of current app and library-dependent details. Not contract. Tests 
 - UNSPEC-14 (F-COMMENT-09, F-MCPSRV-08): agent note on line not in shown rows invisible; `)`/`(` to it notes `comment not in view`.
 - UNSPEC-15 (F-MCPSRV-01): `mcp.json` fields besides `token`: current app never writes `port` (file holds only `token`), existing `port` field ignored (port rewrite never runs). Rewrite may add fields.
 - UNSPEC-16 (F-LAYOUT-07): cursor row padded past screen edge, last cell always `…`.
-- UNSPEC-17 (F-EDGE-07, F-SEARCH-01): non-ASCII paths git-escaped in header/picker (`\303\251.txt`), search shows quoted form, opening fails ENOENT.
+- UNSPEC-17 (F-EDGE-07, F-SEARCH-01): non-ASCII paths git-escaped in header/picker (`\303\251.txt`), search shows quoted form, opening fails `cannot read <p>: not found`.
 - UNSPEC-18 (F-LAYOUT-08): modal narrower than its hint + 2: rows overlap, title / first list row hidden.
 - UNSPEC-19 (F-FILES-02): empty picker `j`/`d` + Enter leaves file index -1; `No changes` persists after reload finds files, until `m`/`c`.
 - UNSPEC-20 (F-HEADER-03, F-CURSOR-06): header pane tag says `new` on del-only split row while char cursor in left pane.
@@ -1363,10 +1380,11 @@ Bugs / quirks of current app and library-dependent details. Not contract. Tests 
 - UNSPEC-39 (F-ASK-02, F-ASK-03): notes `can't reply to this note yet` (agent note refusing reply) and `can't follow up yet` (follow-up editor Enter, MCP running, thread refuses): no black-box trigger.
 - UNSPEC-40 (F-ASK-02, F-ASK-05, F-EXPORT-02): answer status `error` (divider `error` in dels color, error text in dels color, export state `error` and `Error:` line): no black-box trigger (nothing sets it). Rewrite may drop it.
 - UNSPEC-41 (F-MCPUI-01, F-INTEG-03): MCP modal note wrap width and break points for notes longer than width-4 (current: F-ASK-05 wrap at max(10, width-4)).
+- UNSPEC-42 (Messages, F-MODE-04): text after reason `failed` (current: none); which of several failing codes wins. git failing with empty stderr (timeout, killed, non-zero exit without output): current `git failed` / `git failed (exit <n>)`.
 
 ## Coverage index
 
-Test: `yes` = in test scope; `no (REMOVED)` / `no (UNSPEC)` = out of test scope. UNSPEC parts of in-scope features never asserted (UNSPEC section). Parts marked `(not black-box tested)` in a feature body are contract but have no e2e trigger (F-MCPSRV-02 500 / missing Host, F-MCPSRV-04 clientInfo caps, F-MCPSRV-05 20000-char cap).
+Test: `yes` = in test scope; `no (REMOVED)` / `no (UNSPEC)` = out of test scope. UNSPEC parts of in-scope features never asserted (UNSPEC section). Parts marked `(not black-box tested)` in a feature body are contract but have no e2e trigger (F-MCPSRV-02 500 / missing Host, F-MCPSRV-04 clientInfo caps, F-MCPSRV-05 20000-char cap, F-MCPSRV-06 requeue of a delivered question whose response was not written, 1..120 `wait_seconds` clamp, F-MCPUI-03 other listen failure).
 
 | ID           | Summary                                                               | Test         |
 | ------------ | --------------------------------------------------------------------- | ------------ |
@@ -1484,7 +1502,7 @@ Test: `yes` = in test scope; `no (REMOVED)` / `no (UNSPEC)` = out of test scope.
 | F-MCPSRV-03  | JSON-RPC envelope, batch, notifications                               | yes          |
 | F-MCPSRV-04  | initialize, ping, tools/list (clientInfo caps not black-box tested)   | yes          |
 | F-MCPSRV-05  | tools/call, tool definitions (20000-char cap not black-box tested)    | yes          |
-| F-MCPSRV-06  | next_question long poll                                               | yes          |
+| F-MCPSRV-06  | next_question long poll (requeue, wait clamp: not black-box tested)   | yes          |
 | F-MCPSRV-07  | answer tool                                                           | yes          |
 | F-MCPSRV-08  | annotate tool                                                         | yes          |
 | F-MCPSRV-09  | get_questions tool                                                    | yes          |

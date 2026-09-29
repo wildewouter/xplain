@@ -1,0 +1,59 @@
+# Spec parity gate: typecheck, unit tests, formatting, spec coverage, then the black-box e2e suite
+# against the TS app (tsx) and the bun standalone binary. See PORTING.md.
+name: parity
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: parity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: npm ci
+
+      # node-pty ships prebuilt binaries per platform as optional deps; fail early and clearly if missing
+      - name: node-pty smoke test
+        run: node -e "require('@lydell/node-pty').spawn('/bin/sh',['-c','exit 0'],{}).onExit(e=>process.exit(e.exitCode))"
+
+      - name: npm run check
+        shell: bash
+        run: npm run check 2>&1 | tee check.log
+
+      - name: collect failures
+        if: failure()
+        shell: bash
+        run: grep -E '^(FAIL|=== )' check.log > failures.txt || true
+
+      - name: upload failure output
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-failure-${{ matrix.os }}
+          path: |
+            check.log
+            failures.txt
+          if-no-files-found: ignore

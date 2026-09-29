@@ -1,0 +1,12 @@
+id: F-BROWSE-01
+title: 'read error (file not readable): note "cannot read <p>: permission denied", browse not opened'
+size: 120x24
+steps:
+  - chmod: {path: package.json, mode: '000'}
+  - keys: Fjson<Enter>
+  - expectScreen:
+      notContains: ['Search (', '[browse]']
+      line:
+        - {row: 0, matches: '^\[all\] .*README\.md '}
+        - {row: -1, matches: '^cannot read package\.json: permission denied \| \(1-5/5\) '}
+  - chmod: {path: package.json, mode: '644'}

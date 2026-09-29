@@ -6,7 +6,7 @@ import {createMcpBridge, type McpBridge} from '../src/mcp/bridge.js';
 import {createHub, type Hub} from '../src/mcp/index.js';
 import type {AgentIntegration} from '../src/integrations/index.js';
 import type {AskController} from '../src/ask/index.js';
-import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
+import {cwd, tick, ok, keyPress, finish, browse, type R, booted, until} from './keysHelpers.js';
 // ---- MCP bridge in the UI (real bridge, fake hub server/integrations/clipboard) ----
 {
 	const TOK = 'tok-secret-0123456789abcdef';
@@ -87,7 +87,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 	};
 	{
 		const {r, g, w, rg} = mkm();
-		await tick();
+		await booted(r);
 		const lines0 = g().split('\n').length;
 		ok('chip off', g().includes('[mcp: off]') && g().includes('[unified]'));
 		await w('M');
@@ -203,7 +203,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 	}
 	{
 		const {r, g, w, rg} = mkm();
-		await tick();
+		await booted(r);
 		await w('i');
 		await w('j');
 		await w('\r');
@@ -252,24 +252,17 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 		[
 			'browse',
 			{},
-			async (w: (k: string) => Promise<void>) =>
-				void (await w('F'),
-				await w('a.ts'),
-				await w('\r'),
-				await tick(),
-				await w('i'),
-				await w('j'),
-				await w('j'),
-				await w('\r')),
+			async (w: (k: string) => Promise<void>, r: R) =>
+				void (await browse(r, 'a.ts'), await w('i'), await w('j'), await w('j'), await w('\r')),
 		],
 	] as const) {
 		const {r, g, w, rg} = mkm(props);
-		await tick();
+		await booted(r);
 		await w('M');
 		await w('\r');
 		await tick();
 		await w('\x1b');
-		await keysFn(w);
+		await keysFn(w, r);
 		await w('why?');
 		const before = g().split('\n').length;
 		await w('\r');
@@ -295,7 +288,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 	}
 	{
 		const {r, g, w, rg} = mkm({split: false}, 40);
-		await tick();
+		await booted(r);
 		await w('M');
 		await w('\r');
 		await tick();
@@ -354,15 +347,15 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 			[
 				'browse',
 				{},
-				async (w: (k: string) => Promise<void>) =>
-					void (await w('F'), await w('a.ts'), await w('\r'), await tick(), await w('i'), await w('j'), await w('j')),
+				async (w: (k: string) => Promise<void>, r: R) =>
+					void (await browse(r, 'a.ts'), await w('i'), await w('j'), await w('j')),
 			],
 		] as const) {
 			const m = mkc(props);
 			const {r, g, w, rg} = m;
-			await tick();
+			await booted(m.r);
 			await m.on();
-			await keysFn(w);
+			await keysFn(w, r);
 			const before0 = g().split('\n').length;
 			await m.save('later?');
 			ok(`${name}: saved marker`, g().includes('saved · not asked') && g().includes('question saved'));
@@ -392,7 +385,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 		{
 			const m = mkc();
 			const {r, g, w, rg} = m;
-			await tick();
+			await booted(m.r);
 			await m.on();
 			await w('i');
 			await w('j');
@@ -407,7 +400,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 			// MCP off
 			const m = mkc();
 			const {r, g, w, rg} = m;
-			await tick();
+			await booted(m.r);
 			await w('i');
 			await w('j');
 			await m.save('q1', false);
@@ -433,7 +426,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 			// retry, agent note, bulk
 			const m = mkc();
 			const {r, g, w, rg} = m;
-			await tick();
+			await booted(m.r);
 			await m.on();
 			await w('i');
 			await w('j');
@@ -496,7 +489,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 			// numbered agent notes: ) / ( jump across files by number, wrapping
 			const m = mkc();
 			const {r, g, w, rg} = m;
-			await tick();
+			await booted(m.r);
 			await m.on();
 			await w(')');
 			ok(') without numbered notes', g().includes('no numbered comments'));
@@ -523,7 +516,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 			const copied: string[] = [];
 			const m = mkc({copy: (t: string) => copied.push(t)});
 			const {r, g, w, rg} = m;
-			await tick();
+			await booted(m.r);
 			await m.on();
 			const text = 'try:\n```ts\nconst a = 1;\nconst b = 2;\n```\nor\n```\nplain\n```';
 			rg.hub().annotate({file: 'README.md', line: 3, text, number: 1});
@@ -560,7 +553,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 		{
 			const m = mkc({}, 44);
 			const {r, g, w} = m;
-			await tick();
+			await booted(m.r);
 			await m.on();
 			await w('i');
 			await w('j');
@@ -609,7 +602,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 		// autostart + config modal
 		const cp = join(process.env.TMPDIR ?? '.', 'tmp', `mcpa${Date.now()}.json`);
 		const {r, g, w, cnt} = mkb({configPath: cp, confirmQuit: false});
-		await tick();
+		await booted(r);
 		await w('C');
 		ok('config lists mcp on startup', /mcp on startup\s+\[off\]\s+on/.test(g()));
 		ok('config fits 24 rows', g().split('\n').length <= 24);
@@ -628,14 +621,14 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 	}
 	{
 		const {r, g, cnt} = mkb({mcpAutostart: true});
-		await tick();
-		await tick();
+		await booted(r);
+		await until(r, '[mcp: on]'); // autostart is async
 		ok('autostart: start once, header on, ask default', cnt().n() === 1 && g().includes('[mcp: on]'));
 		r.unmount();
 	}
 	{
 		const {r, g, w, cnt} = mkb({mcpAutostart: false});
-		await tick();
+		await booted(r);
 		ok('autostart off: no start', cnt().n() === 0 && g().includes('[mcp: off]'));
 		await w('j');
 		r.unmount();
@@ -678,7 +671,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 	}
 	{
 		const {r, w, rg} = mkm({confirmQuit: false});
-		await tick();
+		await booted(r);
 		await w('q');
 		await tick();
 		ok('quit disposes bridge', rg.disposed() >= 1);
@@ -733,7 +726,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 			['browse', {}, 'F'],
 		] as const) {
 			const m = mkt(props);
-			await tick();
+			await booted(m.r);
 			if (name === 'browse') {
 				await m.w(pre);
 				await m.ws('a.ts');
@@ -768,7 +761,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 			// follow-up input via the bridge
 			const m = mkt();
 			const {g, w, ws, rg} = m;
-			await tick();
+			await booted(m.r);
 			await m.on();
 			await ws('ij');
 			await w('a');
@@ -829,7 +822,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 			// MCP off: note, draft kept
 			const m = mkt();
 			const {g, w, ws} = m;
-			await tick();
+			await booted(m.r);
 			await m.add('q1');
 			m.ans('ans1');
 			await w('K');
@@ -846,7 +839,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 			// scroll inside a long thread
 			const m = mkt();
 			const {g, w} = m;
-			await tick();
+			await booted(m.r);
 			await m.add('q1');
 			m.ans(rows(60));
 			await w('K');
@@ -882,7 +875,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 			// auto-follow tail while streaming
 			const m = mkt();
 			const {g, w} = m;
-			await tick();
+			await booted(m.r);
 			await m.add('q1');
 			m.ans(rows(60), 'streaming');
 			await w('K');
@@ -906,7 +899,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 			// long thread of several turns keeps viewport constant
 			const m = mkt();
 			const {g, w} = m;
-			await tick();
+			await booted(m.r);
 			await m.add('q1');
 			const lines0 = g().split('\n').length;
 			m.ans(rows(15, 'a'));
@@ -923,7 +916,7 @@ import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
 		{
 			const m = mkt({}, 40);
 			const {g, w} = m;
-			await tick();
+			await booted(m.r);
 			await m.add('q1');
 			m.ans('a1');
 			await w('K');

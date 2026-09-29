@@ -1,5 +1,5 @@
 id: F-MCPSRV-10
-title: 'files_changed: exact ok result, silent reload (new file appears, no note); non-string / too many / long paths accepted; browsed file re-read'
+title: 'files_changed: exact ok result, silent reload (new file appears, no note); non-string / too many / long paths, non-array or omitted paths accepted; browsed file re-read'
 files:
   ${CONFIG}/xplain/config.json: {mcp: {autostart: true}}
 steps:
@@ -198,6 +198,18 @@ steps:
       }
     expect: {body: {result: {content: [{type: text, text: '{"ok":true}'}]}}}
   - expectScreen: {contains: third version, notContains: [second version, reloaded]}
+  - note: paths not an array (a string) - ignored, still ok and reloads
+    writeFile: {path: added.txt, content: "fourth version\n"}
+  - http: {tool: files_changed, args: {paths: added.txt}}
+    expect:
+      status: 200
+      body: {result: {isError: {$exists: false}, content: [{type: text, text: '{"ok":true}'}]}}
+  - expectScreen: {contains: fourth version, notContains: [third version, reloaded]}
+  - note: paths omitted - ok and reloads
+    writeFile: {path: added.txt, content: "fifth version\n"}
+  - http: {tool: files_changed}
+    expect: {body: {result: {isError: {$exists: false}, content: [{type: text, text: '{"ok":true}'}]}}}
+  - expectScreen: {contains: fifth version, notContains: [fourth version, reloaded]}
   - note: browse - the browsed file is re-read
     keys: Fjson<Enter>
   - expectScreen: {line: {row: 0, matches: '^\[browse\] .*package\.json$'}, contains: '"demo"'}

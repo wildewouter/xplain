@@ -1,7 +1,8 @@
 import {randomBytes} from 'node:crypto';
-import {chmodSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
+import {chmodSync, readFileSync, writeFileSync} from 'node:fs';
 import {homedir} from 'node:os';
 import {join} from 'node:path';
+import {ensureDir, failMsg} from '../errors.js';
 
 export type McpConfig = {token: string; port?: number};
 
@@ -25,10 +26,15 @@ export function readMcpConfig(dir: string = defaultStateDir()): McpConfig | null
 	return null;
 }
 
+/** Throws `cannot write <state dir>/mcp.json: <reason>` (no error code: message is user-facing as is). */
 export function writeMcpConfig(dir: string, cfg: McpConfig): void {
-	mkdirSync(dir, {recursive: true, mode: 0o700});
-	writeFileSync(file(dir), JSON.stringify(cfg, null, 2) + '\n', {mode: 0o600});
-	chmodSync(file(dir), 0o600);
+	try {
+		ensureDir(dir, 0o700);
+		writeFileSync(file(dir), JSON.stringify(cfg, null, 2) + '\n', {mode: 0o600});
+		chmodSync(file(dir), 0o600);
+	} catch (e) {
+		throw new Error(failMsg(`cannot write ${file(dir)}`, e));
+	}
 }
 
 /** Returns the stored config, creating a fresh token if absent. */

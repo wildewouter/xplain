@@ -22,3 +22,7 @@ npm-debug.log*
 
 # coverage
 coverage/
+
+# agent worktrees
+.claude/worktrees/
+*.bun-build

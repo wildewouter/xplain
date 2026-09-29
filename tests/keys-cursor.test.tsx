@@ -1,8 +1,8 @@
 import {render} from 'ink-testing-library';
 import App from '../src/app.js';
 import {join} from 'node:path';
-import {settle, waitFor} from './helpers.js';
-import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
+import {waitFor} from './helpers.js';
+import {cwd, tick, ok, keyPress, tmpDir, finish, until, browse, booted} from './keysHelpers.js';
 {
 	type Cur = {index: number; row?: {kind: string; text?: string}} | undefined;
 	const mk = (props: Record<string, unknown> = {}) => {
@@ -15,7 +15,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 	const first = (g: () => string) => Number(/\((\d+)-/.exec(g())?.[1]);
 	{
 		const {r, g, w, cur, ln} = mk();
-		await tick();
+		await booted(r);
 		await w('\t');
 		await w('j');
 		ok('cursor on from start, indicator', /\[cursor (L|r)\d+:C\d+\]/.test(g()) && cur() !== undefined);
@@ -84,7 +84,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 	}
 	{
 		const {r, g, w, cur} = mk();
-		await tick();
+		await booted(r);
 		await w('\t');
 		await w('i');
 		const st = cur()!.index;
@@ -112,12 +112,68 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		r.unmount();
 	}
 	{
+		// `c` twice before the changes-only load resolves: back to full, cursor + viewport at first change (F-SCOPE-02,
+		// F-NAV-08). Changes-only loads are held until released, so the timing is deterministic.
+		const {loadDiff} = await import('../src/diff/load.js');
+		let held: (() => void)[] = [];
+		let fullLoads = 0;
+		const load: typeof loadDiff = async (...a) => {
+			if (a[3] === false) await new Promise<void>((res) => held.push(res));
+			const f = await loadDiff(...a);
+			if (a[3] !== false) fullLoads++;
+			return f;
+		};
+		const release = () => {
+			held.forEach((f) => f());
+			held = [];
+		};
+		const land = async () => {
+			const t = mk({loadDiff: load});
+			await booted(t.r);
+			await t.w('\t');
+			const at = {st: t.cur()!.index, top: first(t.g)};
+			await t.w('g');
+			return {...t, ...at};
+		};
+		const settled = async (r: Parameters<typeof until>[0], n: number) => {
+			await waitFor(() => fullLoads >= n, {timeout: 3000});
+			return until(r, '[full]');
+		};
+		{
+			// gap: 2nd `c` after the 1st rendered, changes load still pending
+			const {r, g, w, cur, st, top} = await land();
+			ok('c twice (gap): landing at first change', st > 20 && top > 1 && cur()?.index === 0);
+			await w('c');
+			await waitFor(() => held.length === 1, {timeout: 3000});
+			ok('c twice (gap): 1st c renders, load held', g().includes('[changes]') && held.length === 1);
+			const n = fullLoads;
+			await w('c');
+			const at = () => g().includes('[full]') && cur()?.index === st && first(g) === top;
+			ok('c twice (gap): 2nd c resets before the load', (await waitFor(at, {timeout: 3000})) && held.length === 1);
+			await settled(r, n + 1);
+			ok('c twice (gap): cursor at first change after load', cur()?.index === st && first(g) === top);
+			release();
+			await until(r, '[full]');
+			ok('c twice (gap): stale changes load ignored', cur()?.index === st && first(g) === top);
+			r.unmount();
+		}
+		{
+			// same batch: both keys handled before a render
+			const {r, g, cur, st, top} = await land();
+			const n = fullLoads;
+			r.stdin.write('c');
+			r.stdin.write('c');
+			await settled(r, n + 1);
+			ok('c twice (batch): reloads, cursor at first change', fullLoads === n + 1 && cur()?.index === st);
+			ok('c twice (batch): viewport at first change', first(g) === top && g().includes('[full]'));
+			release();
+			r.unmount();
+		}
+	}
+	{
 		const {r, g, w, cur} = mk();
-		await tick();
-		await w('F');
-		await w('a.ts');
-		await w('\r');
-		await tick();
+		await booted(r);
+		await browse(r, 'a.ts');
 		await w('i');
 		await w('j');
 		await w('j');
@@ -160,10 +216,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		const hd = () => /\[(?:cursor|visual)(?: old| new)? [Lr]\d+:C\d+\]/.exec(g())?.[0] ?? '';
 		return {r, g, w, ws, hd, qs};
 	};
-	const boot = async (g: () => string) => {
-		await waitFor(() => /\[\d+\/\d+\]/.test(g()), {timeout: 3000});
-		await settle(20);
-	};
+	const boot = (g: () => string) => until({lastFrame: g}, /\[\d+\/\d+\]/);
 	{
 		const {r, g, w, ws, hd} = mk(fx);
 		await boot(g);
@@ -411,10 +464,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		// browse ignores side, p no-op
 		const {r, g, w, ws, hd} = mk(fx, {split: true}, 120);
 		await boot(g);
-		await w('F');
-		await w('w.ts');
-		await w('\r');
-		await tick();
+		await browse(r, 'w.ts');
 		await ws('ijp');
 		ok('side: browse no side suffix', g().includes('[browse]') && hd() === '[cursor L2:C1]');
 		r.unmount();
@@ -423,10 +473,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		// browse
 		const {r, g, w, ws, hd, qs} = mk(fx);
 		await boot(g);
-		await w('F');
-		await w('w.ts');
-		await w('\r');
-		await tick();
+		await browse(r, 'w.ts');
 		await ws('ij');
 		await ws('jj');
 		await w('$');

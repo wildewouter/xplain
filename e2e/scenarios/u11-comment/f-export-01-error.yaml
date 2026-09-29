@@ -1,11 +1,12 @@
 id: F-EXPORT-01
-title: 'write error: note export failed: <message>'
+title: 'write error (cwd not writable): note export failed: <path>: permission denied'
 size: 200x20
 steps:
   - keys: ac<Enter>
   - note: cwd (the repo) made read-only
     chmod: {path: '${REPO}', mode: '555'}
   - keys: E
-  - expectScreen: {line: {row: -1, matches: '^export failed: \S'}}
+  - expectScreen:
+      {line: {row: -1, matches: '^export failed: ${REPO}/xplain-review-\d{8}-\d{6}\.md: permission denied \| '}}
   - chmod: {path: '${REPO}', mode: '755'}
   - git: {args: [ls-files, --others, --error-unmatch, 'xplain-review-*'], code: 1}

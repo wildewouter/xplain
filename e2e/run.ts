@@ -1,8 +1,10 @@
-// e2e runner: npx tsx e2e/run.ts [--repeat N] [--jobs N] [--list] [filter...]
+// e2e runner: npx tsx e2e/run.ts [--repeat N] [--jobs N] [--list] [--coverage] [filter...]
 // filter: spec id (exact or prefix, e.g. F-NAV), or a substring / glob of the scenario path.
+// An unfiltered run ends with a spec coverage check; --coverage runs only that check (no app launch).
 import {readdirSync} from 'node:fs';
 import {availableParallelism} from 'node:os';
-import {join, relative} from 'node:path';
+import {isAbsolute, join, relative, resolve} from 'node:path';
+import {checkCoverage, parseSpecIndex} from './lib/coverage.js';
 import {loadScenario, type Scenario} from './lib/scenario.js';
 import {DEFAULT_BIN, ROOT, runScenario, type Result} from './lib/runner.js';
 
@@ -24,8 +26,12 @@ const opt = (name: string, def: number) => {
 const repeat = opt('--repeat', Number(process.env.E2E_REPEAT ?? 1));
 const jobs = opt('--jobs', Number(process.env.E2E_JOBS ?? Math.max(2, availableParallelism())));
 const list = argv.includes('--list');
-const filters = argv.filter((a) => a !== '--list');
-const bin = process.env.XPLAIN_BIN || DEFAULT_BIN;
+const coverageOnly = argv.includes('--coverage');
+const filters = argv.filter((a) => a !== '--list' && a !== '--coverage');
+// a relative program path (first shell word) is resolved against the caller's cwd: the app runs in the fixture repo
+const bin = (process.env.XPLAIN_BIN || DEFAULT_BIN).replace(/^([^\s'"]*\/[^\s'"]*)/, (p) =>
+	isAbsolute(p) ? p : `'${resolve(p).replace(/'/g, `'\\''`)}'`,
+);
 const timeoutMs = Number(process.env.E2E_TIMEOUT ?? 30000);
 const keep = process.env.E2E_KEEP === '1';
 
@@ -55,6 +61,29 @@ const all: Job[] = files.map((file) => {
 	}
 });
 const rel = (f: string) => relative(ROOT, f);
+const specFile = process.env.E2E_SPEC || join(ROOT, 'spec', 'SPEC.md');
+const specShown = relative(ROOT, specFile).startsWith('..') ? specFile : relative(ROOT, specFile);
+const coverage = (): boolean => {
+	console.log(`\n--- coverage (${specShown}) ---`);
+	let lines: string[], ok: boolean;
+	try {
+		const scs = all.flatMap((j) => (j.sc ? [{file: rel(j.file), id: j.sc.id, also: j.sc.also}] : []));
+		({ok, lines} = checkCoverage(parseSpecIndex(specFile), scs));
+	} catch (e) {
+		({ok, lines} = {ok: false, lines: [`FAIL ${(e as Error).message}`]});
+	}
+	for (const l of lines) console.log(l);
+	return ok;
+};
+if (coverageOnly) {
+	if (filters.length) {
+		console.error('--coverage takes no filters');
+		process.exit(2);
+	}
+	const loadErrs = all.filter((j) => j.loadErr);
+	for (const j of loadErrs) console.log(`FAIL ? ${rel(j.file)}: LOAD: ${j.loadErr}`);
+	process.exit(coverage() && !loadErrs.length ? 0 : 1);
+}
 const picked = all.filter(
 	(j) =>
 		!filters.length ||
@@ -110,7 +139,9 @@ for (const {job, r} of results) {
 const failed = results.filter((x) => !x.r.ok).length;
 console.log(`\n--- by spec id ---`);
 for (const [k, v] of [...byId].sort()) console.log(`${v.fail ? 'FAIL' : 'PASS'} ${k} ${v.pass}/${v.pass + v.fail}`);
+const covered = filters.length ? true : coverage();
 console.log(
-	`\n${results.length - failed} passed, ${failed} failed, ${results.length} runs in ${Date.now() - t0}ms (bin: ${bin})`,
+	`\n${results.length - failed} passed, ${failed} failed, ${results.length} runs in ${Date.now() - t0}ms (bin: ${bin})` +
+		(covered ? '' : ', coverage FAILED'),
 );
-process.exit(failed ? 1 : 0);
+process.exit(failed || !covered ? 1 : 0);

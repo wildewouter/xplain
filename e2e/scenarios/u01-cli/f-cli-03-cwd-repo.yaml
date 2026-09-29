@@ -3,9 +3,9 @@ title: '--cwd <dir> - diff, file listing/reads and export all use that dir (dir 
 args: [--cwd, '${TMP}/other']
 size: 240x30
 steps:
-  - note: dir does not exist yet - git spawn fails (F-CLI-06)
+  - note: dir does not exist yet - checked before git runs (F-CLI-06)
     expectScreen:
-      contains: spawn git ENOENT
+      contains: 'cannot open directory ${TMP}/other: not found'
       notContains: README.md
   - git: init -q '${TMP}/other'
   - writeFile: {path: '${TMP}/other/notes.txt', content: "one\n"}
@@ -16,7 +16,7 @@ steps:
   - expectScreen:
       line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/1\] .*notes\.txt \+1 -0$'}
       contains: two
-      notContains: [README.md, ENOENT]
+      notContains: [README.md, cannot open directory]
   - note: file search lists the --cwd repo and browse reads the file from there
     keys: F
   - expectScreen: {contains: notes.txt, notContains: README.md}

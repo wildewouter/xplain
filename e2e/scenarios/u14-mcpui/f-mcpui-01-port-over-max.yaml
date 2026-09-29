@@ -1,0 +1,8 @@
+id: F-MCPUI-01
+title: 'XPLAIN_MCP_PORT 65536 (above max) is invalid: start fails with the invalid-port error row'
+env: {XPLAIN_MCP_PORT: '65536'}
+steps:
+  - keys: M<Enter>
+  - expectScreen:
+      matches: '^ +│> ○ off +│\n +│ invalid XPLAIN_MCP_PORT "65536" \(0-65535\) +│\n +│ clients 0 pending 0 delivered 0 +│$'
+      line: {row: 0, contains: '[mcp: off]'}

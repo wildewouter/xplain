@@ -1,8 +1,8 @@
 import {render} from 'ink-testing-library';
 import App from '../src/app.js';
-import {cwd, tick, ok, keyPress, finish} from './keysHelpers.js';
+import {cwd, ok, keyPress, finish, browse, booted} from './keysHelpers.js';
 const {stdin, lastFrame} = render(<App args={[]} cwd={cwd} />);
-await tick();
+await booted({lastFrame});
 const pr = keyPress({stdin, lastFrame});
 const f = () => lastFrame() ?? '';
 const type = async (s: string) => {
@@ -34,9 +34,7 @@ await pr('\r');
 ok('no match notice', f().includes('pattern not found'));
 // browse mode
 await pr('\x1b');
-await pr('F');
-await type('README');
-await pr('\r');
+await browse({stdin, lastFrame}, 'README');
 ok('browse open', f().includes('[browse]'));
 await pr('/');
 await type('e');

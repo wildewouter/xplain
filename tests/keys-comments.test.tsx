@@ -2,8 +2,8 @@ import {render} from 'ink-testing-library';
 import App from '../src/app.js';
 import {join} from 'node:path';
 import {readFileSync} from 'node:fs';
-import {settle, waitFor} from './helpers.js';
-import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
+import {waitFor} from './helpers.js';
+import {cwd, tick, ok, keyPress, tmpDir, finish, until, browse, booted} from './keysHelpers.js';
 {
 	// prompt window + quit confirm
 	const dir = tmpDir('keys-ask');
@@ -17,7 +17,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 	};
 	{
 		const {r, g, w, qs} = mk();
-		await tick();
+		await booted(r);
 		await w('i');
 		ok('i no-op: no box, cursor on', !g().includes('enter send') && g().includes('[cursor'));
 		await w('j');
@@ -73,7 +73,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 	}
 	{
 		const {r, w, qs} = mk({split: true});
-		await tick();
+		await booted(r);
 		await w('\t');
 		await w('i');
 		await w('j');
@@ -85,11 +85,8 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 	}
 	{
 		const {r, w, qs} = mk();
-		await tick();
-		await w('F');
-		await w('a.ts');
-		await w('\r');
-		await tick();
+		await booted(r);
+		await browse(r, 'a.ts');
 		await w('i');
 		await w('j');
 		await w('j');
@@ -108,7 +105,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 	}
 	{
 		const {r, g, w} = mk();
-		await tick();
+		await booted(r);
 		await w('?');
 		await w('?');
 		await w('q');
@@ -133,7 +130,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 	}
 	{
 		const {r, g, w} = mk({confirmQuit: false});
-		await tick();
+		await booted(r);
 		await w('q');
 		await w('\t');
 		ok('confirm off: q quit, input dead', !g().includes('[2/'));
@@ -142,7 +139,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 	{
 		const cp = join(dir, `c${Date.now()}.json`);
 		const {r, g, w} = mk({configPath: cp});
-		await tick();
+		await booted(r);
 		await w('C');
 		ok('config lists confirm quit', /confirm quit\s+off\s+\[on\]/.test(g()) && g().includes('Config'));
 		for (let k = 0; k < 4; k++) await w('j');
@@ -189,10 +186,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		return {r, g, w, ws, hd, qs};
 	};
 	const qs_len = (t: string) => t.split('sent').length - 1;
-	const boot = async (g: () => string) => {
-		await waitFor(() => /\[\d+\/\d+\]/.test(g()), {timeout: 3000});
-		await settle(20);
-	};
+	const boot = (g: () => string) => until({lastFrame: g}, /\[\d+\/\d+\]/);
 	{
 		const {r, g, w, ws} = mk(fx, {split: true}, 140);
 		await boot(g);
@@ -208,10 +202,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 	{
 		const {r, g, w, ws} = mk(fx);
 		await boot(g);
-		await w('F');
-		await ws('w.ts');
-		await w('\r');
-		await tick();
+		await browse(r, 'w.ts');
 		await ws('ivl');
 		await w('a');
 		await w('bm');
@@ -231,12 +222,17 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		await ws('ctx');
 		await w('\r');
 		ok('sent: demo entry', g().includes('sent') && g().includes('ctx'));
+		const nRows = (f: string) => Number(/\(\d+-\d+\/(\d+)\)/.exec(f)?.[1]);
+		const n0 = nRows(g());
 		await w('c');
+		await until(r, (f) => f.includes('[changes]') && nRows(f) < n0); // changes-only rows load async
 		ok(
 			'sent: anchor gone in changes-only, no crash',
 			g().includes('[changes]') && !g().includes('sent') && g().includes('big.ts'),
 		);
 		await w('c');
+		// full rows load async, then an effect puts the cursor on the first change; g before that gets overridden
+		await until(r, (f) => f.includes('[full]') && nRows(f) === n0 && f.includes('[cursor L30:'));
 		await w('g');
 		ok('sent: back in full', g().includes('[full]') && g().includes('ctx'));
 		await w('\t');
@@ -284,10 +280,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		{
 			const {r, g, w, ws} = mk(cwd, {}, 120);
 			await boot(g);
-			await w('F');
-			await ws('a.ts');
-			await w('\r');
-			await tick();
+			await browse(r, 'a.ts');
 			await ws('i');
 			await w('s');
 			ok('s in browse keeps app alive', g().includes('[browse]') && g().includes('[cursor'));
@@ -457,10 +450,7 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 		}
 		{
 			const {r, g, w, ws} = await fresh();
-			await w('F');
-			await ws('w.ts');
-			await w('\r');
-			await tick();
+			await browse(r, 'w.ts');
 			await ws('ia');
 			await ws('bm');
 			await w('\r');
@@ -487,14 +477,11 @@ import {cwd, tick, ok, keyPress, tmpDir, finish} from './keysHelpers.js';
 	const r = render(<App args={[]} cwd={dir} />);
 	const g = () => r.lastFrame() ?? '';
 	const w = keyPress(r);
-	await new Promise((x) => setTimeout(x, 400));
+	await booted(r);
 	const files = () => readdirSync(dir).filter((f) => f.startsWith('xplain-review-'));
 	await w('E');
 	ok('export: no comments noted, no file', g().includes('no comments to export') && files().length === 0);
-	await w('F');
-	await w('hello');
-	await w('\r');
-	await tick();
+	await browse(r, 'hello');
 	await w('i');
 	await w('\r');
 	await w('my `note`');

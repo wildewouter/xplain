@@ -8,6 +8,7 @@ import {createHub, type Hub} from './hub.js';
 import {createMcpServer, DEFAULT_PORT, envPort, type McpServer} from './server.js';
 import {loadOrCreateToken} from './token.js';
 import {tracked} from '../sync.js';
+import {failMsg} from '../errors.js';
 
 export type BridgeClient = {id: string; name: string; version: string; polling: boolean};
 export type BridgeIntegration = {
@@ -209,7 +210,13 @@ export function createMcpBridge(deps: BridgeDeps) {
 			} catch (e) {
 				h.close();
 				const code = (e as {code?: string})?.code;
-				const msg = code === 'EADDRINUSE' ? `port ${want ?? DEFAULT_PORT} in use` : String((e as Error)?.message ?? e);
+				// raw runtime errors carry a string code: shown as reason only; own errors (no code) as is
+				const msg =
+					code === 'EADDRINUSE'
+						? `port ${want ?? DEFAULT_PORT} in use`
+						: typeof code === 'string'
+							? failMsg('cannot start MCP server', e)
+							: String((e as Error)?.message ?? e);
 				set({running: false, starting: false, error: msg});
 			}
 		}),

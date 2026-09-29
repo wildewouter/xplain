@@ -125,6 +125,12 @@ const addQ = (f: Fx, message = 'why?') =>
 	const g = mk({failStart: new Error('boom')});
 	await g.bridge.start();
 	ok('other error surfaced', g.bridge.getState().error === 'boom');
+	const r = mk({failStart: Object.assign(new Error('listen EACCES: raw runtime text'), {code: 'EACCES'})});
+	await r.bridge.start();
+	ok('raw runtime error: reason only', r.bridge.getState().error === 'cannot start MCP server: permission denied');
+	const w = mk({failStart: Object.assign(new Error('weird'), {code: 'EWHATEVER'})});
+	await w.bridge.start();
+	ok('unknown code: failed', w.bridge.getState().error === 'cannot start MCP server: failed');
 }
 
 // ask sets pending before enqueue (delivery may be synchronous)

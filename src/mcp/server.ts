@@ -5,6 +5,7 @@ import type {Hub, Question} from './hub.js';
 import {callTool, SERVER_INSTRUCTIONS, TOOLS} from './tools.js';
 import {readMcpConfig, writeMcpConfig} from './token.js';
 import {httpRequest, track} from '../sync.js';
+import {failMsg} from '../errors.js';
 
 export const DEFAULT_PORT = 47615;
 /** XPLAIN_MCP_PORT override (decimal 0-65535, 0 = any free port): undefined when unset or empty, NaN when invalid. */
@@ -228,7 +229,7 @@ export function createMcpServer(opts: McpServerOptions): McpServer {
 							? new Error(
 									`MCP port ${wantPort} is already in use on ${host}. Stop the other process or choose another port.`,
 								)
-							: e,
+							: new Error(failMsg(`cannot listen on ${host}:${wantPort}`, e)),
 					);
 				});
 				s.listen(wantPort, host, () => {

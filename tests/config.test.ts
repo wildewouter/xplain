@@ -40,6 +40,15 @@ const capture = <T>(fn: () => T): [T, string] => {
 	ok('atomic: no temp left', readdirSync(join(d, 'a', 'b')).join() === 'config.json');
 }
 {
+	const d = tmp();
+	writeFileSync(join(d, 'plain'), 'x');
+	const p = join(d, 'plain', 'config.json');
+	ok(
+		'save fail: runtime-neutral message',
+		saveConfig(p, {theme: 'light'}) === `config save failed: ${p}: not a directory`,
+	);
+}
+{
 	const p = join(tmp(), 'config.json');
 	writeFileSync(
 		p,

@@ -25,4 +25,4 @@ steps:
         - {row: 2, matches: '^   1   export const a = 3;'}
         - {row: 5, matches: '^   4   line four'}
         - {row: -1, matches: '^reloaded \| \(1-4/4\) '}
-      notContains: ENOENT
+      notContains: cannot read

@@ -1,0 +1,16 @@
+id: F-CONFIG-05
+title: 'write failure (config dir not writable): note "config save failed: <path>: permission denied", setting applied live'
+size: 300x20
+args: [--config, '${TMP}/ro/cfg.json']
+files:
+  ${TMP}/ro/keep.txt: "x\n"
+steps:
+  - chmod: {path: '${TMP}/ro', mode: '555'}
+  - keys: Cll<Enter>
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] \[full\] \[unified\] \[dull\] '}
+        - {row: -1, matches: '^config save failed: ${TMP}/ro/cfg\.json: permission denied \| \(1-5/5\) '}
+  - chmod: {path: '${TMP}/ro', mode: '755'}
+  - note: nothing written, no temp file left
+    expectFile: {glob: '${TMP}/ro/cfg*', count: 0}

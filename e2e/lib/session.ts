@@ -94,9 +94,10 @@ export class Session {
 			this.notify();
 			return false; // let xterm handle it too
 		});
-		// stty before exec: no echo / no line buffering, so input sent before the app sets raw mode is neither echoed nor held
+		// stty before exec: no echo / no line buffering, so input sent before the app sets raw mode is neither echoed nor held.
+		// Absolute path: a scenario `env.PATH` may leave out /bin
 		const q = (x: string) => `'${x.replace(/'/g, `'\\''`)}'`;
-		const script = `stty -echo -icanon min 1 time 0 2>/dev/null; printf '\\033]${OSC_SYNC};ready\\007'; exec ${cmd} "$@"${o.stderrFile ? ` 2>${q(o.stderrFile)}` : ''}`;
+		const script = `/bin/stty -echo -icanon min 1 time 0 2>/dev/null; printf '\\033]${OSC_SYNC};ready\\007'; exec ${cmd} "$@"${o.stderrFile ? ` 2>${q(o.stderrFile)}` : ''}`;
 		this.p = pty.spawn('/bin/sh', ['-c', script, 'xplain', ...args], {
 			name: o.env.TERM ?? 'xterm-256color',
 			cols: o.cols,

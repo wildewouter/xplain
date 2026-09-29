@@ -1,38 +1,35 @@
 # Test-writing units
 
 Fan-out plan for e2e scenario writing: one agent per unit. Only features with Test `yes` in the SPEC.md coverage index
-are listed (119 in scope; REMOVED/UNSPEC IDs left out). Line ranges refer to `spec/SPEC.md`. Every agent also reads the
-shared sections: lines 1-100 (contract surface, test seams, colors) and the UNSPEC section, lines 1307-1344 (never
-assert UNSPEC items). Scenario format: `e2e/README.md`.
+are listed (119 in scope; REMOVED/UNSPEC IDs left out). Each unit reads its `### F-...` sections in `spec/SPEC.md`,
+plus the shared sections (Contract surface, Test seams, Colors) and UNSPEC (never assert UNSPEC items). Scenario format
+and coverage check: `e2e/README.md`.
 
-1. CLI + QUIT (7): F-CLI-01, F-CLI-02, F-CLI-03, F-CLI-04, F-CLI-05, F-CLI-06, F-QUIT-01. Lines 101-160, 913-921.
+1. CLI + QUIT (7): F-CLI-01, F-CLI-02, F-CLI-03, F-CLI-04, F-CLI-05, F-CLI-06, F-QUIT-01.
 2. CONFIG + CFGUI (8): F-CONFIG-01, F-CONFIG-02, F-CONFIG-03, F-CONFIG-04, F-CONFIG-05, F-CFGUI-01, F-CFGUI-02,
-   F-CFGUI-03. Lines 161-227, 941-964.
+   F-CFGUI-03.
 3. MODE + SCOPE + RELOAD (10): F-MODE-01, F-MODE-02, F-MODE-03, F-MODE-04, F-MODE-05, F-SCOPE-01, F-SCOPE-02,
-   F-RELOAD-01, F-RELOAD-02, F-RELOAD-03. Lines 228-266, 308-320, 922-940.
+   F-RELOAD-01, F-RELOAD-02, F-RELOAD-03.
 4. EDGE + THEME (9): F-EDGE-01, F-EDGE-02, F-EDGE-03, F-EDGE-04, F-EDGE-05, F-EDGE-06, F-EDGE-08, F-THEME-01,
-   F-THEME-02. Lines 267-307, 376-385.
+   F-THEME-02.
 5. LAYOUT + HEADER (10): F-LAYOUT-01, F-LAYOUT-02, F-LAYOUT-03, F-LAYOUT-04, F-LAYOUT-05, F-LAYOUT-06, F-LAYOUT-07,
-   F-HEADER-01, F-HEADER-02, F-HEADER-03. Lines 321-375, 386-407.
-6. NAV + FILES (8): F-NAV-05, F-NAV-06, F-NAV-07, F-NAV-08, F-NAV-09, F-NAV-10, F-FILES-01, F-FILES-02. Lines
-   408-493.
-7. SEARCH + BROWSE (4): F-SEARCH-01, F-SEARCH-02, F-BROWSE-01, F-BROWSE-02. Lines 494-536.
-8. FIND + GOTO (5): F-FIND-01, F-FIND-02, F-FIND-03, F-GOTO-01, F-GOTO-02. Lines 537-578.
+   F-HEADER-01, F-HEADER-02, F-HEADER-03.
+6. NAV + FILES (8): F-NAV-05, F-NAV-06, F-NAV-07, F-NAV-08, F-NAV-09, F-NAV-10, F-FILES-01, F-FILES-02.
+7. SEARCH + BROWSE (4): F-SEARCH-01, F-SEARCH-02, F-BROWSE-01, F-BROWSE-02.
+8. FIND + GOTO (5): F-FIND-01, F-FIND-02, F-FIND-03, F-GOTO-01, F-GOTO-02.
 9. CURSOR (9): F-CURSOR-02, F-CURSOR-03, F-CURSOR-04, F-CURSOR-05, F-CURSOR-06, F-CURSOR-07, F-CURSOR-08,
-   F-CURSOR-09, F-CURSOR-10. Lines 579-643.
+   F-CURSOR-09, F-CURSOR-10.
 10. VISUAL + COMMENT-a (8): F-VISUAL-01, F-VISUAL-02, F-VISUAL-03, F-COMMENT-01, F-COMMENT-02, F-COMMENT-03,
-    F-COMMENT-04, F-COMMENT-05. Lines 644-711.
+    F-COMMENT-04, F-COMMENT-05.
 11. COMMENT-b + EXPORT (7): F-COMMENT-06, F-COMMENT-07, F-COMMENT-08, F-COMMENT-09, F-COMMENT-10, F-EXPORT-01,
-    F-EXPORT-02. Lines 712-741, 801-863.
-12. ASK (9): F-ASK-01, F-ASK-02, F-ASK-03, F-ASK-04, F-ASK-05, F-ASK-06, F-ASK-07, F-ASK-08, F-ASK-09. Lines
-    742-800.
-13. HELP (4): F-HELP-01, F-HELP-02, F-HELP-03, F-HELP-04. Lines 864-912.
+    F-EXPORT-02.
+12. ASK (9): F-ASK-01, F-ASK-02, F-ASK-03, F-ASK-04, F-ASK-05, F-ASK-06, F-ASK-07, F-ASK-08, F-ASK-09.
+13. HELP (4): F-HELP-01, F-HELP-02, F-HELP-03, F-HELP-04.
 14. MCPUI + INTEG (10): F-MCPUI-01, F-MCPUI-02, F-MCPUI-03, F-MCPUI-04, F-INTEG-01, F-INTEG-02, F-INTEG-03,
-    F-INTEG-04, F-INTEG-05, F-INTEG-06. Lines 965-1020, 1188-1306.
-15. MCPSRV-a (5): F-MCPSRV-01, F-MCPSRV-02, F-MCPSRV-03, F-MCPSRV-04, F-MCPSRV-05. Lines 1021-1116.
-16. MCPSRV-b (6): F-MCPSRV-06, F-MCPSRV-07, F-MCPSRV-08, F-MCPSRV-09, F-MCPSRV-10, F-MCPSRV-11. Lines 1117-1187.
+    F-INTEG-04, F-INTEG-05, F-INTEG-06.
+15. MCPSRV-a (5): F-MCPSRV-01, F-MCPSRV-02, F-MCPSRV-03, F-MCPSRV-04, F-MCPSRV-05.
+16. MCPSRV-b (6): F-MCPSRV-06, F-MCPSRV-07, F-MCPSRV-08, F-MCPSRV-09, F-MCPSRV-10, F-MCPSRV-11.
 
 Total: 16 units, 119 features.
 
-Existing pilot scenarios: `cli/help.yaml` (F-CLI-01, unit 1), `nav/scroll.yaml` (F-NAV-09, unit 6), `mcp/poll.yaml`
-(F-MCPSRV-06, unit 16).
+Scenarios of unit N live in `e2e/scenarios/uNN-*/`. `npm run e2e -- --coverage` checks every feature has one.

@@ -1,6 +1,7 @@
 import {execFile} from 'node:child_process';
-import {lstat} from 'node:fs/promises';
+import {lstat, stat} from 'node:fs/promises';
 import parseDiff from 'parse-diff';
+import {failMsg} from '../errors.js';
 
 export type Line = {type: 'add' | 'del' | 'normal'; oldNo?: number; newNo?: number; text: string};
 export type Hunk = {header: string; lines: Line[]};
@@ -135,13 +136,22 @@ export type Mode = (typeof MODES)[number];
 
 const MAX_UNTRACKED = 1024 * 1024;
 
+// Runtime-neutral: git stderr verbatim; git never ran: `cannot run git: <reason>`; else `git failed`.
+const gitErr = (err: Error & {code?: unknown; syscall?: unknown}, stderr: string): Error =>
+	new Error(
+		stderr ||
+			(typeof err.code === 'string' && typeof err.syscall === 'string' && err.syscall.startsWith('spawn')
+				? failMsg('cannot run git', err)
+				: typeof err.code === 'number'
+					? `git failed (exit ${err.code})`
+					: 'git failed'),
+	);
+
 function git(args: string[], cwd?: string, okCodes: number[] = [0]): Promise<string> {
 	return new Promise((resolve, reject) =>
 		execFile('git', args, {cwd, maxBuffer: 256 * 1024 * 1024, timeout: 60000}, (err, out, stderr) => {
 			const code = (err as {code?: number} | null)?.code;
-			err && !(typeof code === 'number' && okCodes.includes(code))
-				? reject(new Error(stderr || err.message))
-				: resolve(out);
+			err && !(typeof code === 'number' && okCodes.includes(code)) ? reject(gitErr(err, stderr)) : resolve(out);
 		}),
 	);
 }
@@ -180,12 +190,24 @@ async function untrackedDiff(cwd: string | undefined, full: boolean): Promise<st
 	return parts.join('');
 }
 
+// `--cwd` must be an existing directory before git is spawned (runtimes word a bad spawn cwd differently).
+async function checkDir(dir: string): Promise<void> {
+	let e: unknown;
+	try {
+		if (!(await stat(dir)).isDirectory()) e = {code: 'ENOTDIR'};
+	} catch (err) {
+		e = err;
+	}
+	if (e) throw new Error(failMsg(`cannot open directory ${dir}`, e));
+}
+
 // Rule: mode picks base args (all=HEAD, staged=--cached, unstaged=none). Extra git args
 // are appended after --cached/none; for `all` they replace HEAD (legacy behavior).
 // `all` with no extra args also includes untracked files (as fully added).
 export async function loadDiff(mode: Mode, args: string[], cwd?: string, full = true): Promise<DiffFile[]> {
 	const base = mode === 'staged' ? ['--cached'] : mode === 'unstaged' ? [] : args.length ? [] : ['HEAD'];
 	const gitArgs = ['diff', '--no-color', '--no-ext-diff', ...(full ? ['-U1000000'] : []), ...base, ...args];
+	if (cwd !== undefined) await checkDir(cwd);
 	// Both settle before deciding: a failure always reports `git diff`'s own error (never the untracked listing's),
 	// whichever finishes first. A failing listing alone just means no untracked files.
 	const [out, extra] = await Promise.allSettled([
@@ -203,7 +225,7 @@ export function listFiles(cwd?: string): Promise<string[]> {
 			['ls-files', '--cached', '--others', '--exclude-standard'],
 			{cwd, maxBuffer: 256 * 1024 * 1024},
 			(err, out, stderr) =>
-				err ? reject(new Error(stderr || err.message)) : resolve([...new Set(out.split('\n').filter(Boolean))].sort()),
+				err ? reject(gitErr(err, stderr)) : resolve([...new Set(out.split('\n').filter(Boolean))].sort()),
 		),
 	);
 }

@@ -9,4 +9,4 @@ steps:
       notContains: ['Search (', '[browse]']
       line:
         - {row: 0, matches: '^\[all\] .*README\.md '}
-        - {row: -1, contains: "ENOENT: no such file or directory, open '${REPO}/package.json' | (1-5/5) "}
+        - {row: -1, contains: 'cannot read ${REPO}/package.json: not found | (1-5/5) '}

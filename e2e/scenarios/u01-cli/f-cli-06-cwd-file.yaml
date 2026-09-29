@@ -1,0 +1,9 @@
+id: F-CLI-06
+title: '--cwd names a regular file: checked before git runs - error screen "cannot open directory <dir>: not a directory"'
+args: [--cwd, README.md]
+steps:
+  - expectScreen:
+      line: {row: 0, matches: '^cannot open directory README\.md: not a directory *$'}
+      notContains: ['[mcp: off]', 'hjkl move']
+  - keys: <C-c>
+  - expectExit: 0

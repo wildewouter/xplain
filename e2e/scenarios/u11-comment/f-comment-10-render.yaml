@@ -27,3 +27,12 @@ steps:
   - note: head in accent (solarized #cb4b16), copy button accent
     expectCell: {at: {text: 'sent  #4 agent note'}, fg: '#cb4b16'}
   - expectCell: {at: {text: '[ copy ]'}, fg: '#cb4b16'}
+  - note: MCP stopped - agent notes still never get the saved · not asked suffix
+    keys: M<Enter><Esc>
+  - expectScreen:
+      line: {row: 0, contains: '[mcp: off]'}
+      notContains: 'saved · not asked'
+      matches:
+        - ' #4 agent note L1 +┃\n┃ see code +┃'
+        - ' agent note L2 +│\n│ old side note +│'
+        - ' agent note L2 +│\n│ new side note +│'
