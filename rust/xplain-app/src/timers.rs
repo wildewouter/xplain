@@ -30,14 +30,9 @@ pub struct RealClock {
 }
 
 impl RealClock {
-    /// Local UTC offset must be determined here, once, before other threads exist when possible
-    /// (the `time` crate refuses local offsets in multithreaded processes); fall back to 0.
+    /// Local UTC offset is determined once here; falls back to 0.
     pub fn new(tx: UnboundedSender<Event>, pending: PendingWork) -> Self {
-        let utc_offset_secs = time::UtcOffset::current_local_offset()
-            .map(|o| o.whole_seconds())
-            .ok()
-            .or_else(offset_from_date)
-            .unwrap_or(0);
+        let utc_offset_secs = local_offset_secs();
         RealClock { tx, pending, utc_offset_secs, timers: HashMap::new() }
     }
 
@@ -50,25 +45,10 @@ impl RealClock {
     }
 }
 
-/// Fallback when the `time` crate refuses (multithreaded process): ask `date +%z`.
-fn offset_from_date() -> Option<i32> {
-    let out = std::process::Command::new("date").arg("+%z").output().ok()?;
-    parse_offset(String::from_utf8_lossy(&out.stdout).trim())
-}
-
-/// `+HHMM` / `-HHMM` to seconds.
-fn parse_offset(s: &str) -> Option<i32> {
-    let (sign, rest) = match s.as_bytes().first()? {
-        b'+' => (1, &s[1..]),
-        b'-' => (-1, &s[1..]),
-        _ => return None,
-    };
-    if rest.len() != 4 || !rest.bytes().all(|b| b.is_ascii_digit()) {
-        return None;
-    }
-    let h: i32 = rest[..2].parse().ok()?;
-    let m: i32 = rest[2..].parse().ok()?;
-    Some(sign * (h * 3600 + m * 60))
+/// Local UTC offset in seconds (chrono asks libc `localtime_r`; honours `TZ`).
+fn local_offset_secs() -> i32 {
+    use chrono::Offset;
+    chrono::Local::now().offset().fix().local_minus_utc()
 }
 
 /// Release the pending count once (whoever gets there first: fired task or cancel/replace).
@@ -113,16 +93,6 @@ impl Clock for RealClock {
 mod tests {
     use super::*;
     use tokio::sync::mpsc::unbounded_channel;
-
-    #[test]
-    fn f_export_01_parse_offset() {
-        assert_eq!(parse_offset("+0000"), Some(0));
-        assert_eq!(parse_offset("+0530"), Some(19800));
-        assert_eq!(parse_offset("-0800"), Some(-28800));
-        assert_eq!(parse_offset("0100"), None);
-        assert_eq!(parse_offset("+01"), None);
-        assert_eq!(parse_offset(""), None);
-    }
 
     #[test]
     fn test_seams_now_is_sane() {

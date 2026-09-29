@@ -209,8 +209,8 @@ mod tests {
         let e = load_diff(&spec(&d, DiffMode::All, &[])).await.unwrap_err();
         assert!(!e.is_empty() && !e.starts_with("cannot run git"), "{e}");
         let r = repo("badarg");
-        let e = load_diff(&spec(&r, DiffMode::Staged, &["--bogus-flag"])).await.unwrap_err();
-        assert!(e.contains("bogus"), "{e}");
+        let e = load_diff(&spec(&r, DiffMode::Staged, &["no-such-ref"])).await.unwrap_err();
+        assert!(e.contains("no-such-ref"), "{e}");
     }
 
     #[tokio::test]

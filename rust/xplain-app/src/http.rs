@@ -558,13 +558,12 @@ mod tests {
         let _ = s.write_all(b"POST /mcp HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n").await;
         let r = next_http(&mut f.rx).await;
         assert!(f.server.reply_tracked(r.conn, resp(200, "{\"status\":\"closed\"}"), &f.pending));
-        let port = f.port;
         f.server.stop().await;
         assert_eq!(f.pending.count(), 0);
         let text = read_all(&mut s).await;
         assert!(text.starts_with("HTTP/1.1 200 OK"), "{text}");
         assert!(text.ends_with("{\"status\":\"closed\"}"));
-        assert!(TcpStream::connect(("127.0.0.1", port)).await.is_err());
+        // No connect-refused probe: ephemeral ports are reused by servers of parallel tests.
         let _ = std::fs::remove_dir_all(&f.dir);
     }
 
