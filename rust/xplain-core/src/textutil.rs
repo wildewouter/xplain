@@ -1,6 +1,6 @@
 //! Small text helpers shared by nav, view and layout code.
 //!
-//! Spec: F-EDGE-08 (content chars, tabs), F-LAYOUT-07 (truncation), UNSPEC-28 (column unit = chars),
+//! Spec: F-EDGE-08 (content chars, tabs), UNSPEC-28 (column unit = chars),
 //! F-CURSOR-04 (char classes). Owner: component `nav` (B).
 //! Must not: depend on state or terminal types.
 
@@ -11,36 +11,14 @@ pub fn expand_tabs(s: &str) -> String {
     s.replace('\t', "  ")
 }
 
-fn char_width(c: char) -> usize {
+/// Display width of one char in cells (control and zero-width chars 0). The single width source.
+pub fn char_width(c: char) -> usize {
     c.width().unwrap_or(0)
 }
 
 /// Display width in terminal cells (unicode-width; control chars 0).
 pub fn cell_width(s: &str) -> usize {
     s.chars().map(char_width).sum()
-}
-
-/// Cut `s` to `width` cells; when it does not fit, `width-1` cells plus `…` (F-LAYOUT-07). `width == 0` -> "".
-pub fn truncate_ellipsis(s: &str, width: usize) -> String {
-    if width == 0 {
-        return String::new();
-    }
-    if cell_width(s) <= width {
-        return s.to_string();
-    }
-    let budget = width - 1;
-    let mut used = 0;
-    let mut out = String::new();
-    for c in s.chars() {
-        let w = char_width(c);
-        if used + w > budget {
-            break;
-        }
-        used += w;
-        out.push(c);
-    }
-    out.push('…');
-    out
 }
 
 /// Word class for `w`/`b`/`e` (F-CURSOR-04): 0 = blank/none, 1 = word char (`[A-Za-z0-9_]`), 2 = other.
@@ -51,6 +29,37 @@ pub fn char_class(c: Option<char>) -> u8 {
         Some(c) if c.is_ascii_alphanumeric() || c == '_' => 1,
         Some(_) => 2,
     }
+}
+
+/// Wrap `text` to `width` cells (words, hard-break long words), keeping blank lines (`wrapText`).
+/// Tabs become 2 spaces, CR removed, trailing blank lines dropped (keeping at least one line).
+pub fn wrap_text(text: &str, width: usize) -> Vec<String> {
+    let w = width.max(1);
+    let clean = text.replace('\r', "").replace('\t', "  ");
+    let mut out: Vec<String> = Vec::new();
+    for raw in clean.split('\n') {
+        let mut l: Vec<char> = raw.chars().collect();
+        if l.is_empty() {
+            out.push(String::new());
+            continue;
+        }
+        while l.len() > w {
+            // lastIndexOf(' ', w): last space at index <= w
+            let mut k = (0..=w).rev().find(|&i| l.get(i) == Some(&' ')).unwrap_or(0);
+            if k == 0 {
+                k = w;
+            }
+            let head: String = l[..k].iter().collect();
+            out.push(head.trim_end().to_string());
+            let rest: String = l[k..].iter().collect();
+            l = rest.trim_start().chars().collect();
+        }
+        out.push(l.into_iter().collect());
+    }
+    while out.len() > 1 && out.last().is_some_and(String::is_empty) {
+        out.pop();
+    }
+    out
 }
 
 #[cfg(test)]
@@ -72,16 +81,6 @@ mod tests {
     }
 
     #[test]
-    fn f_layout_07_truncate_with_ellipsis() {
-        assert_eq!(truncate_ellipsis("hello", 5), "hello");
-        assert_eq!(truncate_ellipsis("hello!", 5), "hell…");
-        assert_eq!(truncate_ellipsis("hello", 0), "");
-        assert_eq!(truncate_ellipsis("hello", 1), "…");
-        assert_eq!(truncate_ellipsis("日本語", 4), "日…");
-        assert_eq!(truncate_ellipsis("", 3), "");
-    }
-
-    #[test]
     fn f_cursor_04_char_classes() {
         assert_eq!(char_class(None), 0);
         assert_eq!(char_class(Some(' ')), 0);
@@ -91,5 +90,28 @@ mod tests {
         assert_eq!(char_class(Some('7')), 1);
         assert_eq!(char_class(Some('-')), 2);
         assert_eq!(char_class(Some('é')), 2);
+    }
+
+    #[test]
+    fn f_ask_05_wrap_text_golden() {
+        assert_eq!(wrap_text("hello world foo", 11), ["hello world", "foo"]);
+        assert_eq!(wrap_text("abcdefghij", 4), ["abcd", "efgh", "ij"]);
+        assert_eq!(wrap_text("a\n\n\nb\n\n", 5), ["a", "", "", "b"]);
+        assert_eq!(wrap_text("a\tb", 10), ["a  b"]);
+        assert_eq!(wrap_text("aaaa bbbb", 4), ["aaaa", "bbbb"]);
+        assert_eq!(wrap_text("x\r\ny", 10), ["x", "y"]);
+        assert_eq!(wrap_text("aaa   bbb", 4), ["aaa", "bbb"], "trailing/leading spaces trimmed at the break");
+        assert_eq!(wrap_text("", 5), [""]);
+        assert_eq!(wrap_text("\n\n", 5), [""]);
+        assert_eq!(wrap_text("ab cd", 0), ["a", "b", "c", "d"], "width clamps to 1");
+    }
+
+    #[test]
+    fn wrap_text_rules() {
+        assert_eq!(wrap_text("aa bb cc", 5), vec!["aa bb", "cc"]);
+        assert_eq!(wrap_text("abcdefgh", 3), vec!["abc", "def", "gh"]);
+        assert_eq!(wrap_text("a\n\nb\n\n", 5), vec!["a", "", "b"]);
+        assert_eq!(wrap_text("a\tb", 10), vec!["a  b"]);
+        assert_eq!(wrap_text("aaa   bbb", 5), vec!["aaa", "bbb"]);
     }
 }

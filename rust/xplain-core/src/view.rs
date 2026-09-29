@@ -2,29 +2,21 @@
 //!
 //! Spec: F-LAYOUT-01 (frame: header, rule, viewport, footer), F-MODE-05 (no changes screen), F-MODE-04 (error
 //! screen), `Loading...` (dim), F-LAYOUT-06 (modal stacking: overlay, then help panel over it).
-//! Owner: component `viewframe` (F1); `viewrows` (F2) owns `view/rows.rs`, `view/thread_box.rs`.
+//! Owner: component `viewframe` (F1); `viewrows` (F2) owns `view/body.rs`, `view/thread_box.rs`.
 //! Must not: mutate state, do IO. Viewport `top`/`x_shift` are *state* (updated in `update`), the view
 //! only reads them. Submodules are registered here up front.
 
+pub mod body;
 pub mod header;
 pub mod help_panel;
+pub mod layout;
 pub mod modals;
-pub mod rows;
 pub mod thread_box;
 
 use crate::canvas::{Canvas, Rect};
-use crate::screen::{Color, Screen, Size, Style};
+use crate::screen::{Color, Screen, Size, Style, fg};
 use crate::state::{LoadState, State};
 use crate::theme::Theme;
-
-/// Foreground-only style.
-pub(crate) fn fg(c: Color) -> Style {
-    Style { fg: Some(c), ..Style::default() }
-}
-
-pub(crate) fn bold(s: Style) -> Style {
-    Style { bold: true, ..s }
-}
 
 /// Viewport height H = max(3, R-3) (F-LAYOUT-01).
 pub(crate) fn viewport_height(size: Size) -> u16 {
@@ -97,7 +89,7 @@ fn frame(state: &State, theme: &Theme) -> Screen {
     let h = viewport_height(state.size);
     header::draw_header(&mut c, state, theme);
     header::draw_footer(&mut c, state, theme);
-    rows::draw_body(&mut c, state, theme, Rect { x: 0, y: 2, w: state.size.cols, h });
+    body::draw_body(&mut c, state, theme, Rect { x: 0, y: 2, w: state.size.cols, h });
     modals::draw(&mut c, state, theme);
     help_panel::draw(&mut c, state, theme);
     c.into_screen()

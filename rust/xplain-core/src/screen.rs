@@ -44,6 +44,22 @@ pub struct Style {
     pub reverse: bool,
 }
 
+/// Styled text run: what header and modal lines are made of.
+pub type Seg = (String, Style);
+
+pub fn seg(text: impl Into<String>, style: Style) -> Seg {
+    (text.into(), style)
+}
+
+/// Foreground-only style.
+pub fn fg(c: Color) -> Style {
+    Style { fg: Some(c), ..Style::default() }
+}
+
+pub fn bold(s: Style) -> Style {
+    Style { bold: true, ..s }
+}
+
 /// One terminal cell. Wide (2-cell) chars: first cell `width == 2`, next cell `width == 0` (continuation).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Cell {

@@ -11,8 +11,6 @@
 //! Decisions on UNSPEC: cursor row is padded past the edge, last cell always `…` (UNSPEC-16), control
 //! chars in content are drawn as U+FFFD (UNSPEC-26), columns count chars (UNSPEC-28).
 
-use unicode_width::UnicodeWidthChar;
-
 use crate::canvas::{Canvas, Rect};
 use crate::comments::PaneSide;
 use crate::diff::LineKind;
@@ -22,7 +20,7 @@ use crate::nav::visual::Sel;
 use crate::rows::{RowLine, ShownRow, find_all, pane_of};
 use crate::screen::{Color, Style};
 use crate::state::State;
-use crate::textutil::expand_tabs;
+use crate::textutil::{char_width, expand_tabs};
 use crate::theme::{FIND_HIT_BG, FIND_HIT_FG, Theme, ThemeId};
 use crate::thread_layout::boxes_at;
 use crate::view::thread_box::draw_box;
@@ -160,13 +158,13 @@ fn emit(c: &mut Canvas, x: u16, y: u16, width: u16, cells: &Cells, pad: Option<S
         }
         _ => cells,
     };
-    let total: usize = cells.iter().map(|(ch, _)| ch.width().unwrap_or(0)).sum();
+    let total: usize = cells.iter().map(|(ch, _)| char_width(*ch)).sum();
     let mut out: Cells = Vec::with_capacity(cells.len() + 1);
     let mut acc = 0usize;
     if total > width {
         let mut cut_style = None;
         for (ch, st) in cells {
-            let w = ch.width().unwrap_or(0);
+            let w = char_width(*ch);
             if acc + w > width - 1 {
                 cut_style = Some(*st);
                 break;

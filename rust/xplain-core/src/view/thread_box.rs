@@ -11,13 +11,12 @@
 //! box (empty id) uses the modal palette (`modal_border` / `modal_bg` / `modal_fg`). A spinner is an
 //! `Accent` span holding exactly one spinner frame glyph: it is replaced by the frame for `state.spinner`.
 
-use unicode_width::UnicodeWidthStr;
-
 use crate::canvas::Canvas;
 use crate::highlight::{language_for_fence, run_style};
 use crate::hlcache::HlCache;
 use crate::screen::Style;
 use crate::state::State;
+use crate::textutil::cell_width;
 use crate::theme::{Theme, ThemeId};
 use crate::thread_layout::{BoxLine, Span, ThreadBox, Tone};
 
@@ -122,7 +121,7 @@ fn draw_line(
     x: u16,
     y: u16,
 ) {
-    let total: usize = line.spans.iter().map(|s| s.text.width()).sum();
+    let total: usize = line.spans.iter().map(|s| cell_width(&s.text)).sum();
     if is_editor(b) {
         // modal background under the whole line
         c.paint(x, y, total.min(u16::MAX as usize) as u16, base_style(theme, b));
