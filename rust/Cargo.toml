@@ -32,8 +32,7 @@ bytes = "1"
 base64 = "0.22"
 rand = "0.9"
 uuid = { version = "1", features = ["v4"] }
-libc = "0.2"
-time = { version = "0.3", features = ["formatting", "local-offset"] }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
