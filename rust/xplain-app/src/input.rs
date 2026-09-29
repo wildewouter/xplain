@@ -132,6 +132,19 @@ impl InputDecoder {
     /// that `ESC` followed by a barrier yields `Key(Esc)` then `Barrier`.
     pub fn feed(&mut self, bytes: &[u8]) -> Vec<InputItem> {
         let mut out = Vec::new();
+        // Like Ink: a raw chunk mixing text with CR/LF (before any escape) is one paste, not keys.
+        let mut bytes = bytes;
+        if self.buf.is_empty() && self.paste.is_none() {
+            let end = bytes.iter().position(|&c| c == 0x1b).unwrap_or(bytes.len());
+            let head = &bytes[..end];
+            if head.iter().any(|&c| c == b'\r' || c == b'\n')
+                && head.iter().any(|&c| c >= 0x20 && c != 0x7f)
+                && let Ok(s) = std::str::from_utf8(head)
+            {
+                out.push(InputItem::Paste(s.to_string()));
+                bytes = &bytes[end..];
+            }
+        }
         self.buf.extend_from_slice(bytes);
         let mut pos = 0;
         loop {
@@ -269,6 +282,13 @@ mod tests {
         assert_eq!(keys(false, &[0x01]), vec![InputItem::Key(KeyEvent::ctrl('a'))]);
         assert_eq!(keys(false, &[0x1a]), vec![InputItem::Key(KeyEvent::ctrl('z'))]);
         assert_eq!(keys(false, &[0x0e]), vec![InputItem::Key(KeyEvent::ctrl('n'))]);
+    }
+
+    #[test]
+    fn f_comment_02_mixed_chunk_is_paste() {
+        assert_eq!(keys(false, b"\r\nx\r\n\ny"), vec![InputItem::Paste("\r\nx\r\n\ny".into())]);
+        let got = keys(true, b"a\rb\x1b[9999~");
+        assert_eq!(got, vec![InputItem::Paste("a\rb".into()), InputItem::Barrier(BarrierKind::Idle)]);
     }
 
     #[test]

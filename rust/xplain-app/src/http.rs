@@ -52,6 +52,17 @@ pub struct HttpCounters {
     pub done: Arc<AtomicU64>,
 }
 
+impl HttpCounters {
+    /// Frozen copy of the current values (independent atomics).
+    pub fn snapshot(&self) -> HttpCounters {
+        use std::sync::atomic::Ordering::SeqCst;
+        HttpCounters {
+            received: Arc::new(AtomicU64::new(self.received.load(SeqCst))),
+            done: Arc::new(AtomicU64::new(self.done.load(SeqCst))),
+        }
+    }
+}
+
 /// A reply handed to a waiting handler; the guard keeps `PendingWork` open until it is written.
 struct Reply {
     response: HttpResponse,
@@ -244,10 +255,11 @@ async fn handle(
     stream: Arc<TcpStream>,
     remote_port: u16,
 ) -> Result<Response<GuardedBody>, io::Error> {
-    // Counted on arrival, before the body is read.
+    // Counted on arrival, before the body is read. The pending guard comes first so a request that is
+    // counted is always covered by pending work until its event is queued (barrier `reqs` snapshot).
+    let work = shared.pending.guard();
     shared.counters.received.fetch_add(1, Ordering::SeqCst);
     let done = DoneGuard(shared.counters.done.clone());
-    let work = shared.pending.guard();
     let conn = ConnId(NEXT_CONN.fetch_add(1, Ordering::SeqCst));
 
     let (parts, mut body) = req.into_parts();

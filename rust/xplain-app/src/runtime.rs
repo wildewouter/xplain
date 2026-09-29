@@ -239,7 +239,10 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
             }
         }
         // Drain results; quiet = no tracked work was outstanding before a drain that found nothing.
-        let quiet = loop {
+        // Counters are read before the pending check: a counted request is then covered by pending work or
+        // already queued, so a reply never counts a request whose effects are not applied yet.
+        let (quiet, snap) = loop {
+            let snap = counters.snapshot();
             let quiet = pending.count() == 0;
             let mut got = false;
             while let Ok(ev) = events.try_recv() {
@@ -247,7 +250,7 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
                 step!(ev);
             }
             if !got {
-                break quiet;
+                break (quiet, snap);
             }
             progress = true;
         };
@@ -261,7 +264,7 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
         if !due.is_empty() {
             progress = true;
             for (kind, n) in due {
-                let _ = rt.out.write_all(&barrier_reply(kind, n, &counters));
+                let _ = rt.out.write_all(&barrier_reply(kind, n, &snap));
             }
             let _ = rt.out.flush();
         }

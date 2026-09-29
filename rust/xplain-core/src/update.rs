@@ -21,7 +21,7 @@
 //! `export::on_written`; `CommandDone`/`McpStarted`/`McpStopped`/`McpHttp`/`McpConnClosed`/`Started` ->
 //! `mcp_ui::*`; `Timer(Spinner)` -> `ask::on_spinner`; `Timer(PollTimeout)` -> `mcp_ui::on_timer`; `Paste` ->
 //! `editor/find/search::on_paste`; `Resize` -> set size, `rows::ensure`, `nav::clamp_cursor`, `viewport::follow`.
-//! After every event: `rows::ensure`.
+//! After every event: `rows::ensure`, `thread::sync`.
 //!
 //! `FileRead` first goes to `reload::on_browse_reread` (browse re-read on `r`), which claims its own requests.
 
@@ -75,6 +75,7 @@ pub fn update(state: &mut State, event: Event) -> Vec<Effect> {
         Event::McpConnClosed(conn) => mcp_ui::on_conn_closed(state, conn, &mut fx),
     }
     rows::ensure(state);
+    thread::sync(state);
     fx
 }
 
