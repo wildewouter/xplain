@@ -53,11 +53,13 @@ impl RawEnv {
         }
     }
 
-    /// `<state dir>` for `mcp.json` (F-MCPSRV-01). Empty `XDG_STATE_HOME` counts as unset.
-    pub fn state_dir(&self) -> String {
-        match set(&self.xdg_state_home) {
-            Some(x) => format!("{}/xplain", x.trim_end_matches('/')),
-            None => format!("{}/.local/state/xplain", set(&self.home).unwrap_or("").trim_end_matches('/')),
+    /// `<state dir>` for `mcp.json` (F-MCPSRV-01). Empty `XDG_STATE_HOME` / `HOME` count as unset;
+    /// `None` when neither yields a directory.
+    pub fn state_dir(&self) -> Option<String> {
+        match (set(&self.xdg_state_home), set(&self.home)) {
+            (Some(x), _) => Some(format!("{}/xplain", x.trim_end_matches('/'))),
+            (None, Some(h)) => Some(format!("{}/.local/state/xplain", h.trim_end_matches('/'))),
+            (None, None) => None,
         }
     }
 
@@ -77,7 +79,7 @@ impl RawEnv {
             abs_cwd,
             sync: self.sync(),
             mcp_port_raw: set(&self.xplain_mcp_port).map(str::to_string),
-            state_dir: self.state_dir(),
+            state_dir: self.state_dir().unwrap_or_default(),
             config_path,
         }
     }
@@ -93,12 +95,13 @@ mod tests {
 
     #[test]
     fn state_dir_order() {
-        assert_eq!(env().state_dir(), "/h/.local/state/xplain");
+        assert_eq!(env().state_dir().as_deref(), Some("/h/.local/state/xplain"));
         let mut e = env();
         e.xdg_state_home = Some(String::new());
-        assert_eq!(e.state_dir(), "/h/.local/state/xplain");
+        assert_eq!(e.state_dir().as_deref(), Some("/h/.local/state/xplain"));
         e.xdg_state_home = Some("/s".into());
-        assert_eq!(e.state_dir(), "/s/xplain");
+        assert_eq!(e.state_dir().as_deref(), Some("/s/xplain"));
+        assert_eq!(RawEnv::default().state_dir(), None);
     }
 
     #[test]

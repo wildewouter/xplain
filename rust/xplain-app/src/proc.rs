@@ -10,17 +10,51 @@
 use std::process::Stdio;
 use std::time::Duration;
 
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
 use xplain_core::errors::IoReason;
 use xplain_core::integration::{CommandError, CommandOutput, CommandResult, CommandSpec};
 
-/// Spawn, capture stdout/stderr as lossy utf-8, wait (with timeout). stdin is closed/null.
+/// Per-stream capture cap; output beyond it is drained and discarded so the child never blocks.
+const MAX_OUTPUT: u64 = 64 * 1024 * 1024;
+
+fn other(e: &std::io::Error) -> CommandError {
+    CommandError::Other(IoReason::from_io_error(e).as_str().to_string())
+}
+
+/// Read up to [`MAX_OUTPUT`] bytes, then drain the rest.
+async fn capture<R: AsyncRead + Unpin>(r: Option<R>) -> String {
+    let Some(r) = r else {
+        return String::new();
+    };
+    let mut buf = Vec::new();
+    let mut limited = r.take(MAX_OUTPUT);
+    let _ = limited.read_to_end(&mut buf).await;
+    let mut rest = limited.into_inner();
+    let _ = tokio::io::copy(&mut rest, &mut tokio::io::sink()).await;
+    String::from_utf8_lossy(&buf).into_owned()
+}
+
+/// SIGKILL the whole process group (the child leads its own group), so grandchildren die too.
+async fn kill_group(pid: u32) {
+    let _ = Command::new("kill")
+        .args(["-KILL", "--", &format!("-{pid}")])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .await;
+}
+
+/// Spawn, capture stdout/stderr as lossy utf-8 (bounded), wait (with timeout). stdin is closed/null.
+/// The child runs in its own process group; on timeout the whole group is killed.
 pub async fn run_command(spec: &CommandSpec) -> CommandResult {
     let mut cmd = Command::new(&spec.program);
     cmd.args(&spec.args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        .process_group(0)
         .kill_on_drop(true);
     if let Some(cwd) = &spec.cwd {
         cmd.current_dir(cwd);
@@ -28,20 +62,25 @@ pub async fn run_command(spec: &CommandSpec) -> CommandResult {
     for (k, v) in &spec.env {
         cmd.env(k, v);
     }
-    let child = cmd.spawn().map_err(|e| match e.kind() {
+    let mut child = cmd.spawn().map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => CommandError::NotFound,
-        _ => CommandError::Other(IoReason::from_io_error(&e).as_str().to_string()),
+        _ => other(&e),
     })?;
-    // Dropping the wait future on timeout drops the child, which kills it (kill_on_drop).
-    let waited = tokio::time::timeout(Duration::from_millis(spec.timeout_ms), child.wait_with_output()).await;
-    match waited {
-        Err(_) => Err(CommandError::Timeout),
-        Ok(Err(e)) => Err(CommandError::Other(IoReason::from_io_error(&e).as_str().to_string())),
-        Ok(Ok(out)) => Ok(CommandOutput {
-            code: out.status.code().unwrap_or(-1),
-            stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
-        }),
+    let pid = child.id();
+    let (out, err) = (child.stdout.take(), child.stderr.take());
+    let run = async { tokio::join!(capture(out), capture(err), child.wait()) };
+    match tokio::time::timeout(Duration::from_millis(spec.timeout_ms), run).await {
+        Err(_) => {
+            if let Some(pid) = pid {
+                kill_group(pid).await;
+            }
+            let _ = child.kill().await;
+            Err(CommandError::Timeout)
+        }
+        Ok((_, _, Err(e))) => Err(other(&e)),
+        Ok((stdout, stderr, Ok(status))) => {
+            Ok(CommandOutput { code: status.code().unwrap_or(-1), stdout, stderr })
+        }
     }
 }
 
@@ -92,6 +131,27 @@ mod tests {
         let r = run_command(&sh("sleep 30", 150)).await;
         assert_eq!(r, Err(CommandError::Timeout));
         assert!(t.elapsed() < Duration::from_secs(5));
+    }
+
+    #[tokio::test]
+    async fn timeout_kills_grandchildren() {
+        let d = crate::test_util::tmp("proc", "grand");
+        let pidfile = d.join("pid");
+        let script = format!("sleep 30 & echo $! > {}; wait", pidfile.display());
+        let r = run_command(&sh(&script, 500)).await;
+        assert_eq!(r, Err(CommandError::Timeout));
+        let pid = std::fs::read_to_string(&pidfile).unwrap().trim().to_string();
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        let alive = std::process::Command::new("kill").args(["-0", &pid]).status().unwrap().success();
+        assert!(!alive, "grandchild {pid} survived");
+    }
+
+    #[tokio::test]
+    async fn output_is_bounded_and_drained() {
+        // 70 MiB of output exceeds the cap; the child must still finish (pipe drained).
+        let r = run_command(&sh("head -c 73400320 /dev/zero | tr '\\0' a", 30_000)).await.unwrap();
+        assert_eq!(r.code, 0);
+        assert_eq!(r.stdout.len() as u64, MAX_OUTPUT);
     }
 
     #[tokio::test]

@@ -7,7 +7,7 @@
 //! Must not: parse or merge JSON itself (core `load_config` / `apply_patch` do), show OS error text.
 
 use std::io::ErrorKind;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use xplain_core::config::{ConfigChange, ConfigFile, ConfigSaveError, apply_patch};
 use xplain_core::errors::IoReason;
@@ -17,12 +17,12 @@ pub fn read_config_file(path: &str) -> ConfigFile {
     match std::fs::read(path) {
         Ok(b) => ConfigFile::Text(String::from_utf8_lossy(&b).into_owned()),
         Err(e) if e.kind() == ErrorKind::NotFound => ConfigFile::Missing,
-        Err(e) => ConfigFile::Unreadable(IoReason::from_io_error(&e)),
+        Err(e) => ConfigFile::Unreadable(crate::fsio::io_reason(e)),
     }
 }
 
 fn io(e: std::io::Error) -> ConfigSaveError {
-    ConfigSaveError::Io(IoReason::from_io_error(&e))
+    ConfigSaveError::Io(crate::fsio::io_reason(e))
 }
 
 /// Executes `Effect::SaveConfig`: read existing (missing = `None`), `apply_patch(existing, change.to_patch())`,
@@ -47,19 +47,7 @@ pub async fn save_config(path: &str, change: &ConfigChange) -> Result<(), Config
             }
         })?;
     }
-    let mut tmp = p.as_os_str().to_owned();
-    tmp.push(format!(".{}.tmp", std::process::id()));
-    let tmp = PathBuf::from(tmp);
-    let res = async {
-        tokio::fs::write(&tmp, out.as_bytes()).await?;
-        tokio::fs::rename(&tmp, p).await
-    }
-    .await;
-    if let Err(e) = res {
-        let _ = tokio::fs::remove_file(&tmp).await;
-        return Err(io(e));
-    }
-    Ok(())
+    crate::fsio::atomic_write(p, out.as_bytes(), None).await.map_err(io)
 }
 
 #[cfg(test)]
@@ -67,11 +55,8 @@ mod tests {
     use super::*;
     use xplain_core::options::DiffMode;
 
-    fn tmp(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("xplain-cfgio-{}-{name}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&d);
-        std::fs::create_dir_all(&d).unwrap();
-        d
+    fn tmp(name: &str) -> std::path::PathBuf {
+        crate::test_util::tmp("cfgio", name)
     }
 
     #[test]

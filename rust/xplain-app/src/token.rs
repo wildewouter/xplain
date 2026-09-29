@@ -6,16 +6,21 @@
 //! Owner: component C (mcp/exec).
 //! Must not: generate the token text or file content (core `plan_token`), show OS text, use `unsafe`.
 
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
-use tokio::io::AsyncWriteExt;
-use xplain_core::errors::{IoReason, fail_msg};
+use xplain_core::errors::IoReason;
 use xplain_core::mcp::{TokenPlan, plan_token};
+use xplain_core::messages::cannot_write;
+
+use crate::fsio::{atomic_write, io_reason};
 
 /// Resolve the bearer token: read existing file, ask `plan_token`, write if needed.
 /// `Err` = final message `cannot write <state_dir>/mcp.json: <reason>`.
 pub async fn ensure_token(state_dir: &str) -> Result<String, String> {
+    if state_dir.is_empty() {
+        // No usable state dir (neither XDG_STATE_HOME nor HOME set): never write relative to cwd.
+        return Err(cannot_write("mcp.json", IoReason::NotFound));
+    }
     let dir = Path::new(state_dir);
     let file = dir.join("mcp.json");
     let existing = tokio::fs::read(&file).await.ok().map(|b| String::from_utf8_lossy(&b).into_owned());
@@ -25,38 +30,25 @@ pub async fn ensure_token(state_dir: &str) -> Result<String, String> {
         TokenPlan::Write { token, file_contents } => {
             write_file(dir, &file, &file_contents)
                 .await
-                .map_err(|reason| fail_msg(&format!("cannot write {}", file.display()), reason))?;
+                .map_err(|reason| cannot_write(&file.display().to_string(), reason))?;
             Ok(token)
         }
     }
 }
 
 async fn write_file(dir: &Path, file: &Path, contents: &str) -> Result<(), IoReason> {
-    let io = |e: std::io::Error| IoReason::from_io_error(&e);
     // Mode 0700 only for directories this call creates; an existing dir is left alone.
-    tokio::fs::DirBuilder::new().recursive(true).mode(0o700).create(dir).await.map_err(io)?;
-    let mut f = tokio::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(file)
-        .await
-        .map_err(io)?;
-    f.write_all(contents.as_bytes()).await.map_err(io)?;
-    f.flush().await.map_err(io)?;
-    drop(f);
-    tokio::fs::set_permissions(file, std::fs::Permissions::from_mode(0o600)).await.map_err(io)
+    tokio::fs::DirBuilder::new().recursive(true).mode(0o700).create(dir).await.map_err(io_reason)?;
+    atomic_write(file, contents.as_bytes(), Some(0o600)).await.map_err(io_reason)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::fs::PermissionsExt;
 
     fn tmp(name: &str) -> std::path::PathBuf {
-        let p = std::env::temp_dir().join(format!("xplain-token-{}-{name}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&p);
-        p
+        crate::test_util::tmp("token", name)
     }
 
     fn mode(p: &Path) -> u32 {
