@@ -24,18 +24,25 @@ pub trait Executor {
 }
 
 /// Shared counter of outstanding non-background async work (git loads, file IO, MCP start/stop,
-/// integration commands, HTTP request body reads). Idle barrier replies wait for zero.
-#[derive(Debug, Clone, Default)]
+/// integration commands, HTTP request body reads). Idle barrier replies wait for zero. Changes are observable
+/// through [`PendingWork::subscribe`], so waiters never poll.
+#[derive(Debug, Clone)]
 pub struct PendingWork {
-    inner: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    inner: Arc<tokio::sync::watch::Sender<usize>>,
+}
+
+impl Default for PendingWork {
+    fn default() -> Self {
+        PendingWork { inner: Arc::new(tokio::sync::watch::channel(0).0) }
+    }
 }
 
 impl PendingWork {
     pub fn begin(&self) {
-        self.inner.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.inner.send_modify(|n| *n += 1);
     }
     pub fn end(&self) {
-        self.inner.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        self.inner.send_modify(|n| *n = n.saturating_sub(1));
     }
     /// RAII form of `begin`/`end`: pending until dropped (also on panic or task abort).
     pub fn guard(&self) -> WorkGuard {
@@ -43,7 +50,16 @@ impl PendingWork {
         WorkGuard(self.clone())
     }
     pub fn count(&self) -> usize {
-        self.inner.load(std::sync::atomic::Ordering::SeqCst)
+        *self.inner.borrow()
+    }
+    /// Receiver that wakes on every count change (no lost wakeups: `changed` fires for changes since the
+    /// last `borrow_and_update`).
+    pub fn subscribe(&self) -> tokio::sync::watch::Receiver<usize> {
+        self.inner.subscribe()
+    }
+    /// Resolves once the count is zero.
+    pub async fn wait_idle(&self) {
+        let _ = self.subscribe().wait_for(|n| *n == 0).await;
     }
 }
 
@@ -242,6 +258,22 @@ mod tests {
         assert_eq!(p.count(), 1);
         drop(g);
         assert_eq!(p.count(), 0);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn pending_wait_idle_wakes_on_end_without_polling() {
+        let p = PendingWork::default();
+        p.wait_idle().await;
+        let g = p.guard();
+        let mut rx = p.subscribe();
+        rx.borrow_and_update();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            drop(g);
+        });
+        rx.changed().await.unwrap();
+        assert_eq!(p.count(), 0);
+        p.wait_idle().await;
     }
 
     #[tokio::test]

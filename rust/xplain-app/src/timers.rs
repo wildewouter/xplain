@@ -87,6 +87,13 @@ impl Clock for RealClock {
     fn cancel(&mut self, id: TimerId) {
         self.drop_timer(id);
     }
+
+    fn cancel_all(&mut self) {
+        let ids: Vec<TimerId> = self.timers.keys().copied().collect();
+        for id in ids {
+            self.drop_timer(id);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -104,7 +111,7 @@ mod tests {
         assert_eq!(c.now().utc_offset_secs, n.utc_offset_secs);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_timer_fires_and_pending_released() {
         let (tx, mut rx) = unbounded_channel();
         let p = PendingWork::default();
@@ -115,7 +122,7 @@ mod tests {
         assert_eq!(p.count(), 0);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_background_timer_not_pending() {
         let (tx, mut rx) = unbounded_channel();
         let p = PendingWork::default();
@@ -126,7 +133,7 @@ mod tests {
         assert_eq!(p.count(), 0);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_cancel_releases_pending_and_never_fires() {
         let (tx, mut rx) = unbounded_channel();
         let p = PendingWork::default();
@@ -141,7 +148,21 @@ mod tests {
         assert!(rx.try_recv().is_err());
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
+    async fn cancel_all_releases_every_timer() {
+        let (tx, mut rx) = unbounded_channel();
+        let p = PendingWork::default();
+        let mut c = RealClock::new(tx, p.clone());
+        c.schedule(TimerId::Spinner, Duration::from_millis(30), false);
+        c.schedule(TimerId::PollTimeout(xplain_core::mcp::ConnId(1)), Duration::from_millis(30), false);
+        assert_eq!(p.count(), 2);
+        c.cancel_all();
+        assert_eq!(p.count(), 0);
+        tokio::time::sleep(Duration::from_millis(60)).await;
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn test_seams_rearm_replaces() {
         let (tx, mut rx) = unbounded_channel();
         let p = PendingWork::default();

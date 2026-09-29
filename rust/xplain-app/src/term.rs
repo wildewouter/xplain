@@ -45,6 +45,11 @@ impl RawMode {
         RawMode { active }
     }
 
+    /// Raw mode that never touched the terminal (tests, non-tty use).
+    pub fn inactive() -> RawMode {
+        RawMode { active: false }
+    }
+
     pub fn is_active(&self) -> bool {
         self.active
     }
@@ -65,6 +70,25 @@ impl Drop for RawMode {
 }
 
 /// Last terminal size seen, shared by the stdin reader and the SIGWINCH watcher so a resize is reported once.
+/// Chains a panic hook that restores the terminal (raw mode off, main screen, cursor) before the previous hook
+/// prints the message. Needed because the release profile aborts on panic, so no `Drop` runs.
+pub fn install_panic_hook() {
+    let prev = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        restore_terminal();
+        prev(info);
+    }));
+}
+
+/// Best-effort, idempotent terminal restore straight on stdout.
+pub fn restore_terminal() {
+    use std::io::Write;
+    let _ = crossterm::terminal::disable_raw_mode();
+    let mut out = std::io::stdout();
+    let _ = out.write_all(crate::present::LEAVE);
+    let _ = out.flush();
+}
+
 #[derive(Debug, Clone)]
 pub struct SizeTracker(Arc<AtomicU32>);
 
@@ -83,14 +107,6 @@ fn pack(s: Size) -> u32 {
     ((s.cols as u32) << 16) | s.rows as u32
 }
 
-/// Spawn a thread reading stdin in chunks and sending raw bytes; sends nothing more at EOF (the loop
-/// keeps running; EOF of stdin does not exit, keys are simply ignored).
-pub fn spawn_stdin_reader(tx: UnboundedSender<Vec<u8>>) {
-    spawn_stdin_reader_sized(tx, None);
-}
-
-/// Like [`spawn_stdin_reader`]; with `resize`, a changed terminal size is sent on it before each chunk, so a
-/// resize done before a barrier was written is never missed (SIGWINCH delivery may lag the input bytes).
 pub fn spawn_stdin_reader_sized(
     tx: UnboundedSender<Vec<u8>>,
     resize: Option<(UnboundedSender<Size>, SizeTracker)>,
@@ -120,13 +136,8 @@ pub fn spawn_stdin_reader_sized(
     });
 }
 
-/// Spawn a SIGWINCH watcher that sends the new size on each change (tokio signal).
-/// Must be called inside a tokio runtime.
-pub fn spawn_resize_watcher(tx: UnboundedSender<Size>) {
-    spawn_resize_watcher_tracked(tx, SizeTracker::new(size()));
-}
-
-/// Like [`spawn_resize_watcher`], deduplicating against `tracker`.
+/// Spawn a SIGWINCH watcher that sends the new size on each change (tokio signal), deduplicating against
+/// `tracker`. Must be called inside a tokio runtime.
 pub fn spawn_resize_watcher_tracked(tx: UnboundedSender<Size>, tracker: SizeTracker) {
     use tokio::signal::unix::{SignalKind, signal};
     let Ok(mut sig) = signal(SignalKind::window_change()) else { return };
@@ -181,7 +192,7 @@ mod tests {
     #[tokio::test]
     async fn f_layout_01_resize_watcher_spawns() {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        spawn_resize_watcher(tx);
+        spawn_resize_watcher_tracked(tx, SizeTracker::new(size()));
         assert!(rx.try_recv().is_err());
     }
 }

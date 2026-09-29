@@ -158,14 +158,17 @@ pub fn encode_frame(prev: Option<&Screen>, screen: &Screen, truecolor: bool) -> 
     out
 }
 
+/// Reset attributes, show cursor, leave the alternate screen.
+pub(crate) const LEAVE: &[u8] = b"\x1b[0m\x1b[?25h\x1b[?1049l";
+
 impl Presenter {
     /// Enter alternate screen + raw mode (only if stdin is a TTY for raw mode; stdin non-TTY: keys ignored,
     /// UI still renders).
-    /// Writes `ESC[?1049h`; uses `crate::term::RawMode` for raw mode.
-    pub fn enter(out: &mut dyn Write) -> std::io::Result<Self> {
+    /// Writes `ESC[?1049h`; owns the injected `RawMode` until `leave`/drop.
+    pub fn enter(out: &mut dyn Write, raw: RawMode) -> std::io::Result<Self> {
         out.write_all(b"\x1b[?1049h\x1b[?25l")?;
         out.flush()?;
-        Ok(Presenter { prev: None, truecolor: false, raw: Some(RawMode::enable()), entered: true })
+        Ok(Presenter { prev: None, truecolor: false, raw: Some(raw), entered: true })
     }
 
     /// Use 24-bit SGR (else 256-color fallback).
@@ -184,7 +187,7 @@ impl Presenter {
         }
         self.entered = false;
         self.prev = None;
-        out.write_all(b"\x1b[0m\x1b[?25h\x1b[?1049l")?;
+        out.write_all(LEAVE)?;
         out.flush()
     }
 
@@ -202,6 +205,15 @@ impl Presenter {
         out.flush()?;
         self.prev = Some(screen.clone());
         Ok(())
+    }
+}
+
+/// Safety net for early returns and unwinding: a presenter dropped without `leave` still restores the terminal.
+impl Drop for Presenter {
+    fn drop(&mut self) {
+        if self.entered {
+            crate::term::restore_terminal();
+        }
     }
 }
 
@@ -348,7 +360,7 @@ mod tests {
     #[test]
     fn f_cli_05_enter_leave_bytes_and_idempotent() {
         let mut out = Vec::new();
-        let mut p = Presenter::enter(&mut out).unwrap();
+        let mut p = Presenter::enter(&mut out, RawMode::inactive()).unwrap();
         assert!(text(&out).starts_with("\x1b[?1049h"));
         out.clear();
         p.leave(&mut out).unwrap();
@@ -362,7 +374,7 @@ mod tests {
     #[test]
     fn f_cli_05_draw_writes_and_tracks_prev() {
         let mut out = Vec::new();
-        let mut p = Presenter::enter(&mut out).unwrap();
+        let mut p = Presenter::enter(&mut out, RawMode::inactive()).unwrap();
         out.clear();
         let s = screen(3, 1, &["hi"]);
         p.draw(&s, &mut out).unwrap();

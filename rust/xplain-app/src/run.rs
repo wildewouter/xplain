@@ -98,6 +98,7 @@ pub fn main_with_args(args: &[String]) -> i32 {
                     return 1;
                 }
             };
+            term::install_panic_hook();
             rt.block_on(runtime::run_loop(*state, effects, RuntimeConfig { sync, truecolor }))
         }
     }
