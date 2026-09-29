@@ -8,19 +8,11 @@
 use crate::canvas::Canvas;
 use crate::help;
 use crate::nav::{viewport, visual};
-use crate::screen::Style;
+use crate::screen::{Seg, Style, bold, fg, seg};
 use crate::state::{Overlay, State};
 use crate::theme::Theme;
-use crate::view::{bold, fg, frame_height};
-
-const NARROW_SPLIT: u16 = 100;
-
-/// Styled text run of the header.
-type Seg = (String, Style);
-
-fn seg(text: impl Into<String>, style: Style) -> Seg {
-    (text.into(), style)
-}
+use crate::view::frame_height;
+use crate::view::layout::NARROW_SPLIT;
 
 /// `[mcp: on] ` / `[mcp: off] ` chip (view color). On only while the server runs (F-HEADER-01).
 fn mcp_chip(state: &State, theme: &Theme) -> Seg {

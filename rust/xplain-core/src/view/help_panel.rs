@@ -6,10 +6,9 @@
 
 use crate::canvas::{Canvas, Rect};
 use crate::help::{self, HelpCtx, HelpEntry};
-use crate::screen::Style;
+use crate::screen::{Style, bold, fg};
 use crate::state::{HelpLevel, State};
 use crate::theme::Theme;
-use crate::view::{bold, fg};
 
 const CREDIT: &str = "Made by Wouter de Wild - 2026";
 const CREDIT_W: usize = 29;

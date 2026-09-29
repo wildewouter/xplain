@@ -4,9 +4,8 @@
 //! (`Cell::width`). Owner: component `viewframe` (F1).
 //! Must not: know State, themes or features.
 
-use unicode_width::UnicodeWidthChar;
-
 use crate::screen::{Cell, Screen, Size, Style};
+use crate::textutil::{cell_width, char_width};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rect {
@@ -23,15 +22,10 @@ pub struct Canvas {
 
 /// Cell width of one char as drawn: `None` for chars the canvas skips (control, zero width).
 fn char_cells(ch: char) -> Option<u16> {
-    match UnicodeWidthChar::width(ch) {
-        Some(w @ 1..=2) => Some(w as u16),
+    match char_width(ch) {
+        w @ 1..=2 => Some(w as u16),
         _ => None,
     }
-}
-
-/// Cells `text` occupies when drawn (skipped chars count 0).
-fn text_cells(text: &str) -> usize {
-    text.chars().filter_map(char_cells).map(usize::from).sum()
 }
 
 impl Canvas {
@@ -108,7 +102,7 @@ impl Canvas {
 
     /// Like [`Canvas::put_trunc`] over styled segments; the `…` takes the style of the segment it cuts.
     pub fn put_segs_trunc(&mut self, x: u16, y: u16, width: u16, segs: &[(&str, Style)]) -> u16 {
-        let total: usize = segs.iter().map(|(t, _)| text_cells(t)).sum();
+        let total: usize = segs.iter().map(|(t, _)| cell_width(t)).sum();
         if total <= usize::from(width) {
             let mut adv = 0;
             for (t, st) in segs {
