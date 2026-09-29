@@ -15,7 +15,7 @@ pub mod tools;
 
 use crate::comments::PaneSide;
 use crate::effect::Effect;
-use crate::event::ReqId;
+use crate::event::{ReqId, TimerId};
 
 /// Identifies one HTTP connection/request the runtime is holding. Unique per request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -134,36 +134,88 @@ pub struct McpState {
 impl McpState {
     /// Handle one HTTP request: F-MCPSRV-02 checks, JSON-RPC (F-MCPSRV-03..05), tools (06..10).
     /// The active bearer token is `self.endpoint`'s; `now_ms` is `State::clock.unix_ms`.
-    pub fn handle_http(&mut self, _req: HttpRequest, _now_ms: i64) -> McpOutput {
-        todo!("F-MCPSRV-02..11")
+    pub fn handle_http(&mut self, req: HttpRequest, now_ms: i64) -> McpOutput {
+        let (token, port) = self.endpoint.as_ref().map_or((String::new(), 0), |e| (e.token.clone(), e.port));
+        if let Err(response) = http::precheck(&req, &token, port) {
+            return McpOutput {
+                effects: vec![Effect::HttpReply { conn: req.conn, response }],
+                events: Vec::new(),
+            };
+        }
+        rpc::dispatch(self, req, now_ms)
     }
 
     /// A parked long poll timed out (`TimerId::PollTimeout`).
-    pub fn poll_timeout(&mut self, _conn: ConnId) -> McpOutput {
-        todo!("F-MCPSRV-06")
+    pub fn poll_timeout(&mut self, conn: ConnId) -> McpOutput {
+        let mut out = McpOutput::default();
+        if let Some(pos) = self.inner.pollers.iter().position(|p| p.conn == conn) {
+            let poller = self.inner.pollers.remove(pos);
+            self.inner.events.push(HubEvent::ClientsChanged);
+            self.inner.backlog.push(hub::Resolved {
+                poller,
+                result: rpc::timeout_result(),
+                cancel_timer: false,
+            });
+        }
+        rpc::settle(self, &mut out);
+        out
     }
 
     /// The connection of a parked poll went away.
-    pub fn conn_closed(&mut self, _conn: ConnId) -> McpOutput {
-        todo!("F-MCPSRV-06")
+    pub fn conn_closed(&mut self, conn: ConnId) -> McpOutput {
+        let mut out = McpOutput::default();
+        if let Some(pos) = self.inner.pollers.iter().position(|p| p.conn == conn) {
+            self.inner.pollers.remove(pos);
+            self.inner.events.push(HubEvent::ClientsChanged);
+            out.effects.push(Effect::CancelTimer(TimerId::PollTimeout(conn)));
+        }
+        rpc::settle(self, &mut out);
+        out
     }
 
     /// Queue a question for delivery (F-ASK-01); may complete a waiting poll immediately.
-    pub fn enqueue(&mut self, _q: OutQuestion) -> McpOutput {
-        todo!("F-ASK-01, F-MCPSRV-06")
+    pub fn enqueue(&mut self, q: OutQuestion) -> McpOutput {
+        let preview = q.question.clone();
+        self.enqueue_with_preview(q, &preview)
+    }
+
+    /// Like [`McpState::enqueue`], with the text `get_questions` shows as `preview` (the bare message).
+    pub fn enqueue_with_preview(&mut self, mut q: OutQuestion, preview: &str) -> McpOutput {
+        hub::HubInner::trim_history(&mut q);
+        self.inner.previews.push((q.thread_id.clone(), q.turn, tools::sanitize(preview)));
+        self.queue.push(q);
+        self.dispatch();
+        let mut out = McpOutput::default();
+        rpc::settle(self, &mut out);
+        out
     }
 
     /// Stop: answer every waiting poll `closed` (F-MCPUI-03), clear clients and queue.
     /// Returned effects contain the replies; the reducer appends `Effect::McpStop` after them.
     pub fn stop(&mut self) -> McpOutput {
-        todo!("F-MCPUI-03, F-QUIT-01")
+        let mut out = McpOutput::default();
+        self.inner.closing = true;
+        for poller in std::mem::take(&mut self.inner.pollers) {
+            self.inner.backlog.push(hub::Resolved {
+                poller,
+                result: hub::PollResult::Closed,
+                cancel_timer: true,
+            });
+        }
+        rpc::settle(self, &mut out);
+        self.inner.closing = false;
+        self.clients.clear();
+        self.queue.clear();
+        self.inner = hub::HubInner::default();
+        out.events.push(HubEvent::ClientsChanged);
+        out
     }
 }
 
 /// Validate `XPLAIN_MCP_PORT` (Test seams): `None`/empty -> 47615; else decimal 0-65535.
 /// `Err` = the full message `invalid XPLAIN_MCP_PORT "<value>" (0-65535)`.
-pub fn parse_port(_raw: Option<&str>) -> Result<u16, String> {
-    todo!("Test seams: XPLAIN_MCP_PORT")
+pub fn parse_port(raw: Option<&str>) -> Result<u16, String> {
+    token::parse_port(raw)
 }
 
 /// Final port-busy message (F-MCPUI-03).
@@ -179,6 +231,6 @@ pub enum TokenPlan {
     Write { token: String, file_contents: String },
 }
 
-pub fn plan_token(_existing_file: Option<&str>, _random: [u8; 32]) -> TokenPlan {
-    todo!("F-MCPSRV-01")
+pub fn plan_token(existing_file: Option<&str>, random: [u8; 32]) -> TokenPlan {
+    token::plan_token(existing_file, random)
 }

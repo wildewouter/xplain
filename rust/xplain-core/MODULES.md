@@ -36,3 +36,12 @@ module up front. Handlers share one shape: `fn(&mut State, KeyEvent, &mut Fx) ->
 
 - Spec ID in doc comments and test names (`f_nav_05_...`). Unit tests in-file. No unwrap/expect/panic in runtime paths.
 - No agent names. No IO. Fill `todo!()` only; never edit files of another component. Need a signature change -> report it.
+
+## Design moves during implementation (add-only)
+- State: diff_req/diff_kind/diff_nav/last_token/autostart_req; DiffLoadKind, DiffNav; IntegrationState.keep_note; Pending::BrowseReload{path}.
+- ThreadUi: heads, chosen, num_go, num_last, seen.
+- update runs rows::ensure and thread::sync after every event; FileRead goes to reload::on_browse_reread first.
+- MCP stop: thread::on_mcp_stopped + ask::cancel_live; McpState::reset_hub on new start.
+- HttpResponse headers already include content-type; runtime must not add it.
+- config.rs has private ordered JSON writer (key order stable).
+- highlight.rs uses syntect; toml/ini plain.
