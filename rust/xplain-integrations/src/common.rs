@@ -26,16 +26,23 @@ pub fn bearer_header(token: &str) -> String {
     format!("Authorization: Bearer {token}")
 }
 
-/// F-INTEG-06 template with `<P>` = `poll_seconds`, tool names in backticks unchanged.
-pub fn watch_prompt(poll_seconds: u32) -> String {
+/// F-INTEG-06 template with `<P>` = `poll_seconds`; tool names in backticks get `prefix` (agents that
+/// namespace MCP tools pass e.g. `xplain_`, others `""`).
+pub fn watch_prompt(poll_seconds: u32, prefix: &str) -> String {
+    let (nq, ans, fc) =
+        (format!("`{prefix}next_question`"), format!("`{prefix}answer`"), format!("`{prefix}files_changed`"));
     [
         format!(
-            "Loop forever: call the `next_question` tool from the `xplain` MCP server with wait_seconds={poll_seconds}."
+            "Loop forever: call the {nq} tool from the `xplain` MCP server with wait_seconds={poll_seconds}."
         ),
-        "- If status is `no_question_yet`, call `next_question` again IMMEDIATELY.".to_string(),
-        "- If status is `question`, answer it with the `answer` tool using the given thread_id, then call `next_question` again immediately.".to_string(),
+        format!("- If status is `no_question_yet`, call {nq} again IMMEDIATELY."),
+        format!(
+            "- If status is `question`, answer it with the {ans} tool using the given thread_id, then call {nq} again immediately."
+        ),
         "- Questions with follow_up=true continue an earlier thread; answer them with the same thread_id like any other.".to_string(),
-        "- ALWAYS call the `files_changed` tool (with the changed paths) after every edit, creation or deletion of a file, so the xplain view reloads. This also applies to edits made while answering a question.".to_string(),
+        format!(
+            "- ALWAYS call the {fc} tool (with the changed paths) after every edit, creation or deletion of a file, so the xplain view reloads. This also applies to edits made while answering a question."
+        ),
         "- Never stop, never summarize, never ask the user anything.".to_string(),
         "- Stop only if status is `closed`.".to_string(),
     ]
@@ -104,6 +111,26 @@ pub fn compose_register_note(hint: &str) -> String {
     format!("{hint}; restart the agent session, then paste the watch prompt")
 }
 
+/// Shared helpers for adapter unit tests.
+#[cfg(test)]
+pub(crate) mod testutil {
+    use xplain_core::integration::{AgentIntegration, CliRegistration, CommandOutput, CommandResult};
+    use xplain_core::mcp::McpEndpoint;
+
+    pub fn ep() -> McpEndpoint {
+        McpEndpoint { url: "http://127.0.0.1:4321/mcp".into(), token: "sekret".into(), port: 4321 }
+    }
+
+    pub fn ok(code: i32, stdout: &str) -> CommandResult {
+        Ok(CommandOutput { code, stdout: stdout.into(), stderr: String::new() })
+    }
+
+    /// The registration half of a registrable agent.
+    pub fn registration(a: &dyn AgentIntegration) -> &dyn CliRegistration {
+        a.registration().expect("agent is registrable")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -141,8 +168,15 @@ mod tests {
 - ALWAYS call the `files_changed` tool (with the changed paths) after every edit, creation or deletion of a file, so the xplain view reloads. This also applies to edits made while answering a question.\n\
 - Never stop, never summarize, never ask the user anything.\n\
 - Stop only if status is `closed`.";
-        assert_eq!(watch_prompt(100), want);
-        assert!(watch_prompt(45).contains("wait_seconds=45."));
+        assert_eq!(watch_prompt(100, ""), want);
+        assert!(watch_prompt(45, "").contains("wait_seconds=45."));
+        let p = watch_prompt(45, "xplain_");
+        assert!(
+            p.contains("`xplain_next_question`")
+                && p.contains("`xplain_answer`")
+                && p.contains("`xplain_files_changed`")
+        );
+        assert!(!p.contains("`next_question`"));
     }
 
     #[test]
@@ -183,7 +217,11 @@ mod tests {
         assert_eq!(parse_check(&e, &ok(0, r#"{"url":"http://127.0.0.1:1234/mcp"}"#)), RegStatus::Registered);
         assert_eq!(parse_check(&e, &ok(0, "URL: http://127.0.0.1:99/mcp\n")), RegStatus::Stale);
         assert_eq!(parse_check(&e, &ok(1, "http://127.0.0.1:1234/mcp")), RegStatus::NotRegistered);
-        for err in [CommandError::NotFound, CommandError::Timeout, CommandError::Other("x".into())] {
+        for err in [
+            CommandError::NotFound,
+            CommandError::Timeout,
+            CommandError::Other(xplain_core::errors::IoReason::Failed),
+        ] {
             assert_eq!(parse_check(&e, &Err(err)), RegStatus::NotRegistered);
         }
     }

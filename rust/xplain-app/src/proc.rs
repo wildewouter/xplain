@@ -5,7 +5,7 @@
 //! `CommandError::Timeout`), Test seams (PATH holds only fakes: never assume other binaries).
 //! Owner: component C (mcp/exec).
 //! Must not: know agent names or argv shapes, interpret output, or fail with runtime error text beyond
-//! `CommandError::Other(message)` (message only for spawn errors other than not-found).
+//! `CommandError::Other(reason)` (reason only for spawn errors other than not-found).
 
 use std::process::Stdio;
 use std::time::Duration;
@@ -19,7 +19,7 @@ use xplain_core::integration::{CommandError, CommandOutput, CommandResult, Comma
 const MAX_OUTPUT: u64 = 64 * 1024 * 1024;
 
 fn other(e: &std::io::Error) -> CommandError {
-    CommandError::Other(IoReason::from_io_error(e).as_str().to_string())
+    CommandError::Other(IoReason::from_io_error(e))
 }
 
 /// Read up to [`MAX_OUTPUT`] bytes, then drain the rest.

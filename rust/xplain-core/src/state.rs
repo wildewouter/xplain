@@ -434,7 +434,9 @@ pub(crate) mod testutil {
     use super::*;
     use crate::config::Config;
     use crate::diff::{DiffLine, FileDiff, Hunk, LineKind, Note, Status};
-    use crate::integration::{AgentIntegration, CommandOutput, CommandResult, CommandSpec, RegStatus};
+    use crate::integration::{
+        AgentIntegration, CliRegistration, CommandOutput, CommandResult, CommandSpec, RegStatus,
+    };
     use crate::keys::KeyEvent;
     use crate::mcp::McpEndpoint;
     use crate::options::Options;
@@ -466,20 +468,23 @@ pub(crate) mod testutil {
         fn poll_seconds(&self) -> u32 {
             45
         }
-        fn can_register(&self) -> bool {
-            self.can
-        }
-        fn needs_restart(&self) -> bool {
-            self.can
-        }
         fn register_text(&self, ep: &McpEndpoint) -> String {
             format!("register {} {}", ep.url, ep.token)
         }
         fn watch_prompt(&self, ep: &McpEndpoint) -> String {
             format!("watch {}", ep.token)
         }
-        fn check_command(&self, _ep: &McpEndpoint) -> Option<CommandSpec> {
-            self.can.then(|| spec(&["get"]))
+        fn registration(&self) -> Option<&dyn CliRegistration> {
+            self.can.then_some(self)
+        }
+    }
+
+    impl CliRegistration for FakeAgent {
+        fn needs_restart(&self) -> bool {
+            true
+        }
+        fn check_command(&self, _ep: &McpEndpoint) -> CommandSpec {
+            spec(&["get"])
         }
         fn parse_check(&self, _ep: &McpEndpoint, result: &CommandResult) -> RegStatus {
             match result {
@@ -489,13 +494,13 @@ pub(crate) mod testutil {
             }
         }
         fn register_commands(&self, _ep: &McpEndpoint) -> Vec<CommandSpec> {
-            if self.can { vec![spec(&["remove"]), spec(&["add"])] } else { vec![] }
+            vec![spec(&["remove"]), spec(&["add"])]
         }
         fn register_hint(&self, ep: &McpEndpoint) -> String {
             format!("Registered {}; restart the agent session, then paste the watch prompt", ep.token)
         }
-        fn unregister_command(&self) -> Option<CommandSpec> {
-            self.can.then(|| spec(&["remove"]))
+        fn unregister_command(&self) -> CommandSpec {
+            spec(&["remove"])
         }
     }
 

@@ -4,7 +4,7 @@
 //! Must not: perform IO; use only `xplain_core::integration` types.
 
 use crate::common;
-use xplain_core::integration::{AgentIntegration, CommandResult, CommandSpec, RegStatus};
+use xplain_core::integration::AgentIntegration;
 use xplain_core::mcp::McpEndpoint;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -19,12 +19,6 @@ impl AgentIntegration for OpenCode {
     }
     fn poll_seconds(&self) -> u32 {
         45
-    }
-    fn can_register(&self) -> bool {
-        false
-    }
-    fn needs_restart(&self) -> bool {
-        false
     }
     fn register_text(&self, ep: &McpEndpoint) -> String {
         format!(
@@ -51,36 +45,14 @@ Restart opencode after editing.",
         )
     }
     fn watch_prompt(&self, _ep: &McpEndpoint) -> String {
-        common::watch_prompt(self.poll_seconds())
-            .replace("`next_question`", "`xplain_next_question`")
-            .replace("`answer`", "`xplain_answer`")
-            .replace("`files_changed`", "`xplain_files_changed`")
-    }
-    fn check_command(&self, _ep: &McpEndpoint) -> Option<CommandSpec> {
-        None
-    }
-    fn parse_check(&self, _ep: &McpEndpoint, _result: &CommandResult) -> RegStatus {
-        RegStatus::NotRegistered
-    }
-    fn register_commands(&self, _ep: &McpEndpoint) -> Vec<CommandSpec> {
-        Vec::new()
-    }
-    fn register_hint(&self, _ep: &McpEndpoint) -> String {
-        String::new()
-    }
-    fn unregister_command(&self) -> Option<CommandSpec> {
-        None
+        common::watch_prompt(self.poll_seconds(), "xplain_")
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use xplain_core::integration::CommandOutput;
-
-    fn ep() -> McpEndpoint {
-        McpEndpoint { url: "http://127.0.0.1:4321/mcp".into(), token: "sekret".into(), port: 4321 }
-    }
+    use crate::common::testutil::ep;
 
     #[test]
     fn catalog() {
@@ -89,19 +61,7 @@ mod tests {
         assert_eq!(i.label(), "OpenCode");
         assert_eq!(i.poll_seconds(), 45);
         assert!(!i.can_register());
-        assert!(!i.needs_restart());
-    }
-
-    #[test]
-    fn empties() {
-        let e = ep();
-        let i = OpenCode;
-        assert!(i.check_command(&e).is_none());
-        assert!(i.register_commands(&e).is_empty());
-        assert!(i.unregister_command().is_none());
-        assert_eq!(i.register_hint(&e), "");
-        let out = Ok(CommandOutput { code: 0, stdout: "http://x".into(), stderr: String::new() });
-        assert_eq!(i.parse_check(&e, &out), RegStatus::NotRegistered);
+        assert!(i.registration().is_none());
     }
 
     #[test]

@@ -64,7 +64,8 @@ pub(super) fn mcp_lines(state: &State, m: &McpModal, lk: &Look) -> Vec<Vec<Seg>>
                 RegStatus::NotRegistered => "not registered",
             }
         };
-        let restart = if integ.can_register() && integ.needs_restart() { "  restart needed" } else { "" };
+        let restart =
+            if integ.registration().is_some_and(|r| r.needs_restart()) { "  restart needed" } else { "" };
         out.push(vec![seg(
             format!(
                 "{} {} {}{status}{restart}",

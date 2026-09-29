@@ -236,9 +236,10 @@ fn check_all(state: &mut State, fx: &mut Fx, keep: Option<usize>) {
         return;
     };
     for i in 0..state.integrations.len() {
-        let Some(cmd) = state.integrations[i].check_command(&ep) else {
+        let Some(reg) = state.integrations[i].registration() else {
             continue;
         };
+        let cmd = reg.check_command(&ep);
         if let Some(s) = state.integration_state.get_mut(i) {
             s.keep_note = keep == Some(i);
         }
@@ -250,8 +251,10 @@ fn start_register(state: &mut State, i: usize, fx: &mut Fx) {
     let Some(ep) = state.mcp.endpoint().cloned() else {
         return;
     };
-    let cmds = state.integrations[i].register_commands(&ep);
-    let Some(first) = cmds.into_iter().next() else {
+    let Some(reg) = state.integrations[i].registration() else {
+        return;
+    };
+    let Some(first) = reg.register_commands(&ep).into_iter().next() else {
         return;
     };
     set_busy(state, i, true);
@@ -259,7 +262,7 @@ fn start_register(state: &mut State, i: usize, fx: &mut Fx) {
 }
 
 fn start_unregister(state: &mut State, i: usize, fx: &mut Fx) {
-    let Some(cmd) = state.integrations[i].unregister_command() else {
+    let Some(cmd) = state.integrations[i].registration().map(|r| r.unregister_command()) else {
         return;
     };
     set_busy(state, i, true);
@@ -280,7 +283,7 @@ fn failure_text(label: &str, what: &str, result: &CommandResult) -> Option<Strin
     match result {
         Err(CommandError::NotFound) => Some(format!("{label} CLI not found")),
         Err(CommandError::Timeout) => Some(format!("{label} {what} failed: timed out")),
-        Err(CommandError::Other(m)) => Some(format!("{label} {what} failed: {m}")),
+        Err(CommandError::Other(r)) => Some(format!("{label} {what} failed: {}", r.as_str())),
         Ok(o) if o.code != 0 => {
             let s = if o.stderr.is_empty() { &o.stdout } else { &o.stderr };
             let out = s.trim().split('\n').take(3).collect::<Vec<_>>().join(" ");
@@ -308,7 +311,9 @@ pub fn on_command_done(state: &mut State, req: ReqId, result: CommandResult, fx:
                 return;
             };
             let st = &mut state.integration_state[i];
-            st.status = agent.parse_check(&ep, &result);
+            if let Some(reg) = agent.registration() {
+                st.status = reg.parse_check(&ep, &result);
+            }
             if !keep {
                 st.message = None;
             }
@@ -318,13 +323,17 @@ pub fn on_command_done(state: &mut State, req: ReqId, result: CommandResult, fx:
                 set_busy(state, i, false);
                 return;
             };
-            let cmds = agent.register_commands(&ep);
+            let Some(reg) = agent.registration() else {
+                set_busy(state, i, false);
+                return;
+            };
+            let cmds = reg.register_commands(&ep);
             if let Some(next) = cmds.get(step + 1) {
                 run(state, fx, i, CommandPurpose::Register(step + 1), next.clone());
                 return;
             }
             let msg =
-                failure_text(agent.label(), "register", &result).unwrap_or_else(|| agent.register_hint(&ep));
+                failure_text(agent.label(), "register", &result).unwrap_or_else(|| reg.register_hint(&ep));
             finish(state, i, msg, &token, fx);
         }
         CommandPurpose::Unregister => {
@@ -630,7 +639,10 @@ mod tests {
             (ok(2, "out", "\n  bad\n\nx\ny\n"), "Alpha register failed (exit 2): bad  x"),
             (ok(3, "", ""), "Alpha register failed (exit 3)"),
             (ok(3, "out", "  "), "Alpha register failed (exit 3)"),
-            (Err(CommandError::Other("boom".into())), "Alpha register failed: boom"),
+            (
+                Err(CommandError::Other(IoReason::PermissionDenied)),
+                "Alpha register failed: permission denied",
+            ),
         ];
         for (res, want) in cases {
             let mut s = running_state();

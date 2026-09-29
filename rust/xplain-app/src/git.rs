@@ -37,7 +37,7 @@ async fn git(args: &[String], cwd: Option<&str>, ok_codes: &[i32]) -> Result<Str
     let out = run_command(&spec).await.map_err(|e| match e {
         CommandError::NotFound => cannot_run_git(IoReason::NotFound),
         CommandError::Timeout => "git failed".to_string(),
-        CommandError::Other(reason) => format!("cannot run git: {reason}"),
+        CommandError::Other(reason) => format!("cannot run git: {}", reason.as_str()),
     })?;
     if ok_codes.contains(&out.code) {
         return Ok(out.stdout);
