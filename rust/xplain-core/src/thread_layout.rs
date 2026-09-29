@@ -541,7 +541,7 @@ fn body_spans(state: &State, l: &BodyLine, picked: Option<usize>, inner: usize) 
             let sel = picked == Some(l.blk);
             vec![
                 sp(" ", Tone::Normal),
-                sp("│ ", if sel { Tone::Accent } else { Tone::Border }),
+                sp("│ ", if sel { Tone::Accent } else { Tone::Dim }),
                 Span { text: l.text.clone(), tone: Tone::Code, lang: l.lang.clone() },
             ]
         }
@@ -600,7 +600,7 @@ pub fn comment_box(state: &State, comment: &Comment, width: usize, focused: bool
     let mut lines = vec![frame_top(f, width)];
     let mut head = vec![sp(
         format!("{}{}", if focused { " ▸ sent  " } else { " sent  " }, comments::head(state, comment)),
-        if focused { Tone::Bold } else { Tone::Accent },
+        Tone::Accent,
     )];
     if saved {
         head.push(sp("  saved · not asked", Tone::Dim));
@@ -964,7 +964,7 @@ mod tests {
         assert_eq!(t[1].chars().count(), 60);
         assert!(t[t.len() - 2].contains("e edit  D delete  a ask  esc back"));
         assert!(t.last().is_some_and(|l| l.starts_with('┗')));
-        assert_eq!(b.lines[1].spans[1].tone, Tone::Bold);
+        assert_eq!(b.lines[1].spans[1].tone, Tone::Accent);
     }
 
     #[test]
