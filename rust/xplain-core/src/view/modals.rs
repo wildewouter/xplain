@@ -341,20 +341,20 @@ fn mcp_lines(state: &State, m: &McpModal, lk: &Look) -> Vec<Vec<Seg>> {
     let mut power = format!(
         "{} {}",
         if m.row == 0 { ">" } else { " " },
-        if mcp.starting.is_some() {
+        if mcp.starting().is_some() {
             "\u{2026} starting"
-        } else if mcp.running {
+        } else if mcp.is_running() {
             "\u{25cf} on "
         } else {
             "\u{25cb} off"
         }
     );
-    if mcp.running {
-        let host = mcp.endpoint.as_ref().map(|e| host_of(&e.url)).unwrap_or_default();
+    if mcp.is_running() {
+        let host = mcp.endpoint().map(|e| host_of(&e.url)).unwrap_or_default();
         power.push_str(&format!(" {host}"));
     }
     out.push(vec![seg(power, base)]);
-    if let Some(e) = &mcp.start_error {
+    if let Some(e) = mcp.start_error() {
         out.push(vec![seg(format!(" {e}"), lk.err)]);
     }
     out.push(vec![seg(
@@ -747,8 +747,7 @@ mod tests {
 
     fn mcp_state(rows: usize) -> State {
         let mut st = state(80, 24);
-        st.mcp.running = true;
-        st.mcp.endpoint = Some(crate::mcp::McpEndpoint {
+        st.mcp.server = crate::mcp::ServerState::Running(crate::mcp::McpEndpoint {
             url: "http://127.0.0.1:47615/mcp".into(),
             token: "t".into(),
             port: 47615,
@@ -782,15 +781,13 @@ mod tests {
     #[test]
     fn f_mcpui_01_power_row_variants() {
         let mut st = mcp_state(2);
-        st.mcp.running = false;
-        st.mcp.endpoint = None;
+        st.mcp.set_running(false);
         let l = texts(&mcp_lines(&st, &McpModal::default(), &look()));
         assert_eq!(l[1], "> \u{25cb} off");
-        st.mcp.starting = Some(crate::event::ReqId(1));
+        st.mcp.server = crate::mcp::ServerState::Starting(crate::event::ReqId(1));
         let l = texts(&mcp_lines(&st, &McpModal { row: 1, ..Default::default() }, &look()));
         assert_eq!(l[1], "  \u{2026} starting");
-        st.mcp.starting = None;
-        st.mcp.start_error = Some("port busy".into());
+        st.mcp.server = crate::mcp::ServerState::Stopped { last_error: Some("port busy".into()) };
         let l = texts(&mcp_lines(&st, &McpModal::default(), &look()));
         assert_eq!(l[2], " port busy");
     }

@@ -260,7 +260,7 @@ mod tests {
             [Effect::SaveConfig { change: ConfigChange::McpAutostart(true), .. }]
         ));
         assert!(matches!(s.overlay, Overlay::Config(_)));
-        assert!(s.mcp.starting.is_none());
+        assert!(s.mcp.starting().is_none());
     }
 
     #[test]

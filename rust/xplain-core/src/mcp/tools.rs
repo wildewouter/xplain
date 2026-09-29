@@ -6,8 +6,9 @@
 
 use serde_json::{Value, json};
 
-use super::hub::{PollResult, cap_chars};
-use super::{ConnId, HubEvent, McpOutput, McpState};
+use super::hub::PollResult;
+use super::text::{cap_chars, sanitize};
+use super::{ConnId, HubEvent, McpState};
 use crate::comments::PaneSide;
 
 /// Server instructions text and version constants (F-MCPSRV-04).
@@ -16,8 +17,6 @@ pub const PROTOCOL_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-0
 /// Default and max `wait_seconds` (F-MCPSRV-06).
 pub const DEFAULT_WAIT_S: u64 = 45;
 pub const MAX_WAIT_S: u64 = 120;
-/// Max chars of agent text (F-MCPSRV-07).
-pub const MAX_TEXT: usize = 20000;
 
 const AGAIN: &str = "Call next_question again immediately.";
 const CODE_HINT: &str = "Put code samples in markdown fenced blocks (```lang ... ```): xplain highlights them and gives the user a copy button.";
@@ -168,14 +167,7 @@ pub fn poll_text(r: &PollResult) -> String {
 }
 
 /// Run tool `name` for client `client_id` (session id or `anon:<port>`). Unknown tool handled by rpc.rs.
-pub fn call(
-    state: &mut McpState,
-    client_id: &str,
-    conn: ConnId,
-    name: &str,
-    args: &Value,
-    _now_ms: i64,
-) -> ToolOutcome {
+pub fn call(state: &mut McpState, client_id: &str, conn: ConnId, name: &str, args: &Value) -> ToolOutcome {
     let empty = serde_json::Map::new();
     let a = args.as_object().unwrap_or(&empty);
     match name {
@@ -214,7 +206,7 @@ pub fn call(
                         q(&qn.thread_id),
                         qn.turn,
                         qn.follow_up,
-                        q(&state.preview_of(qn))
+                        q(&cap_chars(&qn.preview, 200))
                     )
                 })
                 .collect();
@@ -275,62 +267,6 @@ pub fn text_result(text: &str, is_error: bool) -> Value {
     v
 }
 
-/// Strip ANSI escapes and control chars (keep `\n`, `\t`), cap 20000 chars (F-MCPSRV-07/08).
-pub fn sanitize(s: &str) -> String {
-    let chars: Vec<char> = s.chars().collect();
-    let mut out = String::with_capacity(s.len());
-    let mut i = 0;
-    while i < chars.len() {
-        let c = chars[i];
-        if c == '\u{1b}' {
-            i += esc_len(&chars[i..]);
-            continue;
-        }
-        let cp = c as u32;
-        let ctrl = matches!(cp, 0x00..=0x08 | 0x0b..=0x1f | 0x7f..=0x9f);
-        if !ctrl {
-            out.push(c);
-        }
-        i += 1;
-    }
-    cap_chars(&out, MAX_TEXT)
-}
-
-/// Length of the escape sequence starting at `c[0] == ESC` (OSC, CSI, two-char escape, lone ESC).
-fn esc_len(c: &[char]) -> usize {
-    match c.get(1) {
-        Some(']') => {
-            // OSC: body up to BEL or ESC \ ; otherwise ESC ] alone (two-char escape)
-            let mut j = 2;
-            while j < c.len() && c[j] != '\u{7}' && c[j] != '\u{1b}' {
-                j += 1;
-            }
-            match (c.get(j), c.get(j + 1)) {
-                (Some('\u{7}'), _) => j + 1,
-                (Some('\u{1b}'), Some('\\')) => j + 2,
-                _ => 2,
-            }
-        }
-        Some('[') => {
-            let mut j = 2;
-            while j < c.len() && ('\u{30}'..='\u{3f}').contains(&c[j]) {
-                j += 1;
-            }
-            while j < c.len() && ('\u{20}'..='\u{2f}').contains(&c[j]) {
-                j += 1;
-            }
-            if j < c.len() && ('\u{40}'..='\u{7e}').contains(&c[j]) { j + 1 } else { 1 }
-        }
-        Some(x) if ('@'..='Z').contains(x) || ('\\'..='_').contains(x) => 2,
-        _ => 1,
-    }
-}
-
-/// Emit an `McpOutput` with no effects for a finished call (used by tests).
-pub fn events_only(events: Vec<HubEvent>) -> McpOutput {
-    McpOutput { effects: Vec::new(), events }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -347,7 +283,7 @@ mod tests {
     }
 
     fn run(s: &mut McpState, name: &str, args: Value) -> ToolOutcome {
-        call(s, "c1", ConnId(1), name, &args, 0)
+        call(s, "c1", ConnId(1), name, &args)
     }
 
     #[test]
@@ -368,19 +304,6 @@ mod tests {
         assert_eq!(clamp_wait(Some(&json!(2.9))), 2);
         assert_eq!(clamp_wait(Some(&json!(500))), 120);
         assert_eq!(clamp_wait(Some(&json!(-5))), 1);
-    }
-
-    #[test]
-    fn f_mcpsrv_07_sanitize() {
-        assert_eq!(sanitize("a\u{1b}[31mred\u{1b}[0m\tb\nc\rd\u{7}e"), "ared\tb\ncde");
-        assert_eq!(sanitize("x\u{1b}]0;title\u{7}y"), "xy");
-        assert_eq!(sanitize("x\u{1b}]0;title\u{1b}\\y"), "xy");
-        assert_eq!(sanitize("x\u{1b}]open"), "xopen");
-        assert_eq!(sanitize("x\u{1b}[31"), "x[31");
-        assert_eq!(sanitize("a\u{1b}Mb"), "ab");
-        assert_eq!(sanitize("a\u{1b}"), "a");
-        assert_eq!(sanitize("a\u{85}\u{9f}b\u{a0}"), "ab\u{a0}");
-        assert_eq!(sanitize(&"x".repeat(25000)).len(), 20000);
     }
 
     #[test]
@@ -483,10 +406,10 @@ mod tests {
             thread_id: "q1".into(),
             turn: 1,
             question: "why?\n\nFile: a".into(),
+            preview: "why?".into(),
             follow_up: false,
             previous: vec![],
         });
-        s.inner.previews.push(("q1".into(), 1, "why?".into()));
         let (t, _) = text_of(&run(&mut s, "get_questions", json!({})));
         assert_eq!(
             t,
@@ -509,6 +432,7 @@ mod tests {
             thread_id: "q1".into(),
             turn: 1,
             question: "hi".into(),
+            preview: "hi".into(),
             follow_up: false,
             previous: vec![],
         };

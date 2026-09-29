@@ -555,8 +555,7 @@ pub(crate) mod testutil {
     /// Running-server state: endpoint set as after a successful start.
     pub fn running_state() -> State {
         let mut s = fake_state();
-        s.mcp.running = true;
-        s.mcp.endpoint = Some(ep());
+        s.mcp.server = crate::mcp::ServerState::Running(ep());
         s.mcp_ui.last_token = "secrettoken".into();
         s
     }

@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use crate::comments::{self, Answer, AnswerStatus, Comment, Origin, PaneSide, Turn};
 use crate::effect::{Effect, Fx};
 use crate::event::TimerId;
-use crate::mcp::tools::sanitize;
+use crate::mcp::text::sanitize;
 use crate::mcp::{HubEvent, McpOutput, OutQuestion};
 use crate::messages::{CANT_FOLLOW_UP, FOLLOW_UP_QUEUED, MCP_OFF};
 use crate::state::State;
@@ -91,11 +91,12 @@ pub fn build_question(comment: &Comment, turn: u32) -> OutQuestion {
     let message = sanitize(turn_message(comment, turn));
     if turn <= 1 {
         let ctx = sanitize(&build_context(comment));
-        let question = if ctx.is_empty() { message } else { format!("{message}\n\n{ctx}") };
+        let question = if ctx.is_empty() { message.clone() } else { format!("{message}\n\n{ctx}") };
         return OutQuestion {
             thread_id: comment.id.clone(),
             turn: 1,
             question,
+            preview: message,
             follow_up: false,
             previous: Vec::new(),
         };
@@ -123,7 +124,7 @@ pub fn build_question(comment: &Comment, turn: u32) -> OutQuestion {
         question.push_str("\n\n");
         question.push_str(&sanitize(&note_context(comment)));
     }
-    OutQuestion { thread_id: comment.id.clone(), turn, question, follow_up: true, previous }
+    OutQuestion { thread_id: comment.id.clone(), turn, question, preview: message, follow_up: true, previous }
 }
 
 fn comment_mut<'a>(state: &'a mut State, id: &str) -> Option<&'a mut Comment> {
@@ -138,8 +139,7 @@ fn send_turn(state: &mut State, id: &str, turn: u32, fx: &mut Fx) {
     t.answer = Some(Answer { status: AnswerStatus::Pending, text: String::new(), agent: None });
     let c = &*c;
     let q = build_question(c, turn);
-    let preview = sanitize(turn_message(c, turn));
-    let out = state.mcp.enqueue_with_preview(q, &preview);
+    let out = state.mcp.enqueue(q);
     apply_output(state, out, fx);
 }
 
@@ -154,7 +154,7 @@ pub fn ask_comment(state: &mut State, id: &str, fx: &mut Fx) {
     if !pending_follow_up && !askable(state, id) {
         return;
     }
-    if !state.mcp.running {
+    if !state.mcp.is_running() {
         state.set_note(MCP_OFF);
         return;
     }
@@ -183,7 +183,7 @@ pub fn ask_focused(state: &mut State, id: &str, fx: &mut Fx) {
         state.set_note("can't retry a follow-up yet");
         return;
     }
-    if !state.mcp.running {
+    if !state.mcp.is_running() {
         state.set_note(MCP_OFF);
         return;
     }
@@ -193,7 +193,7 @@ pub fn ask_focused(state: &mut State, id: &str, fx: &mut Fx) {
 
 /// Follow-up editor Enter (F-ASK-03): add turn `message`, queue it. `false` = refused (note set, editor stays).
 pub fn follow_up(state: &mut State, id: &str, message: &str, fx: &mut Fx) -> bool {
-    if !state.mcp.running {
+    if !state.mcp.is_running() {
         state.set_note(MCP_OFF);
         return false;
     }
@@ -216,7 +216,7 @@ pub fn ask_all(state: &mut State, fx: &mut Fx) {
         state.set_note("nothing to ask");
         return;
     }
-    if !state.mcp.running {
+    if !state.mcp.is_running() {
         state.set_note(MCP_OFF);
         return;
     }
@@ -243,12 +243,15 @@ fn arm_spinner(state: &mut State, fx: &mut Fx) {
     }
 }
 
+/// Text of an answer cancelled by an MCP stop (F-MCPUI-03).
+pub const MCP_STOPPED: &str = "MCP stopped";
+
 /// Live answers become `cancelled` with text `MCP stopped` (F-MCPUI-03).
 pub fn cancel_live(state: &mut State) {
     for c in &mut state.comments {
         if let Some(a) = c.turns.last_mut().and_then(|t| t.answer.as_mut()) {
             if comments::is_live(a) {
-                *a = Answer { status: AnswerStatus::Cancelled, text: "MCP stopped".to_string(), agent: None };
+                *a = Answer { status: AnswerStatus::Cancelled, text: MCP_STOPPED.to_string(), agent: None };
             }
         }
     }
@@ -340,8 +343,8 @@ mod tests {
 
     fn running_state() -> State {
         let mut st = state_with(Vec::new());
-        st.mcp.running = true;
-        st.mcp.endpoint = Some(McpEndpoint { url: String::new(), token: "t".into(), port: 1 });
+        st.mcp.server =
+            crate::mcp::ServerState::Running(McpEndpoint { url: String::new(), token: "t".into(), port: 1 });
         st
     }
 
@@ -460,7 +463,7 @@ mod tests {
             answer: Some(answer(AnswerStatus::Cancelled, "")),
             prior: vec![],
         });
-        st.mcp.running = true;
+        st.mcp.set_running(true);
         ask_focused(&mut st, "q1", &mut fx);
         assert_eq!(st.note.as_deref(), Some("can't retry a follow-up yet"));
         // note that cannot take a reply
@@ -508,7 +511,7 @@ mod tests {
         assert!(!follow_up(&mut st, "q1", "again", &mut fx));
         assert_eq!(st.note.as_deref(), Some("can't follow up yet"));
         // MCP off
-        st.mcp.running = false;
+        st.mcp.set_running(false);
         assert!(!follow_up(&mut st, "q1", "again", &mut fx));
         assert_eq!(st.note.as_deref(), Some("MCP is off (M to start)"));
     }
@@ -676,17 +679,16 @@ mod tests {
             entropy: [3; 16],
         };
         let mut fx = Vec::new();
-        let out = st.mcp.handle_http(
-            req(1, "{\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"next_question\"}}"),
-            0,
-        );
+        let out = st.mcp.handle_http(req(
+            1,
+            "{\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"next_question\"}}",
+        ));
         apply_output(&mut st, out, &mut fx);
         ask_comment(&mut st, "q1", &mut fx);
         assert!(fx.iter().any(|e| matches!(e, Effect::HttpReply { .. })));
         assert_eq!(comments::latest_answer(&st.comments[0]).map(|a| a.status), Some(AnswerStatus::Streaming));
         let out = st.mcp.handle_http(
             req(2, "{\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"answer\",\"arguments\":{\"thread_id\":\"q1\",\"text\":\"yes\"}}}"),
-            0,
         );
         apply_output(&mut st, out, &mut fx);
         let a = comments::latest_answer(&st.comments[0]).expect("a");

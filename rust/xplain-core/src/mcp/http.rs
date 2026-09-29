@@ -9,8 +9,8 @@ use super::{HttpRequest, HttpResponse};
 const LOOPBACK: [&str; 4] = ["localhost", "127.0.0.1", "[::1]", "::1"];
 
 /// Run F-MCPSRV-02 in spec order. `Err(response)` = reject with that response; `Ok(())` = go on to JSON-RPC.
-/// `token` is the active bearer token, `port` the effective bound port (Host header check).
-pub fn precheck(req: &HttpRequest, token: &str, _port: u16) -> Result<(), HttpResponse> {
+/// `token` is the active bearer token (`None`: no server running, every request fails auth).
+pub fn precheck(req: &HttpRequest, token: Option<&str>) -> Result<(), HttpResponse> {
     let host_ok = header(req, "host").is_some_and(host_loopback);
     let origin_ok = header(req, "origin").is_none_or(origin_loopback);
     if !host_ok || !origin_ok {
@@ -59,10 +59,10 @@ fn path_of(target: &str) -> &str {
     target.split(['?', '#']).next().unwrap_or("")
 }
 
-fn bearer_ok(auth: Option<&str>, token: &str) -> bool {
-    if token.is_empty() {
+fn bearer_ok(auth: Option<&str>, token: Option<&str>) -> bool {
+    let Some(token) = token.filter(|t| !t.is_empty()) else {
         return false;
-    }
+    };
     let Some(given) = auth.and_then(|a| a.strip_prefix("Bearer ")) else {
         return false;
     };
@@ -149,8 +149,8 @@ mod tests {
 
     #[test]
     fn f_mcpsrv_02_ok() {
-        assert!(precheck(&req("POST", "/mcp", &good()), TOKEN, 47615).is_ok());
-        assert!(precheck(&req("POST", "/mcp?x=1", &good()), TOKEN, 47615).is_ok());
+        assert!(precheck(&req("POST", "/mcp", &good()), Some(TOKEN)).is_ok());
+        assert!(precheck(&req("POST", "/mcp?x=1", &good()), Some(TOKEN)).is_ok());
     }
 
     #[test]
@@ -172,8 +172,7 @@ mod tests {
         ] {
             let r = precheck(
                 &req("POST", "/mcp", &[("host", h), ("authorization", "Bearer tok-0123456789abcdef")]),
-                TOKEN,
-                1,
+                Some(TOKEN),
             );
             assert_eq!(r.is_ok(), ok, "host {h:?}");
             if let Err(e) = r {
@@ -182,7 +181,7 @@ mod tests {
             }
         }
         assert_eq!(
-            precheck(&req("POST", "/mcp", &[("authorization", "Bearer tok-0123456789abcdef")]), TOKEN, 1)
+            precheck(&req("POST", "/mcp", &[("authorization", "Bearer tok-0123456789abcdef")]), Some(TOKEN))
                 .map_err(|e| e.status),
             Err(403)
         );
@@ -202,7 +201,7 @@ mod tests {
         ] {
             let mut h = good();
             h.push(("origin", o));
-            let r = precheck(&req("POST", "/mcp", &h), TOKEN, 1);
+            let r = precheck(&req("POST", "/mcp", &h), Some(TOKEN));
             assert_eq!(r.is_ok(), ok, "origin {o:?}");
         }
     }
@@ -210,26 +209,26 @@ mod tests {
     #[test]
     fn f_mcpsrv_02_order_and_codes() {
         // host beats path
-        let r = precheck(&req("GET", "/x", &[("host", "evil")]), TOKEN, 1).unwrap_err();
+        let r = precheck(&req("GET", "/x", &[("host", "evil")]), Some(TOKEN)).unwrap_err();
         assert_eq!(r.status, 403);
         // path beats auth
-        let r = precheck(&req("GET", "/x", &[("host", "localhost")]), TOKEN, 1).unwrap_err();
+        let r = precheck(&req("GET", "/x", &[("host", "localhost")]), Some(TOKEN)).unwrap_err();
         assert_eq!((r.status, body(&r).as_str()), (404, "{\"error\":\"not found\"}"));
         // auth beats method
-        let r = precheck(&req("GET", "/mcp", &[("host", "localhost")]), TOKEN, 1).unwrap_err();
+        let r = precheck(&req("GET", "/mcp", &[("host", "localhost")]), Some(TOKEN)).unwrap_err();
         assert_eq!(r.status, 401);
         assert_eq!(body(&r), "{\"error\":\"unauthorized\"}");
         assert!(r.headers.contains(&("www-authenticate".into(), "Bearer".into())));
         assert!(r.headers.contains(&("content-type".into(), "application/json".into())));
         // method
-        let r = precheck(&req("GET", "/mcp", &good()), TOKEN, 1).unwrap_err();
+        let r = precheck(&req("GET", "/mcp", &good()), Some(TOKEN)).unwrap_err();
         assert_eq!(r.status, 405);
         assert_eq!(body(&r), "{\"error\":\"method not allowed\"}");
         assert!(r.headers.contains(&("allow".into(), "POST".into())));
         // too large
         let mut big = req("POST", "/mcp", &good());
         big.body_too_large = true;
-        let r = precheck(&big, TOKEN, 1).unwrap_err();
+        let r = precheck(&big, Some(TOKEN)).unwrap_err();
         assert_eq!(r.status, 413);
         assert_eq!(body(&r), "{\"error\":\"body too large\"}");
         assert!(r.headers.contains(&("connection".into(), "close".into())));
@@ -244,10 +243,11 @@ mod tests {
             "tok-0123456789abcdef",
             "Bearer ",
         ] {
-            let r = precheck(&req("POST", "/mcp", &[("host", "localhost"), ("authorization", a)]), TOKEN, 1);
+            let r =
+                precheck(&req("POST", "/mcp", &[("host", "localhost"), ("authorization", a)]), Some(TOKEN));
             assert_eq!(r.map_err(|e| e.status), Err(401), "{a:?}");
         }
-        assert_eq!(precheck(&req("POST", "/mcp", &good()), "", 1).map_err(|e| e.status), Err(401));
+        assert_eq!(precheck(&req("POST", "/mcp", &good()), None).map_err(|e| e.status), Err(401));
     }
 
     #[test]

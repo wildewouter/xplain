@@ -8,7 +8,8 @@
 use serde_json::Value;
 
 use super::http::raw_response;
-use super::hub::{Cont, PollResult, Resolved, cap_chars};
+use super::hub::{Cont, Resolved};
+use super::text::cap_chars;
 use super::tools::{self, PROTOCOL_VERSIONS, SERVER_VERSION, TOOL_NAMES, ToolOutcome};
 use super::{ConnId, HttpRequest, McpOutput, McpState};
 use crate::effect::Effect;
@@ -32,7 +33,7 @@ fn result_item(id: &str, result: &str) -> String {
 
 /// Dispatch a request that passed `http::precheck`: parse body, handle each message, build the response
 /// effect (`Effect::HttpReply`) or park a long poll (no reply yet).
-pub fn dispatch(state: &mut McpState, req: HttpRequest, now_ms: i64) -> McpOutput {
+pub fn dispatch(state: &mut McpState, req: HttpRequest) -> McpOutput {
     let mut out = McpOutput::default();
     match serde_json::from_slice::<Value>(&req.body) {
         Err(_) => {
@@ -57,7 +58,6 @@ pub fn dispatch(state: &mut McpState, req: HttpRequest, now_ms: i64) -> McpOutpu
                 header_session,
                 remote_port: req.remote_port,
                 entropy: req.entropy,
-                now_ms,
                 ..Cont::default()
             };
             run(state, req.conn, cont, &mut out);
@@ -159,7 +159,7 @@ fn handle(
                 .or_else(|| cont.header_session.clone())
                 .unwrap_or_else(|| format!("anon:{}", cont.remote_port));
             let args = params.get("arguments").cloned().unwrap_or(Value::Null);
-            match tools::call(state, &client_id, conn, name, &args, cont.now_ms) {
+            match tools::call(state, &client_id, conn, name, &args) {
                 ToolOutcome::Done { result, events } => {
                     out.events.extend(events);
                     Handled::Item(Reply::Result(result.to_string()))
@@ -211,11 +211,6 @@ pub(super) fn settle(state: &mut McpState, out: &mut McpOutput) {
     out.events.extend(std::mem::take(&mut state.inner.events));
 }
 
-/// Result of a poll that ended by timeout.
-pub(super) fn timeout_result() -> PollResult {
-    PollResult::NoQuestion
-}
-
 /// UUID v4 text from 16 entropy bytes (`salt` keeps several ids of one request apart).
 fn uuid_v4(mut b: [u8; 16], salt: u8) -> String {
     b[15] ^= salt;
@@ -228,14 +223,13 @@ fn uuid_v4(mut b: [u8; 16], salt: u8) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mcp::{McpEndpoint, OutQuestion};
+    use crate::mcp::{McpEndpoint, OutQuestion, ServerState};
 
     const TOKEN: &str = "tok-0123456789abcdef";
 
     fn state() -> McpState {
         McpState {
-            running: true,
-            endpoint: Some(McpEndpoint {
+            server: ServerState::Running(McpEndpoint {
                 url: "http://127.0.0.1:1/mcp".into(),
                 token: TOKEN.into(),
                 port: 1,
@@ -289,7 +283,7 @@ mod tests {
     }
 
     fn call(s: &mut McpState, conn: u64, body: &str) -> McpOutput {
-        s.handle_http(post(conn, body), 0)
+        s.handle_http(post(conn, body))
     }
 
     #[test]
@@ -297,11 +291,11 @@ mod tests {
         let mut s = state();
         let mut r = post(1, "{}");
         r.path = "/nope".into();
-        let out = s.handle_http(r, 0);
+        let out = s.handle_http(r);
         assert_eq!(reply(&out, 1).map(|x| x.0), Some(404));
         let mut r = post(2, "{}");
         r.headers.retain(|(k, _)| k != "authorization");
-        assert_eq!(reply(&s.handle_http(r, 0), 2).map(|x| x.0), Some(401));
+        assert_eq!(reply(&s.handle_http(r), 2).map(|x| x.0), Some(401));
     }
 
     #[test]
@@ -532,6 +526,7 @@ mod tests {
             thread_id: thread.into(),
             turn,
             question: msg.into(),
+            preview: msg.into(),
             follow_up: turn > 1,
             previous: if turn > 1 { vec![(1, "q".into(), "a".into())] } else { vec![] },
         })
@@ -543,7 +538,6 @@ mod tests {
                 post(conn, &format!("{{\"id\":9,\"method\":\"tools/call\",\"params\":{{\"name\":\"next_question\",\"arguments\":{{\"wait_seconds\":{wait}}}}}}}")),
                 sid,
             ),
-            0,
         )
     }
 
@@ -657,6 +651,7 @@ mod tests {
             thread_id: "q1".into(),
             turn: 8,
             question: "Follow-up to your earlier answer (thread q1, turn 8): z".into(),
+            preview: "z".into(),
             follow_up: true,
             previous: (1..8).map(|i| (i, format!("m{i}"), "x".repeat(4100))).collect(),
         });
@@ -691,7 +686,6 @@ mod tests {
         let mut s = state();
         let out = s.handle_http(
             post(1, "{\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"next_question\",\"arguments\":{\"wait_seconds\":1}}}"),
-            0,
         );
         assert!(reply(&out, 1).is_none());
         assert_eq!(s.clients[0].id, "anon:4001");
@@ -709,6 +703,7 @@ mod tests {
             thread_id: "qz".into(),
             turn: 1,
             question: "z".into(),
+            preview: "z".into(),
             follow_up: false,
             previous: vec![],
         });
@@ -726,7 +721,6 @@ mod tests {
         let mut s = state();
         s.handle_http(
             post(3, "[{\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"next_question\"}},{\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"next_question\"}},{\"id\":3,\"method\":\"ping\"}]"),
-            0,
         );
         let out = s.stop();
         let v = body_json(&out, 3);

@@ -17,7 +17,7 @@ L4 shell     update  reload  quit  config_ui  mcp_ui
 L3 features  nav/{motion,word,viewport,visual}  jump  find  picker  search  browse  help
              comments  editor  thread  thread_layout  ask  export  hlcache  rows
                |  one feature each, mutate State through small APIs
-L2 state     state  (Loader, McpUi, Overlay, Nav, ...)  mcp/{mod,hub,rpc,tools,http,token}
+L2 state     state  (Loader, McpUi, Overlay, Nav, ...)  mcp/{mod,hub,rpc,tools,http,text,token}
                |  data + `Overlay::route_key` dispatch, `State::{current_path,alloc_req,set_note}`
 L1 parse     diff  config  theme  fuzzy  highlight  textutil  textinput  messages
                |
@@ -33,11 +33,11 @@ map outstanding `ReqId`s back to their purpose, stale ids are dropped.
 
 | component      | modules                                                                                  | spec IDs                                                                                                                                             |
 | -------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A `parse`      | `diff.rs`, `config.rs`, `theme.rs`, `fuzzy.rs`, `messages.rs`, `errors.rs`, `options.rs` | F-EDGE-01..08, F-MODE-01/02 (argv, untracked), F-SCOPE-01, F-CONFIG-01..05, F-THEME-02, Colors, F-SEARCH-01 (matcher), Messages                      |
+| A `parse`      | `diff.rs`, `config.rs`, `json_ordered.rs`, `theme.rs`, `fuzzy.rs`, `messages.rs`, `errors.rs`, `options.rs` | F-EDGE-01..08, F-MODE-01/02 (argv, untracked), F-SCOPE-01, F-CONFIG-01..05, F-THEME-02, Colors, F-SEARCH-01 (matcher), Messages                      |
 | B `nav`        | `rows.rs`, `textutil.rs`, `nav/{mod,motion,word,viewport,visual}.rs`                     | F-CURSOR-01..10, F-VISUAL-01/02, F-NAV-01..04/07/09/10, F-LAYOUT-03..05 (row model), F-HEADER-03 (tag), F-LAYOUT-01 (H)                              |
 | C `navops`     | `jump.rs`, `find.rs`, `picker.rs`, `search.rs`, `browse.rs`, `help.rs`, `textinput.rs`        | F-NAV-05/06/08, F-RELOAD-03 (cursor memo), F-FIND-01..03, F-GOTO-01/02, F-FILES-01/02, F-SEARCH-01/02, F-BROWSE-01/02, F-HELP-01..04                 |
 | D `comments`   | `comments.rs`, `editor.rs`, `thread.rs`, `thread_layout.rs`                              | F-COMMENT-01..10, F-VISUAL-03, F-ASK-03 (editor), F-ASK-05..08 (thread body layout)                                                                  |
-| E `agent`      | `mcp/{mod,http,rpc,tools,hub,token}.rs`, `ask.rs`, `export.rs`                           | F-MCPSRV-01..11, F-ASK-01/02/04/09, F-EXPORT-01/02, F-RELOAD-02 (trigger), Test seams (port)                                                         |
+| E `agent`      | `mcp/{mod,http,rpc,tools,hub,text,token}.rs`, `ask.rs`, `export.rs`                           | F-MCPSRV-01..11, F-ASK-01/02/04/09, F-EXPORT-01/02, F-RELOAD-02 (trigger), Test seams (port)                                                         |
 | G `shell`      | `state.rs`, `update.rs`, `reload.rs`, `quit.rs`, `config_ui.rs`, `mcp_ui.rs`             | F-CLI-05, F-MODE-03..05, F-SCOPE-02, F-THEME-01, F-RELOAD-01/03, F-QUIT-01, F-CFGUI-01..03, F-MCPUI-01..04, F-INTEG-02..06 (flow), F-LAYOUT-04 (`s`) |
 | F1 `viewframe` | `canvas.rs`, `view.rs`, `view/{header,modals,help_panel}.rs`                             | F-LAYOUT-01/02/06/07/08, F-HEADER-01/02, F-MODE-04/05 screens, F-HELP-01 (panel), modal render of F-FILES/SEARCH/CFGUI/MCPUI/QUIT/COMMENT-08         |
 | F2 `viewrows`  | `highlight.rs`, `view/{rows,thread_box}.rs`                                              | F-LAYOUT-03..05 render, F-CURSOR-02, F-VISUAL-02, F-FIND-02 render, F-EDGE-06/08, F-COMMENT-04/10 render, F-ASK-05..08 render, UNSPEC-31             |
@@ -67,8 +67,8 @@ map outstanding `ReqId`s back to their purpose, stale ids are dropped.
 - State: `loader` (pending, next_req, diff_req, diff_kind, diff_nav), `mcp_ui` (last_token, autostart_req); DiffLoadKind, DiffNav; IntegrationState.keep_note; Pending::BrowseReload{path}.
 - ThreadUi: heads, chosen, num_go, num_last, seen.
 - update runs rows::ensure and thread::sync after every event; FileRead for a `Pending::BrowseReload` request goes to reload::on_browse_reread, others to browse::on_file_read.
-- MCP stop: thread::on_mcp_stopped + ask::cancel_live; McpState::reset_hub on new start.
+- MCP stop: thread::on_mcp_stopped + ask::cancel_live; McpState::stop resets the hub (server lifecycle is `mcp::ServerState`: Stopped{last_error} / Starting(req) / Running(endpoint), read via is_running/starting/endpoint/start_error).
 - HttpResponse headers already include content-type; runtime must not add it.
-- config.rs has private ordered JSON writer (key order stable).
+- config.rs keeps user key order via `json_ordered.rs` (order-preserving JSON parse/print); `mcp/text.rs` holds sanitize/cap_chars shared by hub, rpc, tools.
 - highlight.rs uses syntect; toml/ini plain.
 - highlight cache: `hlcache/` (F2; `mod.rs` cache + shell hook, `ranges.rs` per-side ranges, `code_lru.rs` thread code LRU, `plan.rs` pure planner over `&State` whose plans `HlCache` applies). `update` runs `hlcache::sync` after every event; it emits `Effect::Highlight` for uncovered lines within +-100 rows of the viewport (trigger +-50) and `Event::Highlighted` fills `state.hl`. `view` only reads `HlCache::{runs,code_runs}` (token classes, colors from `highlight::run_style` per theme). Cache key = path + side + content hash, LRU current file + 3, files > 50k lines plain, thread code lines LRU 500 computed once on thread change.

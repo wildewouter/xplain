@@ -36,9 +36,7 @@ pub fn on_key(state: &mut State, key: KeyEvent, fx: &mut Fx) {
 
 /// Leave now: stop MCP server if running (McpState::stop replies, `McpStop`), then `Exit{code:0}`.
 pub fn exit_now(state: &mut State, fx: &mut Fx) {
-    if state.mcp.running || state.mcp.endpoint.is_some() {
-        mcp_ui::stop_server(state, fx);
-    }
+    mcp_ui::stop_server(state, fx); // no-op unless the server is running
     fx.push(Effect::Exit { code: 0 });
 }
 
