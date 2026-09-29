@@ -8,7 +8,7 @@
 //! Oracle: `src/components/DiffView.tsx`. Owner: component `viewrows` (F2).
 //! Uses `rows::*`, `highlight::*`, `thread_layout::boxes_at` via `thread_box::draw_boxes`. Must not mutate state.
 //!
-//! Decisions on UNSPEC: cursor row bg is padded to the full width without forcing a `…` (UNSPEC-16), control
+//! Decisions on UNSPEC: cursor row is padded past the edge, last cell always `…` (UNSPEC-16), control
 //! chars in content are drawn as U+FFFD (UNSPEC-26), columns count chars (UNSPEC-28).
 
 use unicode_width::UnicodeWidthChar;
@@ -144,6 +144,16 @@ fn emit(c: &mut Canvas, x: u16, y: u16, width: u16, cells: &Cells, pad: Option<S
     if width == 0 {
         return;
     }
+    // Oracle: a cursor row text is followed by `width` spaces, so it always runs past the edge and ends in `…`
+    // (UNSPEC-16). An empty cell only gets its bg.
+    let widened: Cells;
+    let cells = match pad {
+        Some(p) if !cells.is_empty() => {
+            widened = cells.iter().copied().chain(std::iter::repeat_n((' ', p), width)).collect();
+            &widened
+        }
+        _ => cells,
+    };
     let total: usize = cells.iter().map(|(ch, _)| ch.width().unwrap_or(0)).sum();
     let mut out: Cells = Vec::with_capacity(cells.len() + 1);
     let mut acc = 0usize;
@@ -495,7 +505,7 @@ mod tests {
         v.col = 0;
         let s = render(&v, 30, 5);
         let t = th();
-        assert_eq!(s.row_text(2).trim_end(), "   2      -▶b");
+        assert_eq!(s.row_text(2), format!("   2      -▶b{}…", " ".repeat(16)));
         assert!(s.rows[2].iter().all(|c| c.style.bg == Some(t.cur_bg)));
         assert!(s.rows[2][12].style.reverse, "char cursor");
         assert!(!s.rows[2][13].style.reverse);
@@ -647,6 +657,17 @@ mod tests {
     }
 
     #[test]
+    fn f_layout_04_cursor_row_panes_end_in_ellipsis_other_rows_plain() {
+        let rows = split_rows();
+        let mut v = view(&rows);
+        v.cursor = 1;
+        let s = render(&v, 101, 4);
+        assert_eq!(s.rows[1][49].ch, '…');
+        assert_eq!(s.rows[1][100].ch, '…');
+        assert_ne!(s.rows[0][49].ch, '…');
+    }
+
+    #[test]
     fn f_cursor_02_split_both_panes_bg_marker_in_active_only_char_cursor() {
         let rows = split_rows();
         let mut v = view(&rows);
@@ -703,7 +724,7 @@ mod tests {
         v.cursor = 0;
         v.path = "x.rs";
         let s = render(&v, 30, 2);
-        assert_eq!(s.row_text(0).trim_end(), "   1  ▶fn a() {}");
+        assert_eq!(s.row_text(0), format!("   1  ▶fn a() {{}}{}…", " ".repeat(13)));
         assert_eq!(s.row_text(1).trim_end(), "   2");
         let t = th();
         assert_eq!(s.rows[0][0].style.bg, Some(t.cur_bg));
