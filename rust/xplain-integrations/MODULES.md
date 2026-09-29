@@ -14,12 +14,12 @@ composes/masks/wraps notes (F-INTEG-03 error notes are core's job).
 
 ## Ownership
 
-| module | spec IDs | component |
-| --- | --- | --- |
-| common.rs | F-INTEG-02, F-INTEG-06, UNSPEC-37 | I1 |
-| claude.rs, codex.rs, copilot.rs | F-INTEG-01..06, UNSPEC-6 | I1 |
-| opencode.rs | F-INTEG-01, 05, 06 | I1 |
-| lib.rs | F-MCPUI-01 order | fixed |
+| module                          | spec IDs                          | component |
+| ------------------------------- | --------------------------------- | --------- |
+| common.rs                       | F-INTEG-02, F-INTEG-06, UNSPEC-37 | I1        |
+| claude.rs, codex.rs, copilot.rs | F-INTEG-01..06, UNSPEC-6          | I1        |
+| opencode.rs                     | F-INTEG-01, 05, 06                | I1        |
+| lib.rs                          | F-MCPUI-01 order                  | fixed     |
 
 ## Interfaces
 

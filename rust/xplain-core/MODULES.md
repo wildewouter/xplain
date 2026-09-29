@@ -7,16 +7,16 @@ module up front. Handlers share one shape: `fn(&mut State, KeyEvent, &mut Fx) ->
 
 ## Ownership
 
-| component | modules | spec IDs |
-| --- | --- | --- |
-| A `parse` | `diff.rs`, `config.rs`, `theme.rs`, `fuzzy.rs`, `messages.rs`, `errors.rs`, `options.rs` | F-EDGE-01..08, F-MODE-01/02 (argv, untracked), F-SCOPE-01, F-CONFIG-01..05, F-THEME-02, Colors, F-SEARCH-01 (matcher), Messages |
-| B `nav` | `rows.rs`, `textutil.rs`, `nav/{mod,motion,word,viewport,visual}.rs` | F-CURSOR-01..10, F-VISUAL-01/02, F-NAV-01..04/07/09/10, F-LAYOUT-03..05 (row model), F-HEADER-03 (tag), F-LAYOUT-01 (H) |
-| C `navops` | `jump.rs`, `find.rs`, `picker.rs`, `search.rs`, `browse.rs`, `help.rs` | F-NAV-05/06/08, F-RELOAD-03 (cursor memo), F-FIND-01..03, F-GOTO-01/02, F-FILES-01/02, F-SEARCH-01/02, F-BROWSE-01/02, F-HELP-01..04 |
-| D `comments` | `comments.rs`, `editor.rs`, `thread.rs`, `thread_layout.rs` | F-COMMENT-01..10, F-VISUAL-03, F-ASK-03 (editor), F-ASK-05..08 (thread body layout) |
-| E `agent` | `mcp/{mod,http,rpc,tools,hub,token}.rs`, `ask.rs`, `export.rs` | F-MCPSRV-01..11, F-ASK-01/02/04/09, F-EXPORT-01/02, F-RELOAD-02 (trigger), Test seams (port) |
-| G `shell` | `state.rs`, `update.rs`, `reload.rs`, `quit.rs`, `config_ui.rs`, `mcp_ui.rs` | F-CLI-05, F-MODE-03..05, F-SCOPE-02, F-THEME-01, F-RELOAD-01/03, F-QUIT-01, F-CFGUI-01..03, F-MCPUI-01..04, F-INTEG-02..06 (flow), F-LAYOUT-04 (`s`) |
-| F1 `viewframe` | `canvas.rs`, `view.rs`, `view/{header,modals,help_panel}.rs` | F-LAYOUT-01/02/06/07/08, F-HEADER-01/02, F-MODE-04/05 screens, F-HELP-01 (panel), modal render of F-FILES/SEARCH/CFGUI/MCPUI/QUIT/COMMENT-08 |
-| F2 `viewrows` | `highlight.rs`, `view/{rows,thread_box}.rs` | F-LAYOUT-03..05 render, F-CURSOR-02, F-VISUAL-02, F-FIND-02 render, F-EDGE-06/08, F-COMMENT-04/10 render, F-ASK-05..08 render, UNSPEC-31 |
+| component      | modules                                                                                  | spec IDs                                                                                                                                             |
+| -------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A `parse`      | `diff.rs`, `config.rs`, `theme.rs`, `fuzzy.rs`, `messages.rs`, `errors.rs`, `options.rs` | F-EDGE-01..08, F-MODE-01/02 (argv, untracked), F-SCOPE-01, F-CONFIG-01..05, F-THEME-02, Colors, F-SEARCH-01 (matcher), Messages                      |
+| B `nav`        | `rows.rs`, `textutil.rs`, `nav/{mod,motion,word,viewport,visual}.rs`                     | F-CURSOR-01..10, F-VISUAL-01/02, F-NAV-01..04/07/09/10, F-LAYOUT-03..05 (row model), F-HEADER-03 (tag), F-LAYOUT-01 (H)                              |
+| C `navops`     | `jump.rs`, `find.rs`, `picker.rs`, `search.rs`, `browse.rs`, `help.rs`                   | F-NAV-05/06/08, F-RELOAD-03 (cursor memo), F-FIND-01..03, F-GOTO-01/02, F-FILES-01/02, F-SEARCH-01/02, F-BROWSE-01/02, F-HELP-01..04                 |
+| D `comments`   | `comments.rs`, `editor.rs`, `thread.rs`, `thread_layout.rs`                              | F-COMMENT-01..10, F-VISUAL-03, F-ASK-03 (editor), F-ASK-05..08 (thread body layout)                                                                  |
+| E `agent`      | `mcp/{mod,http,rpc,tools,hub,token}.rs`, `ask.rs`, `export.rs`                           | F-MCPSRV-01..11, F-ASK-01/02/04/09, F-EXPORT-01/02, F-RELOAD-02 (trigger), Test seams (port)                                                         |
+| G `shell`      | `state.rs`, `update.rs`, `reload.rs`, `quit.rs`, `config_ui.rs`, `mcp_ui.rs`             | F-CLI-05, F-MODE-03..05, F-SCOPE-02, F-THEME-01, F-RELOAD-01/03, F-QUIT-01, F-CFGUI-01..03, F-MCPUI-01..04, F-INTEG-02..06 (flow), F-LAYOUT-04 (`s`) |
+| F1 `viewframe` | `canvas.rs`, `view.rs`, `view/{header,modals,help_panel}.rs`                             | F-LAYOUT-01/02/06/07/08, F-HEADER-01/02, F-MODE-04/05 screens, F-HELP-01 (panel), modal render of F-FILES/SEARCH/CFGUI/MCPUI/QUIT/COMMENT-08         |
+| F2 `viewrows`  | `highlight.rs`, `view/{rows,thread_box}.rs`                                              | F-LAYOUT-03..05 render, F-CURSOR-02, F-VISUAL-02, F-FIND-02 render, F-EDGE-06/08, F-COMMENT-04/10 render, F-ASK-05..08 render, UNSPEC-31             |
 
 ## Interfaces (who calls whom)
 
@@ -38,6 +38,7 @@ module up front. Handlers share one shape: `fn(&mut State, KeyEvent, &mut Fx) ->
 - No agent names. No IO. Fill `todo!()` only; never edit files of another component. Need a signature change -> report it.
 
 ## Design moves during implementation (add-only)
+
 - State: diff_req/diff_kind/diff_nav/last_token/autostart_req; DiffLoadKind, DiffNav; IntegrationState.keep_note; Pending::BrowseReload{path}.
 - ThreadUi: heads, chosen, num_go, num_last, seen.
 - update runs rows::ensure and thread::sync after every event; FileRead goes to reload::on_browse_reread first.

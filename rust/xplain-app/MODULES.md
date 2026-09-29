@@ -5,26 +5,26 @@ IO crate. Core decides, app executes. All modules registered in `src/lib.rs` up 
 
 ## Module tree and ownership
 
-| module | responsibility | spec IDs | component |
-| --- | --- | --- | --- |
-| `main.rs` | calls `run::main_with_args`, exits. No logic | - | (lead, done) |
-| `cli.rs` | pure argv parser, `USAGE`, error texts | F-CLI-01..04, F-CLI-06 | B |
-| `env.rs` | `RawEnv` snapshot, config path env, state dir, sync/truecolor flags, `EnvInfo` | F-CONFIG-01, F-MCPSRV-01 (dir), Test seams (env) | B |
-| `config_io.rs` | read config file (`ConfigFile`), `SaveConfig` read-merge-write | F-CONFIG-01/04/05, F-CFGUI-03 | B |
-| `git.rs` | `LoadDiff` (cwd check, git, untracked), `ListFiles` | F-MODE-01/02/04, F-CLI-06, F-FILES/F-SEARCH listing, UNSPEC-37 | B |
-| `fsio.rs` | `ReadFile`, `WriteExport` | F-BROWSE-01, F-COMMENT-09, F-EXPORT-01 | B |
-| `run.rs` | `prepare` (argv -> config -> `State`) + `main_with_args` orchestration, stderr warnings, exit codes | F-CLI-01..05, F-CONFIG-03/04 | B |
-| `input.rs` | byte decoder: keys, paste, barriers | Test seams, F-NAV-07, F-CLI-05, UNSPEC-8/26 | A |
-| `barrier.rs` | pure barrier queue (numbering, ordered release) | Test seams | A |
-| `runtime.rs` | `drive` loop, `Clock` trait, `barrier_reply`, `run_loop` wiring, handles Clipboard/SetTimer/CancelTimer/Exit | Test seams, F-CLI-05, F-RELOAD-02 | A |
-| `present.rs` | `Screen` -> bytes (`encode_frame`), alt screen enter/leave | F-CLI-05, F-LAYOUT-01, Colors | A |
-| `term.rs` | raw mode, size, stdin reader thread, SIGWINCH | F-CLI-05, F-LAYOUT-01 | A |
-| `timers.rs` | `RealClock`: wall clock + tokio timers, pending accounting | Test seams (background timers), F-ASK-05, F-MCPSRV-06 | A |
-| `clipboard.rs` | OSC 52 bytes | F-ASK-08, PORTING clipboard | A |
-| `exec.rs` | `Executor` trait, `PendingWork`, `RealExecutor` dispatcher | Test seams (pending), all IO effects | C |
-| `http.rs` | MCP server sockets, `HttpCounters`, `McpServer` | F-MCPSRV-01/02 (socket), F-MCPSRV-06 (drop), F-MCPUI-03 (drain), Test seams (reqs/done) | C |
-| `token.rs` | `mcp.json` token file IO | F-MCPSRV-01 | C |
-| `proc.rs` | integration CLI runner with timeout | F-INTEG-01..04, UNSPEC-37 | C |
+| module         | responsibility                                                                                               | spec IDs                                                                                | component    |
+| -------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ------------ |
+| `main.rs`      | calls `run::main_with_args`, exits. No logic                                                                 | -                                                                                       | (lead, done) |
+| `cli.rs`       | pure argv parser, `USAGE`, error texts                                                                       | F-CLI-01..04, F-CLI-06                                                                  | B            |
+| `env.rs`       | `RawEnv` snapshot, config path env, state dir, sync/truecolor flags, `EnvInfo`                               | F-CONFIG-01, F-MCPSRV-01 (dir), Test seams (env)                                        | B            |
+| `config_io.rs` | read config file (`ConfigFile`), `SaveConfig` read-merge-write                                               | F-CONFIG-01/04/05, F-CFGUI-03                                                           | B            |
+| `git.rs`       | `LoadDiff` (cwd check, git, untracked), `ListFiles`                                                          | F-MODE-01/02/04, F-CLI-06, F-FILES/F-SEARCH listing, UNSPEC-37                          | B            |
+| `fsio.rs`      | `ReadFile`, `WriteExport`                                                                                    | F-BROWSE-01, F-COMMENT-09, F-EXPORT-01                                                  | B            |
+| `run.rs`       | `prepare` (argv -> config -> `State`) + `main_with_args` orchestration, stderr warnings, exit codes          | F-CLI-01..05, F-CONFIG-03/04                                                            | B            |
+| `input.rs`     | byte decoder: keys, paste, barriers                                                                          | Test seams, F-NAV-07, F-CLI-05, UNSPEC-8/26                                             | A            |
+| `barrier.rs`   | pure barrier queue (numbering, ordered release)                                                              | Test seams                                                                              | A            |
+| `runtime.rs`   | `drive` loop, `Clock` trait, `barrier_reply`, `run_loop` wiring, handles Clipboard/SetTimer/CancelTimer/Exit | Test seams, F-CLI-05, F-RELOAD-02                                                       | A            |
+| `present.rs`   | `Screen` -> bytes (`encode_frame`), alt screen enter/leave                                                   | F-CLI-05, F-LAYOUT-01, Colors                                                           | A            |
+| `term.rs`      | raw mode, size, stdin reader thread, SIGWINCH                                                                | F-CLI-05, F-LAYOUT-01                                                                   | A            |
+| `timers.rs`    | `RealClock`: wall clock + tokio timers, pending accounting                                                   | Test seams (background timers), F-ASK-05, F-MCPSRV-06                                   | A            |
+| `clipboard.rs` | OSC 52 bytes                                                                                                 | F-ASK-08, PORTING clipboard                                                             | A            |
+| `exec.rs`      | `Executor` trait, `PendingWork`, `RealExecutor` dispatcher                                                   | Test seams (pending), all IO effects                                                    | C            |
+| `http.rs`      | MCP server sockets, `HttpCounters`, `McpServer`                                                              | F-MCPSRV-01/02 (socket), F-MCPSRV-06 (drop), F-MCPUI-03 (drain), Test seams (reqs/done) | C            |
+| `token.rs`     | `mcp.json` token file IO                                                                                     | F-MCPSRV-01                                                                             | C            |
+| `proc.rs`      | integration CLI runner with timeout                                                                          | F-INTEG-01..04, UNSPEC-37                                                               | C            |
 
 ## Interfaces between modules (fixed signatures in the files)
 
@@ -46,6 +46,7 @@ IO crate. Core decides, app executes. All modules registered in `src/lib.rs` up 
 - C `mcp-exec`: exec, http, token, proc.
 
 ## Additions after implementation
+
 - runtime: private `Model` trait + `pub(crate) drive_model` (test without core State); `drive` keeps signature.
 - present: `Presenter::with_truecolor`. term: `SizeTracker`, `spawn_stdin_reader_sized`, `spawn_resize_watcher_tracked`, `normalize_size`, `RawMode::is_active`.
 - barrier: `PendingWork::guard()`, `WorkGuard`. http: `McpServer::reply_tracked`.
