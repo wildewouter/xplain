@@ -34,11 +34,14 @@ use tokio::task::{JoinHandle, JoinSet};
 use xplain_core::errors::IoReason;
 use xplain_core::event::Event;
 use xplain_core::mcp::{ConnId, HttpRequest, HttpResponse, McpEndpoint, port_busy_message};
+use xplain_core::messages::cannot_listen;
 
 use crate::exec::{PendingWork, WorkGuard};
 
 /// Request body cap (F-MCPSRV-02.5).
 const BODY_CAP: usize = 1_048_576;
+/// Max time to receive a request body once its headers arrived (a stalled client is dropped).
+const BODY_TIMEOUT: Duration = Duration::from_secs(30);
 /// Bounded wait for in-flight responses at stop (a stuck request is cut after this).
 const STOP_GRACE: Duration = Duration::from_millis(2000);
 
@@ -104,12 +107,13 @@ impl McpServer {
             if e.kind() == io::ErrorKind::AddrInUse {
                 port_busy_message(port)
             } else {
-                format!("cannot listen on 127.0.0.1:{port}: {}", IoReason::from_io_error(&e).as_str())
+                cannot_listen(port, IoReason::from_io_error(&e))
             }
         })?;
-        let actual = listener.local_addr().map(|a| a.port()).map_err(|e| {
-            format!("cannot listen on 127.0.0.1:{port}: {}", IoReason::from_io_error(&e).as_str())
-        })?;
+        let actual = listener
+            .local_addr()
+            .map(|a| a.port())
+            .map_err(|e| cannot_listen(port, IoReason::from_io_error(&e)))?;
         let shared = Arc::new(Shared {
             tx,
             counters,
@@ -263,7 +267,9 @@ async fn handle(
     let conn = ConnId(NEXT_CONN.fetch_add(1, Ordering::SeqCst));
 
     let (parts, mut body) = req.into_parts();
-    let (data, body_too_large) = read_capped(&mut body).await?;
+    let (data, body_too_large) = tokio::time::timeout(BODY_TIMEOUT, read_capped(&mut body))
+        .await
+        .map_err(|_| io::Error::new(io::ErrorKind::TimedOut, "request body timed out"))??;
     let path = parts.uri.path_and_query().map_or_else(|| parts.uri.to_string(), |p| p.as_str().to_string());
     let headers = parts
         .headers

@@ -11,8 +11,8 @@ IO crate. Core decides, app executes. All modules registered in `src/lib.rs` up 
 | `cli.rs`       | pure argv parser, `USAGE`, error texts                                                                       | F-CLI-01..04, F-CLI-06                                                                  | B            |
 | `env.rs`       | `RawEnv` snapshot, config path env, state dir, sync/truecolor flags, `EnvInfo`                               | F-CONFIG-01, F-MCPSRV-01 (dir), Test seams (env)                                        | B            |
 | `config_io.rs` | read config file (`ConfigFile`), `SaveConfig` read-merge-write                                               | F-CONFIG-01/04/05, F-CFGUI-03                                                           | B            |
-| `git.rs`       | `LoadDiff` (cwd check, git, untracked), `ListFiles`                                                          | F-MODE-01/02/04, F-CLI-06, F-FILES/F-SEARCH listing, UNSPEC-37                          | B            |
-| `fsio.rs`      | `ReadFile`, `WriteExport`                                                                                    | F-BROWSE-01, F-COMMENT-09, F-EXPORT-01                                                  | B            |
+| `git.rs`       | `LoadDiff` (cwd check, git via `proc::run_command`, untracked), `ListFiles` (`-z`)                           | F-MODE-01/02/04, F-CLI-06, F-FILES/F-SEARCH listing, UNSPEC-37                          | B            |
+| `fsio.rs`      | `ReadFile`, `WriteExport`, `io_reason`, `atomic_write` (temp + rename, used by token/config_io)              | F-BROWSE-01, F-COMMENT-09, F-EXPORT-01                                                  | B            |
 | `run.rs`       | `prepare` (argv -> config -> `State`) + `main_with_args` orchestration, stderr warnings, exit codes          | F-CLI-01..05, F-CONFIG-03/04                                                            | B            |
 | `input.rs`     | byte decoder: keys, paste, barriers                                                                          | Test seams, F-NAV-07, F-CLI-05, UNSPEC-8/26                                             | A            |
 | `barrier.rs`   | pure barrier queue (numbering, ordered release)                                                              | Test seams                                                                              | A            |
@@ -24,7 +24,7 @@ IO crate. Core decides, app executes. All modules registered in `src/lib.rs` up 
 | `exec.rs`      | `Executor` trait, `PendingWork` (watch-backed counter), `RealExecutor` dispatcher                                                   | Test seams (pending), all IO effects                                                    | C            |
 | `http.rs`      | MCP server sockets, `HttpCounters`, `McpServer`                                                              | F-MCPSRV-01/02 (socket), F-MCPSRV-06 (drop), F-MCPUI-03 (drain), Test seams (reqs/done) | C            |
 | `token.rs`     | `mcp.json` token file IO                                                                                     | F-MCPSRV-01                                                                             | C            |
-| `proc.rs`      | integration CLI runner with timeout                                                                          | F-INTEG-01..04, UNSPEC-37                                                               | C            |
+| `proc.rs`      | integration CLI runner: own process group, group kill on timeout, bounded output                            | F-INTEG-01..04, UNSPEC-37                                                               | C            |
 
 ## Interfaces between modules (fixed signatures in the files)
 
@@ -42,6 +42,7 @@ IO crate. Core decides, app executes. All modules registered in `src/lib.rs` up 
 ## Components
 
 - A `runtime`: input, barrier, runtime, present, term, timers, clipboard.
+- `test_util.rs` (cfg(test) only): shared `tmp(tag, name)` temp dir helper.
 - B `startup-io`: cli, env, config_io, git, fsio, run.
 - C `mcp-exec`: exec, http, token, proc.
 

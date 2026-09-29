@@ -12,12 +12,14 @@
 //! `git diff` exit code 1 (with `--no-index`) is success; non-zero with empty stdout and stderr text is error.
 
 use std::collections::BTreeSet;
-use std::process::Stdio;
 use std::time::Duration;
 
-use tokio::process::Command;
 use xplain_core::diff::{DiffSpec, RawDiff};
-use xplain_core::errors::{IoReason, fail_msg};
+use xplain_core::errors::IoReason;
+use xplain_core::integration::{CommandError, CommandSpec};
+use xplain_core::messages::{cannot_open_directory, cannot_run_git};
+
+use crate::proc::run_command;
 
 const MAX_UNTRACKED: u64 = 1024 * 1024;
 const GIT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -25,26 +27,25 @@ const PARALLEL: usize = 16;
 
 /// Run `git <args>` in `cwd`. `ok_codes` are accepted exit codes. `Err` = final message text.
 async fn git(args: &[String], cwd: Option<&str>, ok_codes: &[i32]) -> Result<String, String> {
-    let mut cmd = Command::new("git");
-    cmd.args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
-    if let Some(d) = cwd {
-        cmd.current_dir(d);
-    }
-    let child = cmd.spawn().map_err(|e| fail_msg("cannot run git", IoReason::from_io_error(&e)))?;
-    let out = match tokio::time::timeout(GIT_TIMEOUT, child.wait_with_output()).await {
-        Err(_) => return Err("git failed".to_string()),
-        Ok(Err(e)) => return Err(fail_msg("cannot run git", IoReason::from_io_error(&e))),
-        Ok(Ok(o)) => o,
+    let spec = CommandSpec {
+        program: "git".to_string(),
+        args: args.to_vec(),
+        cwd: cwd.map(str::to_string),
+        env: Vec::new(),
+        timeout_ms: GIT_TIMEOUT.as_millis() as u64,
     };
-    let code = out.status.code();
-    if code.is_some_and(|c| ok_codes.contains(&c)) {
-        return Ok(String::from_utf8_lossy(&out.stdout).into_owned());
+    let out = run_command(&spec).await.map_err(|e| match e {
+        CommandError::NotFound => cannot_run_git(IoReason::NotFound),
+        CommandError::Timeout => "git failed".to_string(),
+        CommandError::Other(reason) => format!("cannot run git: {reason}"),
+    })?;
+    if ok_codes.contains(&out.code) {
+        return Ok(out.stdout);
     }
-    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
-    Err(if !stderr.is_empty() {
-        stderr
-    } else if let Some(c) = code {
-        format!("git failed (exit {c})")
+    Err(if !out.stderr.is_empty() {
+        out.stderr
+    } else if out.code >= 0 {
+        format!("git failed (exit {})", out.code)
     } else {
         "git failed".to_string()
     })
@@ -57,7 +58,7 @@ async fn check_dir(dir: &str) -> Result<(), String> {
         Ok(_) => IoReason::NotDirectory,
         Err(e) => IoReason::from_io_error(&e),
     };
-    Err(fail_msg(&format!("cannot open directory {dir}"), reason))
+    Err(cannot_open_directory(dir, reason))
 }
 
 /// One untracked file as an all-added diff; `None` = skipped (symlink, dir, big, unreadable, git failure).
@@ -117,10 +118,10 @@ pub async fn load_diff(spec: &DiffSpec) -> Result<RawDiff, String> {
 /// Executes `Effect::ListFiles`; never fails (empty list on error), sorted, unique.
 pub async fn list_files(cwd: Option<&str>) -> Vec<String> {
     let args: Vec<String> =
-        ["ls-files", "--cached", "--others", "--exclude-standard"].map(String::from).to_vec();
+        ["ls-files", "--cached", "--others", "--exclude-standard", "-z"].map(String::from).to_vec();
     match git(&args, cwd, &[0]).await {
         Ok(out) => {
-            let set: BTreeSet<&str> = out.split('\n').filter(|l| !l.is_empty()).collect();
+            let set: BTreeSet<&str> = out.split('\0').filter(|l| !l.is_empty()).collect();
             set.into_iter().map(str::to_string).collect()
         }
         Err(_) => Vec::new(),
@@ -134,10 +135,7 @@ mod tests {
     use xplain_core::options::DiffMode;
 
     fn tmp(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("xplain-git-{}-{name}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&d);
-        std::fs::create_dir_all(&d).unwrap();
-        d
+        crate::test_util::tmp("git", name)
     }
 
     fn sh(d: &Path, args: &[&str]) {
@@ -211,6 +209,18 @@ mod tests {
         let r = repo("badarg");
         let e = load_diff(&spec(&r, DiffMode::Staged, &["no-such-ref"])).await.unwrap_err();
         assert!(e.contains("no-such-ref"), "{e}");
+    }
+
+    #[tokio::test]
+    async fn list_keeps_odd_names_verbatim() {
+        let d = repo("odd");
+        std::fs::write(d.join("caf\u{e9} x.txt"), "b").unwrap();
+        std::fs::write(d.join("q\"uote.txt"), "b").unwrap();
+        let l = list_files(d.to_str()).await;
+        assert!(
+            l.contains(&"caf\u{e9} x.txt".to_string()) && l.contains(&"q\"uote.txt".to_string()),
+            "{l:?}"
+        );
     }
 
     #[tokio::test]
