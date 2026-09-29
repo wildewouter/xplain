@@ -305,6 +305,8 @@ pub struct State {
     pub last_token: String,
     /// Start request issued by autostart; its failure becomes a note (shell).
     pub autostart_req: Option<ReqId>,
+    /// Syntax highlight cache, filled off the render path (`hlcache`).
+    pub hl: crate::hlcache::HlCache,
 }
 
 /// Why a diff load was requested: decides error handling (F-MODE-04, F-RELOAD-01/02).
@@ -379,6 +381,7 @@ impl State {
             diff_nav: None,
             last_token: String::new(),
             autostart_req: None,
+            hl: crate::hlcache::HlCache::default(),
         };
         let mut fx = Vec::new();
         crate::reload::request_load(&mut state, &mut fx);

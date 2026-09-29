@@ -21,7 +21,8 @@
 //! `export::on_written`; `CommandDone`/`McpStarted`/`McpStopped`/`McpHttp`/`McpConnClosed`/`Started` ->
 //! `mcp_ui::*`; `Timer(Spinner)` -> `ask::on_spinner`; `Timer(PollTimeout)` -> `mcp_ui::on_timer`; `Paste` ->
 //! `editor/find/search::on_paste`; `Resize` -> set size, `rows::ensure`, `nav::clamp_cursor`, `viewport::follow`.
-//! After every event: `rows::ensure`, `thread::sync`.
+//! After every event: `rows::ensure`, `thread::sync`, `hlcache::sync` (requests highlights near the viewport).
+//! `Highlighted` -> `hlcache::on_highlighted`.
 //!
 //! `FileRead` first goes to `reload::on_browse_reread` (browse re-read on `r`), which claims its own requests.
 
@@ -30,8 +31,8 @@ use crate::event::{Event, TimerId};
 use crate::keys::KeyEvent;
 use crate::state::{Overlay, State};
 use crate::{
-    ask, browse, config_ui, editor, export, find, help, jump, mcp_ui, nav, picker, quit, reload, rows,
-    search, thread,
+    ask, browse, config_ui, editor, export, find, help, hlcache, jump, mcp_ui, nav, picker, quit, reload,
+    rows, search, thread,
 };
 
 /// Apply `event` to `state` and return the effects to run. Pure and deterministic given
@@ -73,9 +74,13 @@ pub fn update(state: &mut State, event: Event) -> Vec<Effect> {
         Event::McpStopped { req } => mcp_ui::on_mcp_stopped(state, req, &mut fx),
         Event::McpHttp(req) => mcp_ui::on_http(state, req, &mut fx),
         Event::McpConnClosed(conn) => mcp_ui::on_conn_closed(state, conn, &mut fx),
+        Event::Highlighted { key, start, runs, end } => {
+            hlcache::on_highlighted(state, &key, start, runs, end)
+        }
     }
     rows::ensure(state);
     thread::sync(state);
+    hlcache::sync(state, &mut fx);
     fx
 }
 

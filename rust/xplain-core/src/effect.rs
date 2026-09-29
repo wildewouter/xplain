@@ -71,6 +71,16 @@ pub enum Effect {
         conn: ConnId,
         response: HttpResponse,
     },
+    /// Syntax-highlight `lines` (consecutive, first is line `start`) of `key`'s file side in language `lang`,
+    /// continuing from `carry` when given, on a background worker. Pure computation, no IO.
+    /// Result: `Event::Highlighted` echoing `key` and `start`. Pending work.
+    Highlight {
+        key: crate::hlcache::HlKey,
+        lang: String,
+        start: u32,
+        lines: Vec<String>,
+        carry: Option<crate::highlight::Carry>,
+    },
     /// Arm a timer (re-arming the same id replaces it). Result: `Event::Timer(id)`.
     /// `background = true` timers (spinner, long-poll waits) never count as pending work.
     SetTimer {

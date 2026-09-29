@@ -389,7 +389,7 @@ pub fn unfocus(state: &mut State) {
     state.thread.picked_block = None;
 }
 
-fn turns_sig(c: &Comment) -> u64 {
+pub(crate) fn turns_sig(c: &Comment) -> u64 {
     let mut h = DefaultHasher::new();
     for t in &c.turns {
         t.message.hash(&mut h);

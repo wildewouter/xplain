@@ -14,7 +14,8 @@
 use unicode_width::UnicodeWidthStr;
 
 use crate::canvas::Canvas;
-use crate::highlight::{highlight_line, language_for_fence};
+use crate::highlight::{language_for_fence, run_style};
+use crate::hlcache::HlCache;
 use crate::screen::Style;
 use crate::state::State;
 use crate::theme::{Theme, ThemeId};
@@ -25,7 +26,7 @@ pub const SPIN_FRAMES: [char; 10] = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '
 
 /// Draw `b` starting at row `y` of the canvas; returns lines drawn (clipped at `max_y`).
 pub fn draw_box(c: &mut Canvas, state: &State, theme: &Theme, b: &ThreadBox, y: u16, max_y: u16) -> u16 {
-    draw_box_at(c, theme, state.settings.theme, state.spinner, b, 0, y, max_y)
+    draw_box_at(c, theme, state.settings.theme, Some(&state.hl), state.spinner, b, 0, y, max_y)
 }
 
 /// State-free core of [`draw_box`]: box at column `x`, rows `y..max_y`, syntax colors of `theme_id`.
@@ -34,6 +35,7 @@ pub fn draw_box_at(
     c: &mut Canvas,
     theme: &Theme,
     theme_id: ThemeId,
+    hl: Option<&HlCache>,
     spinner: usize,
     b: &ThreadBox,
     x: u16,
@@ -46,7 +48,7 @@ pub fn draw_box_at(
         if row >= max_y {
             break;
         }
-        draw_line(c, theme, theme_id, spinner, b, i, line, x, row);
+        draw_line(c, theme, theme_id, hl, spinner, b, i, line, x, row);
         drawn += 1;
     }
     drawn
@@ -112,6 +114,7 @@ fn draw_line(
     c: &mut Canvas,
     theme: &Theme,
     theme_id: ThemeId,
+    hl: Option<&HlCache>,
     spinner: usize,
     b: &ThreadBox,
     line_index: usize,
@@ -126,7 +129,7 @@ fn draw_line(
     }
     let mut cx = x;
     for s in &line.spans {
-        cx = cx.saturating_add(draw_span(c, theme, theme_id, spinner, b, line_index, s, cx, y));
+        cx = cx.saturating_add(draw_span(c, theme, theme_id, hl, spinner, b, line_index, s, cx, y));
     }
 }
 
@@ -135,6 +138,7 @@ fn draw_span(
     c: &mut Canvas,
     theme: &Theme,
     theme_id: ThemeId,
+    hl: Option<&HlCache>,
     spinner: usize,
     b: &ThreadBox,
     line_index: usize,
@@ -145,10 +149,22 @@ fn draw_span(
     if s.tone == Tone::Code {
         let base = base_style(theme, b);
         let lang = s.lang.as_deref().and_then(language_for_fence);
+        let runs = hl.zip(lang).and_then(|(h, l)| h.code_runs(l, &s.text));
+        let Some(runs) = runs.filter(|r| !r.is_empty()) else {
+            return c.put(x, y, &s.text, base);
+        };
         let mut cx = x;
-        for h in highlight_line(&s.text, lang, theme_id) {
-            let st = Style { fg: h.fg.or(base.fg), bold: h.bold, italic: h.italic, ..base };
-            cx = cx.saturating_add(c.put(cx, y, &h.text, st));
+        let mut rest = s.text.as_str();
+        for r in runs {
+            let cut = rest.char_indices().nth(r.len as usize).map_or(rest.len(), |(i, _)| i);
+            let (part, tail) = rest.split_at(cut);
+            rest = tail;
+            let (fg, bold) = run_style(theme_id, r.class);
+            let st = Style { fg: fg.or(base.fg), bold, ..base };
+            cx = cx.saturating_add(c.put(cx, y, part, st));
+        }
+        if !rest.is_empty() {
+            cx = cx.saturating_add(c.put(cx, y, rest, base));
         }
         return cx - x;
     }
@@ -191,7 +207,7 @@ mod tests {
         for focused in [false, true] {
             let b = one_box("q1", focused, lines.clone());
             let mut c = cv();
-            let n = draw_box_at(&mut c, &t, ThemeId::Solarized, 0, &b, 0, 1, 8);
+            let n = draw_box_at(&mut c, &t, ThemeId::Solarized, None, 0, &b, 0, 1, 8);
             assert_eq!(n, 2);
             let s = c.into_screen();
             assert_eq!(&s.row_text(1)[..12], "╭──╮");
@@ -214,8 +230,8 @@ mod tests {
         let t = theme();
         let b = one_box("q1", false, vec![vec![span("a", Tone::Normal)]; 5]);
         let mut c = cv();
-        assert_eq!(draw_box_at(&mut c, &t, ThemeId::Solarized, 0, &b, 0, 2, 4), 2);
-        assert_eq!(draw_box_at(&mut c, &t, ThemeId::Solarized, 0, &b, 0, 6, 4), 0);
+        assert_eq!(draw_box_at(&mut c, &t, ThemeId::Solarized, None, 0, &b, 0, 2, 4), 2);
+        assert_eq!(draw_box_at(&mut c, &t, ThemeId::Solarized, None, 0, &b, 0, 6, 4), 0);
     }
 
     #[test]
@@ -232,7 +248,7 @@ mod tests {
         );
         for i in [0usize, 3, 13] {
             let mut c = cv();
-            draw_box_at(&mut c, &t, ThemeId::Solarized, i, &b, 0, 0, 8);
+            draw_box_at(&mut c, &t, ThemeId::Solarized, None, i, &b, 0, 0, 8);
             let s = c.into_screen();
             assert_eq!(s.rows[0][1].ch, SPIN_FRAMES[i % 10]);
             assert_eq!(s.rows[0][1].style.fg, Some(t.accent));
@@ -240,7 +256,7 @@ mod tests {
         // the static waiting glyph stays
         let b = one_box("q1", false, vec![vec![span("⠿", Tone::Accent)]]);
         let mut c = cv();
-        draw_box_at(&mut c, &t, ThemeId::Solarized, 4, &b, 0, 0, 8);
+        draw_box_at(&mut c, &t, ThemeId::Solarized, None, 4, &b, 0, 0, 8);
         assert_eq!(c.into_screen().rows[0][0].ch, '⠿');
     }
 
@@ -251,7 +267,7 @@ mod tests {
         sp.lang = Some("rust".into());
         let b = one_box("q1", false, vec![vec![span(" ", Tone::Normal), span("│ ", Tone::Dim), sp]]);
         let mut c = cv();
-        draw_box_at(&mut c, &t, ThemeId::Solarized, 0, &b, 0, 0, 8);
+        draw_box_at(&mut c, &t, ThemeId::Solarized, None, 0, &b, 0, 0, 8);
         let s = c.into_screen();
         assert_eq!(s.row_text(0).trim_end(), " │ fn main() { let x = 1; }");
         assert_eq!(s.rows[0][1].style.fg, Some(t.dim));
@@ -272,7 +288,7 @@ mod tests {
             ]],
         );
         let mut c = cv();
-        draw_box_at(&mut c, &t, ThemeId::Solarized, 0, &b, 0, 0, 8);
+        draw_box_at(&mut c, &t, ThemeId::Solarized, None, 0, &b, 0, 0, 8);
         let s = c.into_screen();
         assert_eq!(s.rows[0][2].style.fg, Some(t.accent));
         assert!(!s.rows[0][2].style.reverse);
@@ -293,7 +309,7 @@ mod tests {
             ]],
         );
         let mut c = cv();
-        draw_box_at(&mut c, &t, ThemeId::Solarized, 0, &b, 0, 0, 8);
+        draw_box_at(&mut c, &t, ThemeId::Solarized, None, 0, &b, 0, 0, 8);
         let s = c.into_screen();
         assert_eq!(s.rows[0][0].style.fg, Some(t.dim));
         assert_eq!(s.rows[0][1].style.fg, Some(t.dels));
@@ -306,7 +322,7 @@ mod tests {
         let t = theme();
         let b = one_box("", true, vec![vec![span("╭─╮", Tone::Border)], vec![span(" hi", Tone::Normal)]]);
         let mut c = cv();
-        draw_box_at(&mut c, &t, ThemeId::Solarized, 0, &b, 2, 0, 8);
+        draw_box_at(&mut c, &t, ThemeId::Solarized, None, 0, &b, 2, 0, 8);
         let s = c.into_screen();
         assert_eq!(s.rows[0][2].style.fg, Some(t.modal_border));
         assert_eq!(s.rows[0][2].style.bg, Some(t.modal_bg));

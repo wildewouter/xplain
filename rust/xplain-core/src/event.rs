@@ -78,6 +78,14 @@ pub enum Event {
     McpStopped {
         req: ReqId,
     },
+    /// Result of `Effect::Highlight`: token classes per line from `start`, plus the parser state after the last
+    /// line. Results whose `key` no longer matches the cached content are dropped.
+    Highlighted {
+        key: crate::hlcache::HlKey,
+        start: u32,
+        runs: Vec<crate::highlight::LineRuns>,
+        end: Option<crate::highlight::Carry>,
+    },
     /// A fully read MCP HTTP request (body read done). Runtime already counted it in `reqs`.
     McpHttp(HttpRequest),
     /// The connection of a parked request went away before its reply was written (F-MCPSRV-06).

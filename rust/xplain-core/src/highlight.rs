@@ -1,28 +1,22 @@
-//! Syntax highlighting: text line -> colored spans, by path or fence language, per theme.
+//! Syntax highlighting: text lines -> token-class runs, by path or fence language. Colors come later
+//! (`run_style`), so a theme change never re-parses.
 //!
 //! Spec: UNSPEC-31 (syntax colors are free but must not alter text), F-EDGE-08, F-ASK-06 (fence languages).
 //! Oracle: `src/highlight.ts` (lang table, fence aliases). Owner: component `viewrows` (F2).
 //! Uses syntect with the pure-Rust regex backend (feature `default-fancy`); syntax set loaded lazily in a
 //! `OnceLock`. Must not: change the text, panic on odd input (fall back to plain), or touch state.
 //!
-//! Lines are highlighted one at a time with a fresh parse state (like the oracle), so multi-line constructs
-//! (block comments, heredocs) are colored only where they start inside the line.
+//! Parsing runs off the render path (`hlcache` plans it, the app executor runs `highlight_lines` on a worker).
+//! Within one call the parse state carries across lines; a range starting mid-file starts fresh (accepted:
+//! rare wrong colors inside multi-line constructs that begin before the range).
 
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use syntect::parsing::{ParseState, Scope, ScopeStack, SyntaxReference, SyntaxSet};
 
 use crate::screen::Color;
+use crate::textutil::expand_tabs;
 use crate::theme::{SyntaxClass, ThemeId, syntax_bold, syntax_color};
-
-/// One highlighted span; concatenated `text` equals the input line exactly.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HlSpan {
-    pub text: String,
-    pub fg: Option<Color>,
-    pub bold: bool,
-    pub italic: bool,
-}
 
 /// Extension -> language id (`langs` in highlight.ts).
 const EXT_LANGS: &[(&str, &str)] = &[
@@ -236,78 +230,135 @@ fn classify(stack: &ScopeStack) -> Option<SyntaxClass> {
     fallback
 }
 
-fn plain(text: &str) -> Vec<HlSpan> {
-    vec![HlSpan { text: text.to_string(), fg: None, bold: false, italic: false }]
+/// A run of `len` chars of the tab-expanded line text with one token class (`None` = default color).
+/// Runs cover the whole text; an empty `Vec` means a plain (or blank) line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ClassRun {
+    pub len: u32,
+    pub class: Option<SyntaxClass>,
 }
 
-fn push_span(out: &mut Vec<HlSpan>, text: &str, fg: Option<Color>, bold: bool) {
-    if text.is_empty() {
+/// Runs of one line.
+pub type LineRuns = Vec<ClassRun>;
+
+/// Parser state saved at the end of a highlighted range, so the next range continues inside multi-line
+/// constructs. Cheap to clone (shared); equality is identity.
+#[derive(Clone)]
+pub struct Carry(Arc<CarryInner>);
+
+struct CarryInner {
+    parse: ParseState,
+    stack: ScopeStack,
+}
+
+impl std::fmt::Debug for Carry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Carry")
+    }
+}
+
+impl PartialEq for Carry {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+/// Lines longer than this (chars) are not parsed (minified files); they render plain.
+const MAX_LINE_CHARS: usize = 4000;
+
+fn push_run(out: &mut LineRuns, text: &str, class: Option<SyntaxClass>) {
+    let len = text.chars().count() as u32;
+    if len == 0 {
         return;
     }
     if let Some(last) = out.last_mut() {
-        if last.fg == fg && last.bold == bold {
-            last.text.push_str(text);
+        if last.class == class {
+            last.len += len;
             return;
         }
     }
-    out.push(HlSpan { text: text.to_string(), fg, bold, italic: false });
+    out.push(ClassRun { len, class });
 }
 
-fn try_highlight(text: &str, lang: &str, theme: ThemeId) -> Option<Vec<HlSpan>> {
-    let syntax = syntax_for(lang)?;
+/// Parse one already tab-expanded line, advancing `parse`/`stack`. `None` = parser failure (state unusable).
+fn line_runs(parse: &mut ParseState, stack: &mut ScopeStack, text: &str) -> Option<LineRuns> {
     let set = syntax_set();
-    let mut state = ParseState::new(syntax);
     let line = format!("{text}\n");
-    let ops = state.parse_line(&line, set).ok()?;
-    let bold_on = syntax_bold(theme);
-    let mut stack = ScopeStack::new();
-    let mut out: Vec<HlSpan> = Vec::new();
+    let ops = parse.parse_line(&line, set).ok()?;
+    let mut out = LineRuns::new();
     let mut pos = 0usize;
-    let emit = |stack: &ScopeStack, from: usize, to: usize, out: &mut Vec<HlSpan>| {
-        let to = to.min(text.len());
-        if from >= to || !text.is_char_boundary(from) || !text.is_char_boundary(to) {
-            return;
-        }
-        let fg = classify(stack).and_then(|c| syntax_color(theme, c));
-        push_span(out, &text[from..to], fg, bold_on && fg.is_some());
-    };
     for (at, op) in &ops {
         let at = (*at).min(text.len());
         if at > pos {
-            emit(&stack, pos, at, &mut out);
+            if !text.is_char_boundary(pos) || !text.is_char_boundary(at) {
+                return None;
+            }
+            push_run(&mut out, &text[pos..at], classify(stack));
             pos = at;
         }
         stack.apply(op).ok()?;
     }
     if pos < text.len() {
-        emit(&stack, pos, text.len(), &mut out);
+        if !text.is_char_boundary(pos) {
+            return None;
+        }
+        push_run(&mut out, &text[pos..], classify(stack));
     }
-    let joined: usize = out.iter().map(|s| s.text.len()).sum();
-    if joined != text.len() {
-        return None;
+    if text.trim().is_empty() {
+        return Some(LineRuns::new());
     }
     Some(out)
 }
 
-/// Highlight one line. Blank input or unknown language -> one plain span.
-pub fn highlight_line(text: &str, lang: Option<&str>, theme: ThemeId) -> Vec<HlSpan> {
-    let Some(lang) = lang else { return plain(text) };
-    if text.trim().is_empty() {
-        return plain(text);
+/// Highlight consecutive `lines` (raw text, tabs not yet expanded) of language `lang`, continuing from `carry`
+/// (`None` = fresh parse state). Returns one [`LineRuns`] per line and the state after the last line. Unknown
+/// language: all lines plain, no state. Never changes text; a parser failure resets the state and leaves
+/// that line plain.
+pub fn highlight_lines(
+    lang: &str,
+    lines: &[String],
+    carry: Option<&Carry>,
+) -> (Vec<LineRuns>, Option<Carry>) {
+    let Some(syntax) = syntax_for(lang) else { return (vec![LineRuns::new(); lines.len()], None) };
+    let fresh = || (ParseState::new(syntax), ScopeStack::new());
+    let (mut parse, mut stack) = match carry {
+        Some(c) => (c.0.parse.clone(), c.0.stack.clone()),
+        None => fresh(),
+    };
+    let mut out = Vec::with_capacity(lines.len());
+    for raw in lines {
+        let text = expand_tabs(raw);
+        if text.chars().count() > MAX_LINE_CHARS {
+            out.push(LineRuns::new());
+            continue;
+        }
+        match line_runs(&mut parse, &mut stack, &text) {
+            Some(r) => out.push(r),
+            None => {
+                (parse, stack) = fresh();
+                out.push(LineRuns::new());
+            }
+        }
     }
-    match try_highlight(text, lang, theme) {
-        Some(spans) if !spans.is_empty() => spans,
-        _ => plain(text),
-    }
+    (out, Some(Carry(Arc::new(CarryInner { parse, stack }))))
+}
+
+/// Runs of one standalone line (fresh state), used for thread code blocks.
+pub fn highlight_one(lang: &str, text: &str) -> LineRuns {
+    let (mut runs, _) = highlight_lines(lang, &[text.to_string()], None);
+    runs.pop().unwrap_or_default()
+}
+
+/// Color and boldness of a class in `theme` (`None` class = default). The view maps classes to colors, so a
+/// theme change needs no re-parse.
+pub fn run_style(theme: ThemeId, class: Option<SyntaxClass>) -> (Option<Color>, bool) {
+    let fg = class.and_then(|c| syntax_color(theme, c));
+    (fg, syntax_bold(theme) && fg.is_some())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn joined(spans: &[HlSpan]) -> String {
-        spans.iter().map(|s| s.text.as_str()).collect()
-    }
 
     #[test]
     fn language_for_path_table() {
@@ -336,22 +387,27 @@ mod tests {
         assert_eq!(language_for_fence(""), None);
     }
 
-    #[test]
-    fn unknown_or_blank_is_plain() {
-        for t in ThemeId::ALL {
-            assert_eq!(highlight_line("let x = 1;", None, t), plain("let x = 1;"));
-            assert_eq!(highlight_line("   ", Some("rust"), t), plain("   "));
-            assert_eq!(highlight_line("", Some("rust"), t), plain(""));
-            assert_eq!(highlight_line("x", Some("nonsense"), t), plain("x"));
-        }
+    fn one(lang: &str, text: &str) -> LineRuns {
+        highlight_one(lang, text)
+    }
+
+    fn total(runs: &LineRuns) -> usize {
+        runs.iter().map(|r| r.len as usize).sum()
     }
 
     #[test]
-    fn unxplain_31_text_roundtrip() {
+    fn unknown_or_blank_is_plain() {
+        assert!(one("nonsense", "x").is_empty());
+        assert!(one("rust", "   ").is_empty());
+        assert!(one("rust", "").is_empty());
+    }
+
+    #[test]
+    fn unxplain_31_runs_cover_text() {
         let samples: &[(&str, &str)] = &[
-            ("rust", "fn main() { let s = \"héllo\"; // c\n"),
+            ("rust", "fn main() { let s = \"h\u{e9}llo\"; // c"),
             ("typescript", "const a: number = 1 + 2; /* x */ `t${a}`"),
-            ("python", "def f(x): return 'a' + \"b\"  # 日本語"),
+            ("python", "def f(x): return 'a' + \"b\"  # \u{65e5}\u{672c}\u{8a9e}"),
             ("go", "func (s *S) Run() error { return nil }"),
             ("bash", "if [ -f \"$1\" ]; then echo $(ls); fi"),
             ("json", "{\"a\": [1, 2.5, true, null]}"),
@@ -364,31 +420,69 @@ mod tests {
             ("c", "#include <stdio.h>"),
             ("cpp", "std::vector<int> v{1,2};"),
             ("java", "public static void main(String[] a) {}"),
-            ("ini", "[a]\nk = v"),
-            ("rust", "\t\ttabs\tinside \u{1F600} wide 日本"),
+            ("ini", "[a]"),
+            ("rust", "\t\ttabs\tinside \u{1F600} wide \u{65e5}\u{672c}"),
         ];
-        for theme in ThemeId::ALL {
-            for (lang, line) in samples {
-                let spans = highlight_line(line, Some(lang), theme);
-                assert_eq!(joined(&spans), *line, "{lang}");
-                assert!(spans.iter().all(|s| !s.text.is_empty()) || line.is_empty());
+        for (lang, line) in samples {
+            let runs = one(lang, line);
+            if !runs.is_empty() {
+                assert_eq!(total(&runs), expand_tabs(line).chars().count(), "{lang}");
             }
+            assert!(runs.iter().all(|r| r.len > 0));
         }
     }
 
     #[test]
-    fn rust_line_gets_colors() {
-        let spans = highlight_line("fn main() { let s = \"x\"; }", Some("rust"), ThemeId::Solarized);
-        assert!(spans.len() > 1);
-        assert!(spans.iter().any(|s| s.fg.is_some()));
+    fn rust_line_gets_classes() {
+        let runs = one("rust", "fn main() { let s = \"x\"; }");
+        assert!(runs.len() > 1);
+        assert!(runs.iter().any(|r| r.class == Some(SyntaxClass::Keyword)));
+        assert!(runs.iter().any(|r| r.class == Some(SyntaxClass::String)));
+    }
+
+    #[test]
+    fn theme_maps_class_to_color_without_reparse() {
+        let runs = one("rust", "fn x() {}");
+        let kw = runs.iter().find(|r| r.class == Some(SyntaxClass::Keyword)).map(|r| r.class);
+        let a = run_style(ThemeId::Solarized, kw.flatten());
+        let b = run_style(ThemeId::Vibrant, kw.flatten());
+        assert!(a.0.is_some() && b.0.is_some());
+        assert_ne!(a.0, b.0);
+        assert_eq!(run_style(ThemeId::Light, None), (None, false));
+    }
+
+    #[test]
+    fn carry_continues_block_comment_across_ranges() {
+        let first = vec!["/* start".to_string(), "still".to_string()];
+        let (r1, carry) = highlight_lines("rust", &first, None);
+        assert!(r1[1].iter().all(|r| r.class == Some(SyntaxClass::Comment)));
+        let (with, _) = highlight_lines("rust", &["end */ let x = 1;".to_string()], carry.as_ref());
+        let (fresh, _) = highlight_lines("rust", &["end */ let x = 1;".to_string()], None);
+        assert_eq!(with[0].first().map(|r| r.class), Some(Some(SyntaxClass::Comment)));
+        assert_ne!(with, fresh);
+    }
+
+    #[test]
+    fn multi_line_state_within_one_call() {
+        let lines: Vec<String> = ["/*", "x", "*/ fn"].iter().map(|s| s.to_string()).collect();
+        let (r, _) = highlight_lines("rust", &lines, None);
+        assert!(r[1].iter().all(|x| x.class == Some(SyntaxClass::Comment)));
     }
 
     #[test]
     fn odd_input_never_panics() {
         let odd = "\u{0}\u{1b}[31m\r\u{feff}\"unterminated /* `";
         for lang in ["rust", "python", "markdown", "xml", "bash", "yaml"] {
-            let spans = highlight_line(odd, Some(lang), ThemeId::Light);
-            assert_eq!(joined(&spans), odd);
+            let runs = one(lang, odd);
+            if !runs.is_empty() {
+                assert_eq!(total(&runs), odd.chars().count());
+            }
         }
+    }
+
+    #[test]
+    fn very_long_line_is_plain() {
+        let long = "a".repeat(MAX_LINE_CHARS + 1);
+        assert!(one("rust", &long).is_empty());
     }
 }

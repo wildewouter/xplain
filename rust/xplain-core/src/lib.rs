@@ -27,6 +27,7 @@ pub mod find;
 pub mod fuzzy;
 pub mod help;
 pub mod highlight;
+pub mod hlcache;
 pub mod integration;
 pub mod jump;
 pub mod keys;

@@ -6,7 +6,7 @@
 //! (earlier effects incl. HttpReply/McpStop finished), leaves the alternate screen, returns the code.
 //! Must not: hold UI state beyond `xplain_core::State`, or interpret keys.
 //!
-//! Loop: decode input -> for each item call `update` (after setting `state.clock`) -> hand effects to the
+//! Loop: decode ALL queued input chunks -> for each item call `update` (after setting `state.clock`) -> hand effects to the
 //! `Executor` -> when the queue is drained call `view` + `Presenter::draw` -> answer any barrier whose
 //! conditions hold. Idle barrier holds when: all earlier input handled, the frame was written, event queue
 //! empty, `PendingWork == 0`, and (before ready) first frame + initial load done (`State::is_ready`).
@@ -16,6 +16,7 @@ use std::collections::VecDeque;
 use std::io::Write;
 use std::time::Duration;
 
+use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 use xplain_core::effect::Effect;
 use xplain_core::event::{Event, TimerId};
@@ -224,6 +225,21 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
         while let Ok(size) = resize.try_recv() {
             progress = true;
             step!(Event::Resize(size));
+        }
+        // Take every queued stdin chunk before touching the screen: a held key queues many chunks while a frame
+        // is drawn, and each must not cost its own frame.
+        loop {
+            match input.try_recv() {
+                Ok(b) => {
+                    progress = true;
+                    items.extend(decoder.feed(&b));
+                }
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    input_open = false;
+                    break;
+                }
+            }
         }
         // Input after a barrier waits for that barrier's reply.
         while barriers.is_empty() {
@@ -687,6 +703,28 @@ mod tests {
         let second = pos(&out, "\x1b]7770;idle;2;");
         assert_eq!(out[..first].matches('K').count(), 1, "{out:?}");
         assert_eq!(out[first..second].matches('K').count(), 1, "{out:?}");
+    }
+
+    #[tokio::test]
+    async fn queued_input_chunks_cost_one_frame() {
+        // Four single-key chunks are already queued: all are applied before the next draw.
+        let (_, out, log) = Rig::new(&[b"a", b"a", b"a", b"a", IDLE, b"q"]).run().await;
+        let views = log.iter().filter(|l| l.as_str() == "view").count();
+        assert_eq!(views, 2, "first frame + one frame for the whole burst: {log:?}");
+        assert_eq!(log.iter().filter(|l| l.starts_with("Key")).count(), 5);
+        assert!(out.contains("\x1b]7770;idle;1;"));
+        let first = pos(&out, "\x1b]7770;idle;1;");
+        assert_eq!(out[..first].matches("KKKK").count(), 1, "{out:?}");
+    }
+
+    #[tokio::test]
+    async fn queued_chunks_after_barrier_still_wait_for_its_reply() {
+        let (_, out, _) = Rig::new(&[b"a", IDLE, b"a", b"a", IDLE, b"q"]).run().await;
+        let first = pos(&out, "\x1b]7770;idle;1;");
+        let second = pos(&out, "\x1b]7770;idle;2;");
+        assert_eq!(out[..first].matches('K').count(), 1, "{out:?}");
+        // the two chunks queued behind the barrier land in one frame after its reply
+        assert_eq!(out[first..second].matches('K').count(), 2, "{out:?}");
     }
 
     #[tokio::test]

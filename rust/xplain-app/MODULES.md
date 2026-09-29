@@ -51,3 +51,4 @@ IO crate. Core decides, app executes. All modules registered in `src/lib.rs` up 
 - present: `Presenter::with_truecolor`. term: `SizeTracker`, `spawn_stdin_reader_sized`, `spawn_resize_watcher_tracked`, `normalize_size`, `RawMode::is_active`.
 - barrier: `PendingWork::guard()`, `WorkGuard`. http: `McpServer::reply_tracked`.
 - Known gaps: no panic hook restoring terminal; Exit drops later effects in batch, no timeout on pending wait; local UTC offset computed after tokio start (RealClock falls back to `date +%z`).
+- exec: `Effect::Highlight` runs `highlight_lines` on the tokio blocking pool (pure CPU), counted as pending work. runtime: all queued stdin chunks are decoded before each draw. Release profile: lto, `panic = "abort"` (nothing uses `catch_unwind`).

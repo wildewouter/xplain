@@ -72,8 +72,8 @@ fn lock(slot: &Slot) -> MutexGuard<'_, Option<McpServer>> {
 /// `config_io`, `proc`, `token`/`http` in a spawned task, wraps the result into the matching `Event` with the
 /// effect's `ReqId`, sends it, then `pending.end()`.
 ///
-/// Effects handled here: LoadDiff, ListFiles, ReadFile, SaveConfig, WriteExport, RunCommand, McpStart,
-/// McpStop, HttpReply. NOT handled here (the runtime loop owns them because they touch stdout, timers or
+/// Effects handled here: LoadDiff, ListFiles, ReadFile, SaveConfig, WriteExport, RunCommand, Highlight
+/// (blocking pool, pure CPU), McpStart, McpStop, HttpReply. NOT handled here (the runtime loop owns them because they touch stdout, timers or
 /// the loop itself): Clipboard, SetTimer, CancelTimer, Exit; `dispatch` ignores them.
 /// Ordering: `HttpReply` before `McpStop` must be fully written before the server closes; `McpStop`
 /// and `McpStart` are serialized against each other. `HttpReply` counts as pending work until written.
@@ -181,6 +181,18 @@ impl Executor for RealExecutor {
                     async move { Event::CommandDone { req, result: proc::run_command(&cmd).await } },
                 );
             }
+            Effect::Highlight { key, lang, start, lines, carry } => {
+                // CPU work on the blocking pool, off the loop and the render path.
+                self.spawn_event(async move {
+                    let n = lines.len();
+                    let job = tokio::task::spawn_blocking(move || {
+                        xplain_core::highlight::highlight_lines(&lang, &lines, carry.as_ref())
+                    })
+                    .await;
+                    let (runs, end) = job.unwrap_or_else(|_| (vec![Vec::new(); n], None));
+                    Event::Highlighted { key, start, runs, end }
+                });
+            }
             Effect::McpStart { req, port, state_dir } => {
                 let work = self.pending.guard();
                 let _ = self.server_queue().send(ServerCmd::Start { req, port, state_dir, work });
@@ -248,6 +260,32 @@ mod tests {
             Event::CommandDone { req, result } => {
                 assert_eq!(req, ReqId(7));
                 assert_eq!(result, Err(CommandError::NotFound));
+            }
+            other => unreachable!("{other:?}"),
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(pending.count(), 0);
+    }
+
+    #[tokio::test]
+    async fn highlight_runs_off_loop_and_counts_as_pending() {
+        use xplain_core::comments::PaneSide;
+        use xplain_core::hlcache::HlKey;
+        let (mut ex, mut rx, pending) = make();
+        let key = HlKey { path: "a.rs".into(), side: PaneSide::New, hash: 7 };
+        ex.dispatch(Effect::Highlight {
+            key: key.clone(),
+            lang: "rust".into(),
+            start: 5,
+            lines: vec!["fn a() {}".into(), "let x = 1;".into()],
+            carry: None,
+        });
+        assert_eq!(pending.count(), 1);
+        match recv(&mut rx).await {
+            Event::Highlighted { key: k, start, runs, end } => {
+                assert_eq!((k, start, runs.len()), (key, 5, 2));
+                assert!(runs.iter().all(|r| !r.is_empty()));
+                assert!(end.is_some());
             }
             other => unreachable!("{other:?}"),
         }

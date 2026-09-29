@@ -1,5 +1,5 @@
 //! Viewport body: unified, split and browse rows with gutters, marks, cursor, selection, find hits, syntax
-//! highlighting, and the comment/editor boxes interleaved under rows.
+//! highlighting (token classes read from the highlight cache, never parsed here), and the comment/editor boxes interleaved under rows.
 //!
 //! Spec: F-LAYOUT-03/04/05 (row formats, split panes, widths), F-LAYOUT-07 (truncation), F-CURSOR-02
 //! (cursor row bg `curBg`, cursor cell `▶`, char cursor inverse), F-VISUAL-02 (selection colors), F-FIND-02
@@ -16,7 +16,8 @@ use unicode_width::UnicodeWidthChar;
 use crate::canvas::{Canvas, Rect};
 use crate::comments::PaneSide;
 use crate::diff::LineKind;
-use crate::highlight::{highlight_line, language_for_path};
+use crate::highlight::{ClassRun, run_style};
+use crate::hlcache::{HlCache, line_key};
 use crate::nav::visual::Sel;
 use crate::rows::{RowLine, ShownRow, find_all, pane_of};
 use crate::screen::{Color, Style};
@@ -46,8 +47,10 @@ pub struct BodyView<'a> {
     pub x_shift: usize,
     /// Active find term (F-FIND-02).
     pub find: Option<&'a str>,
-    /// File path deciding the syntax language.
+    /// File path keying the highlight cache.
     pub path: &'a str,
+    /// Highlight cache; `None` draws plain text.
+    pub hl: Option<&'a HlCache>,
     pub theme_id: ThemeId,
     /// Browse: single number column (F-LAYOUT-05).
     pub single: bool,
@@ -69,6 +72,7 @@ pub fn draw_body(c: &mut Canvas, state: &State, theme: &Theme, area: Rect) {
         x_shift: state.nav.x_shift,
         find: state.find.term.as_deref().filter(|t| !t.is_empty()),
         path,
+        hl: Some(&state.hl),
         theme_id: state.settings.theme,
         single: state.browse.is_some(),
     };
@@ -199,7 +203,8 @@ fn emit(c: &mut Canvas, x: u16, y: u16, width: u16, cells: &Cells, pad: Option<S
 
 /// What marks chars of one code text.
 struct Paint<'a> {
-    lang: Option<&'static str>,
+    /// Token classes of the line (`None` = plain).
+    runs: Option<&'a [ClassRun]>,
     theme_id: ThemeId,
     theme: &'a Theme,
     hoff: usize,
@@ -221,11 +226,11 @@ fn code_cells(text: &str, p: &Paint<'_>) -> Cells {
     while chars.len() < need {
         chars.push(' ');
     }
-    let lang = if p.plain { None } else { p.lang };
     let mut syn: Vec<Style> = Vec::with_capacity(chars.len());
-    for h in highlight_line(text, lang, p.theme_id) {
-        let st = Style { fg: h.fg, bg: p.bg, bold: h.bold, italic: h.italic, ..Style::default() };
-        syn.extend(h.text.chars().map(|_| st));
+    for r in p.runs.filter(|_| !p.plain).unwrap_or_default() {
+        let (fg, bold) = run_style(p.theme_id, r.class);
+        let st = Style { fg, bg: p.bg, bold, ..Style::default() };
+        syn.extend(std::iter::repeat_n(st, r.len as usize));
     }
     syn.resize(chars.len(), Style { bg: p.bg, ..Style::default() });
     let base = Style { bg: p.bg, ..Style::default() };
@@ -282,7 +287,6 @@ fn look(theme: &Theme, kind: LineKind) -> LineLook {
 struct Ctx<'a> {
     view: &'a BodyView<'a>,
     theme: &'a Theme,
-    lang: Option<&'static str>,
     ri: usize,
     is_cur: bool,
 }
@@ -298,8 +302,10 @@ impl Ctx<'_> {
         let n = text.chars().count();
         let hits = self.view.find.map(|t| find_all(&text, t)).unwrap_or_default();
         let sel = if active { self.view.sel.as_ref().and_then(|s| sel_range(s, self.ri, n)) } else { None };
+        let runs =
+            self.view.hl.zip(line_key(line)).and_then(|(h, (side, no))| h.runs(self.view.path, side, no));
         let p = Paint {
-            lang: self.lang,
+            runs,
             theme_id: self.view.theme_id,
             theme: self.theme,
             hoff: self.view.x_shift,
@@ -315,7 +321,7 @@ impl Ctx<'_> {
 
 fn draw_row(c: &mut Canvas, view: &BodyView<'_>, theme: &Theme, area: Rect, ri: usize, y: u16) {
     let Some(row) = view.rows.get(ri) else { return };
-    let cx = Ctx { view, theme, lang: language_for_path(view.path), ri, is_cur: ri == view.cursor };
+    let cx = Ctx { view, theme, ri, is_cur: ri == view.cursor };
     let cb = cx.cb();
     let pad_style = cb.map(|bg| Style { bg: Some(bg), ..Style::default() });
     match row {
@@ -364,7 +370,7 @@ fn pane_cells(cx: &Ctx<'_>, l: Option<&RowLine>, no: Option<u32>, active: bool) 
             push_str(&mut cells, "      ", Style { bg: cb, ..Style::default() });
             cells.push((CUR_MARK, Style { bg: cb, ..Style::default() }));
             let p = Paint {
-                lang: None,
+                runs: None,
                 theme_id: cx.view.theme_id,
                 theme: cx.theme,
                 hoff: 0,
@@ -416,6 +422,7 @@ mod tests {
             x_shift: 0,
             find: None,
             path: "a.txt",
+            hl: None,
             theme_id: ThemeId::Solarized,
             single: false,
         }
@@ -457,6 +464,31 @@ mod tests {
         assert_eq!(s.rows[2][10].style.fg, Some(t.del_mark));
         assert_eq!(s.rows[1][0].style.bg, None);
         assert_eq!(s.rows[1][0].style.fg, Some(t.gutter));
+    }
+
+    #[test]
+    fn unspec_31_syntax_colors_come_from_cached_classes_and_follow_theme() {
+        use crate::highlight::ClassRun;
+        use crate::theme::{SyntaxClass, syntax_color};
+        let rows = vec![ShownRow::Line(line(LineKind::Context, Some(1), Some(1), "fn x"))];
+        let mut cache = HlCache::default();
+        let runs =
+            vec![ClassRun { len: 2, class: Some(SyntaxClass::Keyword) }, ClassRun { len: 2, class: None }];
+        cache.seed("a.rs", PaneSide::New, 1, vec![runs]);
+        let mut v = view(&rows);
+        v.path = "a.rs";
+        // no cache: plain
+        let s = render(&v, 40, 2);
+        assert_eq!(s.rows[0][12].style.fg, None);
+        v.hl = Some(&cache);
+        for t in [ThemeId::Solarized, ThemeId::Vibrant] {
+            v.theme_id = t;
+            let s = render(&v, 40, 2);
+            assert_eq!(s.rows[0][12].style.fg, syntax_color(t, SyntaxClass::Keyword));
+            assert_eq!(s.rows[0][13].style.fg, syntax_color(t, SyntaxClass::Keyword));
+            assert_eq!(s.rows[0][14].style.fg, None);
+            assert_eq!(s.row_text(0).trim_end(), "   1    1   fn x");
+        }
     }
 
     #[test]
