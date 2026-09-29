@@ -8,12 +8,26 @@
 //! Must not: contain UI logic or state (that is core), agent names (that is integrations), or
 //! decisions core can make. Never shows OS error text: map to `IoReason`.
 //!
-//! Module registry: workers add inner modules inside their own top-level module, not here.
+//! Module registry: complete up front (see `MODULES.md`); workers add inner modules inside their own
+//! top-level module directory, never here.
 
+// component B: startup, config and file/git IO
 pub mod cli;
-pub mod exec;
-pub mod http;
+pub mod config_io;
+pub mod env;
+pub mod fsio;
+pub mod git;
+pub mod run;
+// component A: terminal, input, loop, barrier
+pub mod barrier;
+pub mod clipboard;
 pub mod input;
 pub mod present;
-pub mod run;
 pub mod runtime;
+pub mod term;
+pub mod timers;
+// component C: MCP sockets, processes, effect dispatch
+pub mod exec;
+pub mod http;
+pub mod proc;
+pub mod token;
