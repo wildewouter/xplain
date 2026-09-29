@@ -8,23 +8,44 @@
 //! Owned spec: all behavior except process/terminal/socket plumbing (that is `xplain-app`) and
 //! per-agent CLI knowledge (that is `xplain-integrations`).
 //!
-//! Crate leads: this file lists the boundary modules. Add inner modules under your own
-//! sub-directories (`src/<module>/...`) and register them in that module's own `mod.rs`/file,
-//! never here, so parallel workers do not conflict.
+//! Module tree and ownership: see `MODULES.md`. Every module is registered here (and `nav`, `mcp`,
+//! `view` register their submodules up front), so workers never edit registries.
 
+pub mod ask;
+pub mod browse;
+pub mod canvas;
 pub mod comments;
 pub mod config;
+pub mod config_ui;
 pub mod diff;
+pub mod editor;
 pub mod effect;
 pub mod errors;
 pub mod event;
+pub mod export;
+pub mod find;
+pub mod fuzzy;
+pub mod help;
+pub mod highlight;
 pub mod integration;
+pub mod jump;
 pub mod keys;
 pub mod mcp;
+pub mod mcp_ui;
+pub mod messages;
+pub mod nav;
 pub mod options;
+pub mod picker;
+pub mod quit;
+pub mod reload;
+pub mod rows;
 pub mod screen;
+pub mod search;
 pub mod state;
+pub mod textutil;
 pub mod theme;
+pub mod thread;
+pub mod thread_layout;
 pub mod update;
 pub mod view;
 

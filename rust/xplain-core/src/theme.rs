@@ -85,3 +85,28 @@ impl Theme {
 /// Theme-independent find hit colors (F-FIND-02): bg yellow, fg black.
 pub const FIND_HIT_BG: Color = Color::Yellow;
 pub const FIND_HIT_FG: Color = Color::Black;
+
+/// Syntax token classes the highlighter maps onto (see `src/theme.ts` `syntax`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SyntaxClass {
+    Keyword,
+    String,
+    Number,
+    Comment,
+    Function,
+    Type,
+    Attribute,
+    Literal,
+    Meta,
+    Punctuation,
+}
+
+/// Color of a syntax class in a theme, and whether syntax tokens are bold (F-THEME-02, UNSPEC-31).
+/// `None` = terminal default.
+pub fn syntax_color(_id: ThemeId, _class: SyntaxClass) -> Option<Color> {
+    todo!("theme syntax palette")
+}
+
+pub fn syntax_bold(_id: ThemeId) -> bool {
+    todo!("theme syntax palette")
+}

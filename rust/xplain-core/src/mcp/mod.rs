@@ -1,10 +1,17 @@
 //! MCP protocol logic as pure state machine: request checks, JSON-RPC dispatch, tools, hub queue,
 //! long-poll bookkeeping, client list, counters, token helpers. No sockets.
 //!
-//! Spec: F-MCPSRV-01..11, F-ASK-01/09, F-MCPUI-03 (stop semantics), F-RELOAD-02. Owner: core lead
-//! (mcp component); this file holds only the boundary types and entry points, the lead may split
-//! the implementation into `src/mcp/*.rs` submodules (convert this file to `mcp/mod.rs`).
+//! Spec: F-MCPSRV-01..11, F-ASK-01/09, F-MCPUI-03 (stop semantics), F-RELOAD-02. Owner: component `agent` (E).
+//! This file holds the boundary types and entry points; implementation is split into the submodules below
+//! (`http` request checks, `rpc` JSON-RPC envelope + methods, `tools` tool table and calls, `hub` queue/pollers/
+//! clients/counters, `token` token + port helpers).
 //! Must not: open sockets, read time, generate randomness (runtime supplies both in [`HttpRequest`]).
+
+pub mod http;
+pub mod hub;
+pub mod rpc;
+pub mod token;
+pub mod tools;
 
 use crate::comments::PaneSide;
 use crate::effect::Effect;
@@ -120,7 +127,8 @@ pub struct McpState {
     pub clients: Vec<ClientInfo>,
     pub queue: Vec<OutQuestion>,
     pub delivered: u32,
-    // internal (pollers, sticky map, sessions) added by the mcp lead
+    /// Internal hub bookkeeping (pollers, sticky map, sessions); owned by `hub.rs`.
+    pub inner: hub::HubInner,
 }
 
 impl McpState {

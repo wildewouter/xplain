@@ -3,6 +3,9 @@
 //! Spec: F-COMMENT-03 (record), F-ASK-01/05/09 (turns, answers), F-COMMENT-10 (agent notes), F-EXPORT-02.
 //! Owner: core lead (comments component). Types frozen at skeleton so mcp/export/view workers agree.
 //! Must not: reference rendering or MCP transport types.
+//! Component `comments` (D) also owns the functions below (creation, anchoring, lookup, deletion).
+
+use crate::state::State;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PaneSide {
@@ -76,4 +79,41 @@ pub struct Comment {
     pub number: Option<u32>,
     /// Creation sequence for ordering ties.
     pub seq: u64,
+}
+
+/// Next free id `q<n>` (uses `state.thread.next_id`); also used by agent notes (F-ASK-01).
+pub fn alloc_id(_state: &mut State) -> String {
+    todo!("F-ASK-01 ids")
+}
+
+/// Build a comment anchored at the current cursor/selection with `message` (F-COMMENT-03, F-COMMENT-05,
+/// F-VISUAL-03): line/side/deleted flags, selection info, text, `context` (+-3 rows) and `wide` (+-15 rows).
+/// Does not insert it.
+pub fn from_cursor(_state: &mut State, _message: &str) -> Comment {
+    todo!("F-COMMENT-03/05")
+}
+
+/// Insert keeping `seq` order; returns its id.
+pub fn insert(_state: &mut State, _comment: Comment) -> String {
+    todo!("F-COMMENT-03")
+}
+
+pub fn find<'a>(_state: &'a State, _id: &str) -> Option<&'a Comment> {
+    todo!("lookup")
+}
+
+/// Remove (F-COMMENT-08); clears focus when it was focused.
+pub fn remove(_state: &mut State, _id: &str) {
+    todo!("F-COMMENT-08")
+}
+
+/// Comments of the current file shown under row `row` (anchor rules F-COMMENT-05: by row index + side,
+/// or by line number / nearest after reload), in creation order.
+pub fn anchored_at(_state: &State, _row: usize) -> Vec<&Comment> {
+    todo!("F-COMMENT-05")
+}
+
+/// Ids of the current file's comments sorted by anchor row then seq (J/K order, F-COMMENT-06).
+pub fn ids_in_file(_state: &State) -> Vec<String> {
+    todo!("F-COMMENT-06")
 }

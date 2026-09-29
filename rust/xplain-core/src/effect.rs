@@ -12,6 +12,9 @@ use crate::event::{ReqId, TimerId};
 use crate::integration::CommandSpec;
 use crate::mcp::{ConnId, HttpResponse};
 
+/// Effect list built by handlers within one `update` call (execution order).
+pub type Fx = Vec<Effect>;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Effect {
     /// Run git per `spec` (cwd check first), read untracked files if `spec.wants_untracked()`.

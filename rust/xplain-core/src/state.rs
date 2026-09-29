@@ -88,6 +88,8 @@ pub struct Nav {
     pub selection: Option<Selection>,
     /// Focused comment id (F-COMMENT-06).
     pub focused_comment: Option<String>,
+    /// Private state of the nav component (added fields go there, not here).
+    pub ext: crate::nav::NavExt,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -124,6 +126,8 @@ pub struct Selection {
 pub struct FindState {
     /// Active term (highlights, `n`/`N`).
     pub term: Option<String>,
+    /// Private state of the find component.
+    pub ext: crate::find::FindExt,
 }
 
 /// Modal / text input in front of the diff. Exactly one at a time (F-HELP-02 priority resolves overlaps
@@ -167,6 +171,8 @@ pub struct EditorState {
     pub caret: usize,
     /// Tab toggles save/ask (new comments only).
     pub ask_mode: bool,
+    /// Private state of the editor component.
+    pub ext: crate::editor::EditorExt,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -175,6 +181,8 @@ pub struct SearchState {
     pub sel: usize,
     /// All files (loaded async; empty until done).
     pub files: Vec<String>,
+    /// Private state of the search component.
+    pub ext: crate::search::SearchExt,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -263,6 +271,16 @@ pub struct State {
     pub next_req: u64,
     /// Spinner frame index (F-ASK-05).
     pub spinner: usize,
+    /// Bumped whenever `files` or `browse` content is replaced (keys the rows cache).
+    pub files_gen: u64,
+    /// Rows of the shown file / browse view, rebuilt by `rows::ensure` (B).
+    pub rows: crate::rows::Rows,
+    /// Ask flow bookkeeping (E).
+    pub ask: crate::ask::AskState,
+    /// Thread UI state and comment id counter (D).
+    pub thread: crate::thread::ThreadUi,
+    /// File picker scroll (C).
+    pub picker: crate::picker::PickerUi,
 }
 
 impl State {

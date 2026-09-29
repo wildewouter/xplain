@@ -10,6 +10,7 @@ publish.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 unicode-width.workspace = true
+syntect.workspace = true
 
 [lints]
 workspace = true
