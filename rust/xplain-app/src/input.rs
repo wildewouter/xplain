@@ -2,7 +2,7 @@
 //!
 //! Spec: Test seams (barrier bytes `ESC [ 9 9 9 9 ~` idle / `ESC [ 9 9 9 8 ~` frame, never keys; lone ESC
 //! directly before a barrier = Escape key; no escape timeout), F-NAV-07, F-CLI-05 (Ctrl+C), UNSPEC-8/26.
-//! Owner: app lead (input component).
+//! Owner: component A (runtime).
 //! Must not: talk to core state or the terminal; pure byte decoder so it is unit-testable byte-for-byte.
 //! Without `XPLAIN_SYNC` barrier bytes are decoded like any other unknown CSI (no special meaning).
 
@@ -25,6 +25,11 @@ pub enum InputItem {
 }
 
 /// Incremental decoder (handles sequences split across reads).
+/// Supported input (spec-relevant): printable UTF-8 (split across reads), Enter (CR/LF), Tab, BackTab (`ESC [ Z`),
+/// Backspace (0x7f/0x08), Delete, arrows, Home/End (CSI and SS3 forms, `~` forms), PageUp/PageDown, Esc,
+/// Alt+char (ESC prefix), ctrl letters (0x01..0x1a; Ctrl+C is `KeyEvent::ctrl('c')`), modifiers via
+/// `CSI 1;<m>X`, bracketed paste `ESC [ 200 ~ .. ESC [ 201 ~` -> one `Paste`. Unknown CSI/SS3 sequences are
+/// swallowed (no keys). Escape without following byte stays buffered (no timeout, except before a barrier).
 #[derive(Debug, Default)]
 pub struct InputDecoder {
     pub sync: bool,

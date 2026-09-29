@@ -1,7 +1,9 @@
 //! The event loop and sync barrier.
 //!
 //! Spec: Test seams (whole section), F-CLI-05 (start/exit), F-RELOAD-02 (silent reload is just an event).
-//! Owner: app lead (runtime component); this is the first thing built (spike).
+//! Owner: component A (runtime); first thing built (spike). Effects `Clipboard`, `SetTimer`, `CancelTimer`, `Exit` are
+//! handled here (stdout/clock/loop); all other effects go to the `Executor`. `Exit` waits until `PendingWork == 0`
+//! (earlier effects incl. HttpReply/McpStop finished), leaves the alternate screen, returns the code.
 //! Must not: hold UI state beyond `xplain_core::State`, or interpret keys.
 //!
 //! Loop: decode input -> for each item call `update` (after setting `state.clock`) -> hand effects to the
@@ -12,8 +14,11 @@
 
 use std::time::Duration;
 
-use xplain_core::event::TimerId;
+use tokio::sync::mpsc::UnboundedReceiver;
+use xplain_core::event::{Event, TimerId};
+use xplain_core::screen::Size;
 
+use crate::exec::{Executor, PendingWork};
 use crate::http::HttpCounters;
 use crate::input::BarrierKind;
 
@@ -38,14 +43,38 @@ pub fn barrier_reply(kind: BarrierKind, n: u64, counters: &HttpCounters) -> Vec<
 
 /// Everything `run` needs from the outside.
 pub struct RuntimeConfig {
+    /// `XPLAIN_SYNC=1`: decode and answer barriers.
     pub sync: bool,
+    /// 24-bit colors (`COLORTERM`), passed to the presenter.
+    pub truecolor: bool,
 }
 
-/// Run the app until `Effect::Exit`. Returns the exit code.
+/// Testable core of the loop: all collaborators injected. `input` carries raw stdin bytes, `resize` terminal
+/// size changes, `events` results/timers/HTTP events from executor and clock. Draws the first frame (`Loading...`
+/// from `view`) before sending `Event::Started`. Returns the exit code.
+#[allow(clippy::too_many_arguments)]
+pub async fn drive<E: Executor, C: Clock, W: std::io::Write>(
+    _state: xplain_core::State,
+    _initial_effects: Vec<xplain_core::Effect>,
+    _cfg: &RuntimeConfig,
+    _exec: E,
+    _clock: C,
+    _pending: PendingWork,
+    _counters: HttpCounters,
+    _events: UnboundedReceiver<Event>,
+    _input: UnboundedReceiver<Vec<u8>>,
+    _resize: UnboundedReceiver<Size>,
+    _out: W,
+) -> i32 {
+    todo!("event loop + barrier")
+}
+
+/// Run the app until `Effect::Exit`. Returns the exit code. Wires the real pieces (channels, `RealClock`,
+/// `RealExecutor`, `Presenter` on stdout, `term::spawn_stdin_reader`/`spawn_resize_watcher`) and calls [`drive`].
 pub async fn run_loop(
     _state: xplain_core::State,
     _initial_effects: Vec<xplain_core::Effect>,
     _cfg: RuntimeConfig,
 ) -> i32 {
-    todo!("event loop + barrier")
+    todo!("wire real collaborators")
 }

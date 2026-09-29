@@ -1,7 +1,9 @@
 //! Hand-written argv parser and usage/error texts.
 //!
 //! Spec: F-CLI-01..04, F-CLI-06 (verbatim usage text, error messages, value consumption, `=` forms,
-//! `config path`). Owner: app lead (cli component).
+//! `config path`). Owner: component B (startup).
+//! Rules to implement: left to right; `-h`/`--help` wins only if no earlier flag error; space-form values are
+//! taken verbatim (F-CLI-06); `config path` only when the remaining non-flag args are exactly `config path`.
 //! Must not: read env or files, print, or exit. Pure so it is unit-testable; `run` does the printing.
 
 use xplain_core::options::Options;
