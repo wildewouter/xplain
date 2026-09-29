@@ -452,6 +452,51 @@ ok('server: newer poll gets it', (await sp2).json().thread_id === 'S3');
 	await new Promise<void>((r) => blocker.close(() => r()));
 }
 
+// stop after hub close: every waiting long poll gets HTTP 200 `closed`, written before connections drop
+{
+	const h3 = createHub();
+	const s3 = createMcpServer({hub: h3, port: 0, token: 't3'});
+	const {url: u3} = await s3.start();
+	type R = {status: number; body: {result?: {content: {text: string}[]; isError?: boolean}} | string};
+	const poll = (id: string): Promise<R> =>
+		fetch(u3, {
+			method: 'POST',
+			headers: {authorization: 'Bearer t3', 'content-type': 'application/json', 'mcp-session-id': id},
+			body: JSON.stringify({
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'tools/call',
+				params: {name: 'next_question', arguments: {wait_seconds: 60}},
+			}),
+		}).then(
+			async (r) => ({status: r.status, body: (await r.json()) as R['body']}),
+			(e: Error) => ({status: 0, body: e.message}),
+		);
+	const ps = ['p1', 'p2', 'p3'].map(poll);
+	await waitFor(() => h3.status().clients.filter((c) => c.polling).length === 3);
+	const t0 = Date.now();
+	h3.close();
+	const stopped = s3.stop();
+	const rs = await Promise.all(ps);
+	await stopped;
+	ok(
+		'server: stop answers every waiting poll closed',
+		rs.every(
+			(r) =>
+				r.status === 200 &&
+				typeof r.body === 'object' &&
+				r.body.result?.isError === undefined &&
+				r.body.result?.content[0]?.text === '{"status":"closed","note":"xplain closed the session. Stop."}',
+		),
+	);
+	ok('server: stop is prompt', Date.now() - t0 < 1500);
+	const down = await fetch(u3, {method: 'POST', body: '{}'}).then(
+		() => 'up',
+		() => 'down',
+	);
+	ok('server: stopped after polls answered', down === 'down');
+}
+
 await srv.stop();
 const after = await fetch(url, {method: 'POST', body: '{}'}).then(
 	() => 'up',

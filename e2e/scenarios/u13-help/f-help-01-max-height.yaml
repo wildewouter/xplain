@@ -14,6 +14,3 @@ steps:
         - {row: 7, matches: '│ \? move keys +Made by Wouter de Wild - 2026 │$'}
         - {row: 8, matches: '^(?=.{80}$).*╰─+╯$'}
         - {row: 9, matches: '^\(1-5/5\) hjkl move  enter ask  J/K comments  \? help$'}
-  # SPEC-MISMATCH: at 80x7 (and 80x6) spec gives max height max(3, R-3) = 4 (3) and "never above screen row 3",
-  # but the app draws a 5-row box (title, more, hint) whose top border reaches row 1 (0-based; 80x6: row 0).
-  # Not asserted.

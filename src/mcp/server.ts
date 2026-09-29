@@ -16,6 +16,7 @@ export const envPort = (env: NodeJS.ProcessEnv = process.env): number | undefine
 export const SERVER_VERSION = '0.1.0';
 export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'] as const;
 const MAX_BODY = 1024 * 1024;
+const STOP_GRACE_MS = 2000;
 
 export type McpServerOptions = {hub: Hub; port?: number; host?: string; token: string; dir?: string};
 export type McpServer = {start(): Promise<{url: string; port: number}>; stop(): Promise<void>};
@@ -83,6 +84,8 @@ export function createMcpServer(opts: McpServerOptions): McpServer {
 	const host = opts.host ?? '127.0.0.1';
 	const wantPort = opts.port ?? DEFAULT_PORT;
 	let server: Server | null = null;
+	// Responses not yet fully written (or connection gone). stop() lets them finish before closing connections.
+	const inflight = new Set<Promise<void>>();
 
 	const clientIdOf = (req: IncomingMessage) => {
 		const sid = req.headers['mcp-session-id'];
@@ -160,6 +163,9 @@ export function createMcpServer(opts: McpServerOptions): McpServer {
 
 	async function onRequest(req: IncomingMessage, res: ServerResponse) {
 		const done = httpRequest(); // sync seam: received now, done when handled
+		const closed = new Promise<void>((r) => res.once('close', () => r()));
+		inflight.add(closed);
+		void closed.then(() => inflight.delete(closed));
 		try {
 			await handleRequest(req, res);
 		} finally {
@@ -240,13 +246,23 @@ export function createMcpServer(opts: McpServerOptions): McpServer {
 				});
 			});
 		},
+		/**
+		 * Stop listening, let responses already being produced finish (a closed hub answers waiting long polls with
+		 * `closed` at once), then drop every connection. Bounded: a stuck request is cut after STOP_GRACE_MS.
+		 */
 		stop() {
 			const s = server;
 			server = null;
 			if (!s) return Promise.resolve();
 			return new Promise<void>((resolve) => {
 				s.close(() => resolve());
-				s.closeAllConnections();
+				s.closeIdleConnections();
+				let timer: NodeJS.Timeout | undefined;
+				const grace = new Promise<void>((r) => (timer = setTimeout(r, STOP_GRACE_MS)));
+				void Promise.race([Promise.all([...inflight]), grace]).then(() => {
+					clearTimeout(timer);
+					s.closeAllConnections();
+				});
 			});
 		},
 	};

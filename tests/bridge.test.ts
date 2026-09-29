@@ -456,7 +456,44 @@ const addQ = (f: Fx, message = 'why?') =>
 			th[1]!.answer.text === 'second answer' &&
 			controller.answer(id)?.text === 'second answer',
 	);
+	// F-MCPUI-03 / F-MCPSRV-06: stop answers every waiting long poll at once, HTTP 200, `closed` result
+	const polls = ['w1', 'w2'].map((sidw) =>
+		fetch(s.url!, {
+			method: 'POST',
+			headers: {...H, 'mcp-session-id': sidw},
+			body: JSON.stringify({
+				jsonrpc: '2.0',
+				id: 99,
+				method: 'tools/call',
+				params: {name: 'next_question', arguments: {wait_seconds: 60}},
+			}),
+		}).then(
+			async (r) => ({
+				status: r.status,
+				body: (await r.json()) as {result?: {content?: {text: string}[]; isError?: boolean}},
+			}),
+			(e: Error) =>
+				({status: 0, body: {error: e.message}}) as {
+					status: number;
+					body: {result?: {content?: {text: string}[]; isError?: boolean}};
+				},
+		),
+	);
+	await waitFor(() => bridge.getState().clients.filter((c) => c.polling).length === 2);
+	const t0 = Date.now();
 	await bridge.stop();
+	const rs = await Promise.all(polls);
+	ok(
+		'e2e stop answers waiting polls closed (HTTP 200)',
+		rs.every(
+			(r) =>
+				r.status === 200 &&
+				r.body.result?.isError === undefined &&
+				r.body.result?.content?.length === 1 &&
+				r.body.result.content[0]!.text === '{"status":"closed","note":"xplain closed the session. Stop."}',
+		),
+	);
+	ok('e2e stop does not wait for poll timeout', Date.now() - t0 < 1500);
 	bridge.dispose();
 }
 

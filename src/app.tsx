@@ -2,10 +2,10 @@ import {useEffect, useRef, useMemo, useState} from 'react';
 import {Box, Text, useApp, useInput, useStdin, useStdout} from 'ink';
 import {readFile, writeFile} from 'node:fs/promises';
 import {join, resolve} from 'node:path';
-import fuzzysort from 'fuzzysort';
 import {loadDiff, listFiles, MODES, type DiffFile, type Mode} from './diff/load.js';
 import {FileModal} from './components/FileModal.js';
 import {SearchModal, type Hit} from './components/SearchModal.js';
+import {matchPaths} from './match.js';
 import {HelpPanel} from './components/HelpModal.js';
 import {ThemeContext, THEMES, THEME_NAMES, type ThemeName} from './theme.js';
 import {ConfigModal} from './components/ConfigModal.js';
@@ -145,6 +145,9 @@ export default function App({
 	const [fuId, setFuId] = useState<string>(); // follow-up input open for this comment
 	const [scrolls, setScrolls] = useState<Record<string, {off: number; follow?: boolean}>>({});
 	const [btn, setBtn] = useState<{id: string; i: number}>(); // selected code copy button in the focused thread
+	// per thread: answers seen + whether the focused window showed the last body line (answer arrival keeps the bottom)
+	const seen = useRef<Record<string, {sig: string; end: boolean}>>({});
+	const pinned = useRef<Record<string, number>>({}); // window starts moved to the bottom on arrival, saved after render
 	useEffect(() => setBtn(undefined), [focus]);
 	const [dmodal, setDmodal] = useState(false);
 	const [tCommit, setTCommit] = useState<ThemeName>(theme0); // theme that esc reverts to
@@ -153,6 +156,8 @@ export default function App({
 	const eff = split && cols >= 100;
 	const [full, setFull] = useState(full0);
 	const keep = useRef<string | undefined>(undefined);
+	// mode change: shown file stays until the new diff arrives, then file index 1 (cursor kept when same path)
+	const toFirst = useRef(false);
 	const [sel, setSel] = useState(0);
 	const [ctl, ask0] = useAsk();
 	const {questions, answers} = ask0;
@@ -218,6 +223,8 @@ export default function App({
 				if (!live) return;
 				const k = keep.current;
 				keep.current = undefined;
+				if (toFirst.current) setIdx(0);
+				toFirst.current = false;
 				if (k)
 					setIdx(
 						Math.max(
@@ -228,7 +235,11 @@ export default function App({
 				setFiles(f);
 				setErr(undefined);
 			},
-			(e) => live && setErr(String(e.message ?? e)),
+			(e) => {
+				if (!live) return;
+				toFirst.current = false;
+				setErr(String(e.message ?? e));
+			},
 		);
 		return () => {
 			live = false;
@@ -241,13 +252,7 @@ export default function App({
 	const [query, setQuery] = useState('');
 	const [ssel, setSsel] = useState(0);
 	const [all, setAll] = useState<string[]>([]);
-	const hits: Hit[] = useMemo(
-		() =>
-			query
-				? fuzzysort.go(query, all).map((r) => ({path: r.target, idx: r.indexes}))
-				: all.map((p) => ({path: p, idx: []})),
-		[query, all],
-	);
+	const hits: Hit[] = useMemo(() => matchPaths(query, all), [query, all]);
 	const srchOpen = () => {
 		setQuery('');
 		setSsel(0);
@@ -275,7 +280,14 @@ export default function App({
 						),
 					);
 			},
-			(e) => manual && setNote(String(e.message ?? e)),
+			// git errors span lines: the note stays one footer row
+			(e) =>
+				manual &&
+				setNote(
+					String(e.message ?? e)
+						.replace(/\n/g, ' ')
+						.trim(),
+				),
 		);
 		if (bp !== undefined)
 			track(readFile(join(cwd ?? '.', bp))).then(
@@ -333,7 +345,14 @@ export default function App({
 			const live = an?.status === 'pending' || an?.status === 'streaming';
 			const body = threadBody([{...tu[0]!, message: q.message}, ...tu.slice(1)], q.message, bw);
 			const sc = scrolls[q.id];
-			const w = windowBody(body, foc, v, live && sc?.follow !== false ? Infinity : (sc?.off ?? 0));
+			const follow = live && sc?.follow !== false;
+			const sig = JSON.stringify(tu.map((t) => [t.prior?.length, t.answer?.status, t.answer?.text]));
+			const pv = seen.current[q.id];
+			// answer arrived while the window showed the last line: window ends at the new last line
+			const arrived = foc && !!pv && pv.sig !== sig && pv.end;
+			const w = windowBody(body, foc, v, follow || arrived ? Infinity : (sc?.off ?? 0));
+			if (foc || q.id !== focus) seen.current[q.id] = {sig, end: foc && w.to >= w.total};
+			if (arrived && !follow) pinned.current[q.id] = w.off;
 			const btns = foc ? body.flatMap((l, at) => (l.k === 'btn' ? [{at, code: l.code ?? ''}] : [])) : [];
 			if (foc) info.set(q.id, {v, off: w.off, maxOff: w.maxOff, btns});
 			const {id, head, lines} = q;
@@ -378,6 +397,12 @@ export default function App({
 		return {m, info};
 	}, [sent, rows, file, focus, answers, questions, cols, height, scrolls, fuId, btn]);
 	const sentAt = built.m;
+	useEffect(() => {
+		const p = pinned.current;
+		if (!Object.keys(p).length) return;
+		pinned.current = {};
+		setScrolls((v) => ({...v, ...Object.fromEntries(Object.entries(p).map(([id, off]) => [id, {...v[id], off}]))}));
+	});
 	// comments of this file in visual order
 	const focusList = useMemo(
 		() => [...sentAt.entries()].sort((a, b) => a[0] - b[0]).flatMap(([row, l]) => l.map((q) => ({id: q.id!, row}))),
@@ -470,7 +495,7 @@ export default function App({
 	const [hoff, setHoff] = useState(0);
 	// split cursor pane; locked to one side, `p` toggles. Unified/browse: always 'new'
 	const [side0, setSide] = useState<PaneSide>('new');
-	const canSide = eff && browsePath === undefined;
+	const canSide = eff && browsePath === undefined && !noChanges;
 	const side: PaneSide = canSide ? side0 : 'new';
 	const tx = (i: number) => rowCode(rows[i], side);
 	const clampC = (i: number, c: number) => Math.min(c, Math.max(0, tx(i).length - 1));
@@ -715,6 +740,12 @@ export default function App({
 		setOff(0);
 	};
 
+	// new mode: top reset + follow now (old rows); file index 1 once the new diff arrives
+	const cycleMode = (v: Mode) => {
+		toFirst.current = true;
+		setMode(v);
+		setOff(0);
+	};
 	const actions: Actions = {
 		confirmQuit: setConfirmQuit,
 		mcpAutostart: setMcpAutostart, // preference only; the M modal starts/stops
@@ -723,9 +754,11 @@ export default function App({
 			setTCommit(v); // selected: preview becomes the committed theme
 		},
 		mode: (v) => {
-			setMode(v);
-			setIdx(0);
-			setOff(0);
+			if (v !== mode) cycleMode(v);
+			else {
+				setIdx(0);
+				setOff(0);
+			}
 		},
 		split: (v) => {
 			setSplit(v);
@@ -791,6 +824,7 @@ export default function App({
 	useInput(
 		(input, key) => {
 			if (input === '?' && !ask && !sOpen && !gOpen && !srch) {
+				pend.current = 0;
 				setHelp((v) => (v === 0 ? 1 : v === 1 && hasMotions(hctx) ? 2 : 0));
 				return;
 			}
@@ -925,6 +959,7 @@ export default function App({
 				return;
 			}
 			if (dmodal) {
+				if (key.ctrl) return;
 				if (input === 'y' || key.return) {
 					const nx = focusList[fo + 1];
 					const q0 = questions.find((x) => x.id === focus);
@@ -938,6 +973,7 @@ export default function App({
 				return;
 			}
 			if (qmodal) {
+				if (key.ctrl) return;
 				if (input === 'y' || key.return) quit();
 				else if (input === 'n' || input === 'q' || key.escape) setQmodal(false);
 				return;
@@ -962,6 +998,7 @@ export default function App({
 				return;
 			}
 			if (mmodal) {
+				if (key.ctrl) return;
 				const it = msel > 0 ? ms.integrations[msel - 1] : undefined;
 				if (mconfirm) {
 					if (input === 'y' || key.return) {
@@ -1018,6 +1055,7 @@ export default function App({
 				return;
 			}
 			if (cmodal) {
+				if (key.ctrl) return;
 				if (key.escape || input === 'q' || input === 'C') cfgClose();
 				else if (input === 'j' || key.downArrow) setCsel((s) => Math.min(SETTINGS.length - 1, s + 1));
 				else if (input === 'k' || key.upArrow) setCsel((s) => Math.max(0, s - 1));
@@ -1027,36 +1065,35 @@ export default function App({
 				return;
 			}
 			if (modal) {
+				if (key.ctrl) return;
 				if (key.escape || input === 'q' || input === 'f') setModal(false);
 				else if (key.return) {
 					setIdx(sel);
 					setOff(0);
 					setModal(false);
-				} else if (key.ctrl) return;
-				else if (input === 'd') mvSel(half);
+				} else if (input === 'd') mvSel(half);
 				else if (input === 'u') mvSel(-half);
 				else if (input === 'j' || key.downArrow) mvSel(1);
 				else if (input === 'k' || key.upArrow) mvSel(-1);
 				return;
 			}
+			// count prefix applies to the next key only: any key but a count digit clears it
+			const c = pend.current;
+			const n = c || 1;
+			pend.current = 0;
 			if (key.ctrl) return;
 			if (input === 'F') return srchOpen();
 			if (input === '/') {
-				pend.current = 0;
 				setSText('');
 				return setSOpen(true);
 			}
 			if (input === ':') {
-				pend.current = 0;
 				setGText('');
 				return setGOpen(true);
 			}
 			if ((input === 'n' || input === 'N') && term) return findNext(input === 'n' ? 1 : -1);
 			if (input === 'r') return reload(true);
-			if (input === ')' || input === '(') {
-				pend.current = 0;
-				return numJump(input === ')' ? 1 : -1);
-			}
+			if (input === ')' || input === '(') return numJump(input === ')' ? 1 : -1);
 			if (input === 'E') return exportReview();
 			if (input === 'M') {
 				setMsel(0);
@@ -1065,9 +1102,6 @@ export default function App({
 				setMconfirm(undefined);
 				return setMmodal(true);
 			}
-			const c = pend.current;
-			const n = c || 1;
-			pend.current = 0;
 			if (key.escape) {
 				if (bsel !== undefined) return setBtn(undefined);
 				if (fo >= 0) return setFocus(undefined);
@@ -1181,11 +1215,8 @@ export default function App({
 				keep.current = file?.path;
 				setFull((v) => !v);
 				setOff(0);
-			} else if (input === 'm') {
-				setMode((m) => MODES[(MODES.indexOf(m) + 1) % MODES.length]!);
-				setIdx(0);
-				setOff(0);
-			} else if (input === 'f') {
+			} else if (input === 'm') cycleMode(MODES[(MODES.indexOf(mode) + 1) % MODES.length]!);
+			else if (input === 'f') {
 				setSel(idx);
 				setModal(true);
 			} else if (input === 'q') {

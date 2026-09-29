@@ -23,10 +23,8 @@ steps:
         - {row: -1, equals: '(28-48/62) hjkl move  enter ask  J/K comments  ? help'}
   - keys: f
   - expectScreen: {contains: ' Files (2/4)', matches: '│>M src/big\.ts \+1 -1 \*'}
-  # SPEC-MISMATCH: Ctrl+F in the picker closes it (acts like plain f); spec F-NAV-07/F-FILES-02 say Ctrl keys are
-  # ignored in the picker. <C-f> left out of this list.
-  - keys: '<C-d><C-n><C-e><C-u><C-p><C-t><C-b><C-g><C-k><C-l><C-o><C-r><C-v><C-w><C-x><C-y><C-a>'
-  - note: picker still open, selection unchanged, theme unchanged
+  - keys: '<C-d><C-n><C-e><C-f><C-u><C-p><C-t><C-b><C-g><C-k><C-l><C-o><C-r><C-v><C-w><C-x><C-y><C-a>'
+  - note: picker still open (Ctrl+F does not close it), selection unchanged, theme unchanged
     expectScreen:
       contains: ' Files (2/4)'
       matches: '│>M src/big\.ts \+1 -1 \*'

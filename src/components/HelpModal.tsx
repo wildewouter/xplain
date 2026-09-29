@@ -62,8 +62,11 @@ export function HelpPanel({
 	const descW = Math.max(1, inner - 2 - pad);
 	const heightOf = (gs: Group[]) =>
 		gs.reduce((h, g) => h + 1 + g.items.reduce((s, i) => s + wrapped(i.d, descW), 0), 0);
+	// rows between title and bottom border; tiny panels (< 2) drop the bottom row, then the `… more` row
+	const room = Math.max(0, maxHeight - 3);
+	const tiny = room < 2;
 	// border 2 + title 1 + close row
-	const avail = Math.max(1, maxHeight - 3 - (close ? 1 : 0));
+	const avail = tiny ? room : room - (close ? 1 : 0);
 	const total = keys.length;
 	const cut = heightOf(groups) > avail;
 	const limit = cut ? Math.max(0, avail - 1) : avail;
@@ -89,7 +92,9 @@ export function HelpPanel({
 		body.push({g: g.g, items});
 		if (items.length < g.items.length) break;
 	}
-	const credit = inner >= (hint ? hint.length + 1 : 0) + CREDIT.length + 1 && (close || (!cut && bodyH + 1 <= avail));
+	const credit =
+		!tiny && inner >= (hint ? hint.length + 1 : 0) + CREDIT.length + 1 && (close || (!cut && bodyH + 1 <= avail));
+	const bottom = !tiny && (close || credit);
 	return (
 		<Box
 			flexDirection="column"
@@ -122,13 +127,13 @@ export function HelpPanel({
 					))}
 				</Box>
 			))}
-			{cut && (
+			{cut && avail > 0 && (
 				<Text color={t.dim} wrap="truncate">
 					{' '}
 					… {total - shown} more
 				</Text>
 			)}
-			{(close || credit) && (
+			{bottom && (
 				<Box flexDirection="row" justifyContent={hint ? 'space-between' : 'flex-end'}>
 					{close && <Text color={t.dim}>{hint}</Text>}
 					{credit && <Text color={t.dim}>{CREDIT} </Text>}

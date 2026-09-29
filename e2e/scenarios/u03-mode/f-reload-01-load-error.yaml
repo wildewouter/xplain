@@ -4,19 +4,17 @@ steps:
   - keys: <Tab>
   - expectScreen:
       {line: {row: 0, equals: '[all] [full] [unified] [solarized] [mcp: off] [2/4] [cursor L30:C1] src/big.ts +1 -1'}}
-  # SPEC-MISMATCH: the git error note keeps git's newlines (even the trailing one of a one-line error), so the
-  # footer spans several rows, the frame grows past R rows and the header scrolls off. Spec: footer is the single
-  # last row, truncated (F-LAYOUT-01/02/07); expected header on row 0 and footer row -1 starting
-  # `fatal: bad object HEAD`. Header/footer row assertions dropped while the error note is shown.
   - note: HEAD now points to a branch whose object does not exist, so `git diff HEAD` fails (bad object HEAD)
     writeFile: {path: .git/refs/heads/bogus, content: "0123456789012345678901234567890123456789\n"}
   - git: symbolic-ref HEAD refs/heads/bogus
   - keys: r
-  - note: error only as note; diff rows still shown, no error screen
+  - note: error only as note, made one line (footer stays the last row); diff rows still shown, no error screen
     expectScreen:
-      contains: 'fatal: bad object HEAD'
       matches: '^  30      -▶const v30 = 1;'
       notContains: reloaded
+      line:
+        - {row: 0, equals: '[all] [full] [unified] [solarized] [mcp: off] [2/4] [cursor L30:C1] src/big.ts +1 -1'}
+        - {row: -1, matches: '^fatal: bad object HEAD \| \(\d+-\d+/62\) hjkl move'}
   - note: old file list still in use (checked by the header after the next successful reload)
     keys: <Tab>
   - git: symbolic-ref HEAD refs/heads/main

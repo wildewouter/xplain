@@ -1,0 +1,20 @@
+id: F-NAV-10
+title: m landing on the same path from another file index keeps the cursor and resets top then follows
+# README.md still changed, src/big.ts fully staged: src/big.ts is file 2 in all mode and the only file in staged mode,
+# with identical rows. The path is compared with the file shown before m, whatever its index (F-MODE-03).
+size: 96x12
+steps:
+  - git: add src/big.ts
+  - keys: r<Tab>
+  - expectScreen: {line: {row: 0, matches: '^\[all\] .*\[2/4\] .*src/big\.ts '}}
+  - keys: G10k
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[all\] .*\[2/4\] \[cursor L50:C1\] src/big\.ts'}
+        - {row: -1, matches: '(^|\| )\(50-58/62\) '}
+  - keys: m
+  - expectScreen:
+      line:
+        - {row: 0, matches: '^\[staged\] .*\[1/1\] \[cursor L50:C1\] src/big\.ts'}
+        - {row: 8, matches: '^  50   50  ▶const v50'}
+        - {row: -1, matches: '(^|\| )\(46-54/62\) '}

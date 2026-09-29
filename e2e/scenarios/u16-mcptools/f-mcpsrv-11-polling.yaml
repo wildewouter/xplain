@@ -30,6 +30,30 @@ steps:
   - expectScreen:
       matches: ['^ +│   waitbot 2\.0 +│$', '│ clients \d+ pending 0 delivered 1 +│']
       notContains: '⟳'
-  # SPEC-MISMATCH: F-MCPSRV-06 / F-MCPUI-03 say MCP stop answers waiting long polls with
-  # {"status":"closed","note":"xplain closed the session. Stop."}. TS app drops the connection instead
-  # (client sees socket hang up, no response). Not asserted.
+  - keys: <Esc>
+  - note: a new long poll waits (marker back); MCP stop answers it with closed (F-MCPSRV-06, F-MCPUI-03)
+    httpStart:
+      id: poll2
+      body:
+        - {
+            jsonrpc: '2.0',
+            id: 3,
+            method: initialize,
+            params: {protocolVersion: '2025-06-18', capabilities: {}, clientInfo: {name: waitbot2, version: '3.0'}},
+          }
+        - {jsonrpc: '2.0', id: 4, method: tools/call, params: {name: next_question, arguments: {wait_seconds: 120}}}
+  - keys: M
+  - expectScreen: {matches: '^ +│   waitbot2 3\.0 ⟳ +│$'}
+  - keys: <Enter>
+  - httpAwait: poll2
+    expect:
+      status: 200
+      body:
+        - {id: 3, result: {serverInfo: {name: xplain}}}
+        - {
+            id: 4,
+            result: {content: [{type: text, text: '{"status":"closed","note":"xplain closed the session. Stop."}'}]},
+          }
+  - expectScreen:
+      matches: '│ clients 0 pending 0 delivered \d+ +│'
+      notContains: ['⟳', waitbot]

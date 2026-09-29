@@ -1,5 +1,5 @@
 id: F-SEARCH-01
-title: query filters to case-insensitive in-order subsequence hits; exact path is first hit; matched chars bold accent
+title: query filters to in-order subsequence hits (gaps allowed); exact path is first hit; matched chars bold accent
 size: 80x24
 # Hit order other than "exact path first" is UNSPEC-30: only membership + count asserted otherwise.
 files:
@@ -41,25 +41,31 @@ steps:
         - {row: 5, matches: '│ Search \(0/0\) +│'}
         - {row: 6, matches: '│ > tbs +│'}
         - {row: 7, matches: '│ +│'}
-  # SPEC-MISMATCH: spec hit set = every path containing the query chars in order (case-insensitive). TS app
-  # (fuzzysort threshold) drops scattered subsequences: `rdm` (README.md) and `pkg` (package.json) give (0/0).
-  # Assertions for such scattered queries dropped; only queries the oracle also matches are used below.
-  - keys: <BS><BS><BS>ReAdMe
-  - note: case-insensitive (mixed-case query vs upper-case path); README.md only
+  - keys: <BS><BS><BS>rdm
+  - note: scattered subsequence r..d..m (lowercase query, case-insensitive) hits README.md only
     expectScreen:
       line:
         - {row: 5, matches: '│ Search \(1/1\) +│'}
         - {row: 7, matches: '│> README\.md +│'}
         - {row: 8, matches: '│ +│'}
-  - keys: <BS><BS><BS><BS><BS><BS>BIG
-  - note: upper-case query hits lower-case paths; hit set {big, src/big.ts}, order not asserted
+  - keys: <BS><BS><BS>pkg
+  - expectScreen:
+      line:
+        - {row: 5, matches: '│ Search \(1/1\) +│'}
+        - {row: 7, matches: '│> package\.json +│'}
+        - {row: 8, matches: '│ +│'}
+  - keys: <BS><BS><BS>ReAdMe
+  - note: uppercase in query -> case-sensitive; README.md has no lowercase e/d -> no hit
     expectScreen:
       line:
-        - {row: 5, matches: '│ Search \(1/2\) +│'}
-        - {row: 9, matches: '│ +│'}
-      region:
-        - {rows: [7, 8], cols: [12, 67], matches: '│[> ] big +│'}
-        - {rows: [7, 8], cols: [12, 67], matches: '│[> ] src/big\.ts +│'}
+        - {row: 5, matches: '│ Search \(0/0\) +│'}
+        - {row: 7, matches: '│ +│'}
+  - keys: <BS><BS><BS><BS><BS><BS>BIG
+  - note: upper-case query does not hit lower-case paths
+    expectScreen:
+      line:
+        - {row: 5, matches: '│ Search \(0/0\) +│'}
+        - {row: 7, matches: '│ +│'}
   - keys: <BS><BS><BS>
   - keys: src/a.ts
   - note: exact path src/a.ts first; src/a.tsx also a hit

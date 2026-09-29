@@ -3,13 +3,12 @@ title: not-a-repo error screen; r in a repo without HEAD still fails and screen 
 fixture: nogit
 size: 120x150
 steps:
-  # SPEC-MISMATCH: spec says outside a repo the screen shows git's `git diff --no-index` usage (git diff stderr
-  # verbatim). App races `git diff` and `git ls-files`: some runs show `usage: git diff --no-index ...`, others
-  # `fatal: not a git repository (or any of the parent directories): .git` (ls-files stderr). Usage-text assertion
-  # dropped; only "error screen, no UI, red text" asserted.
-  - expectScreen:
-      matches: '(usage: git diff --no-index|fatal: not a git repository)'
-      notContains: ['[all]', 'hjkl move', 'No changes', '─']
+  - note: outside a repo the text is always git diff's own stderr (its --no-index usage), never the ls-files error
+    expectScreen:
+      line:
+        - {row: 0, equals: 'warning: Not a git repository. Use --no-index to compare two paths outside a working tree'}
+        - {row: 1, matches: '^usage: git diff --no-index '}
+      notContains: ['fatal: not a git repository', '[all]', 'hjkl move', 'No changes', '─']
   - expectCell: {at: {row: 0, col: 0}, fg: 1}
   - git: init -q
   - keys: r

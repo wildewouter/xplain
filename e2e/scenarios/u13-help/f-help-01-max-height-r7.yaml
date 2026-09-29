@@ -1,0 +1,15 @@
+id: F-HELP-01
+title: 'tiny R=7 (M=4): border, title, … <all items> more, border; no bottom row; top on screen row 3'
+size: 80x7
+steps:
+  - keys: '?'
+  - expectScreen:
+      notContains: ['? move keys', 'Made by']
+      line:
+        - {row: 0, matches: '^\[all\] '}
+        - {row: 1, matches: '^─+$'}
+        - {row: 2, matches: '^(?=.{80}$).*╭─+╮$'}
+        - {row: 3, matches: '│ Help · Diff view +│$'}
+        - {row: 4, matches: '│ … 14 more +│$'}
+        - {row: 5, matches: '^(?=.{80}$).*╰─+╯$'}
+        - {row: 6, matches: '^\(\d+-\d+/5\) hjkl move  enter ask  J/K comments  \? help$'}

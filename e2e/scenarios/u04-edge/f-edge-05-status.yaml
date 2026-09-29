@@ -66,12 +66,11 @@ steps:
         - {row: 2, matches: '^@@ -0,0 \+1 @@'}
   - note: added / deleted tracked binary - no hunks, note row Binary file
     keys: <S-Tab><S-Tab>
-  # SPEC-MISMATCH: deleted tracked binary (git: `Binary files a/bdel.bin and /dev/null differ`) should show note row
-  # `Binary file` (F-EDGE-03, F-EDGE-05); TS app shows `No textual changes`. Note row assertion dropped.
   - expectScreen:
       line:
         - {row: 0, matches: '\[3/11\] \[cursor r1:C1\] bdel\.bin \+0 -0$'}
-      notContains: ['@@']
+        - {row: 2, matches: '^Binary file'}
+      notContains: ['@@', 'No textual changes']
   - keys: <S-Tab>
   - expectScreen:
       line:

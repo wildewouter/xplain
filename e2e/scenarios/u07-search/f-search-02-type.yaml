@@ -7,14 +7,12 @@ steps:
       line:
         - {row: 5, matches: '│ Search \(3/6\) +│'}
         - {row: 9, matches: '│> src/a\.ts +│'}
-  # SPEC-MISMATCH: `s` should hit package.json too (4 hits); TS app (fuzzysort) gives 3 (single chars only hit at
-  # word starts, e.g. `g`/`i`/`n` give 0/0). Using `r` (README.md + 3 src files), where app and spec agree.
-  - keys: r
-  - note: hits containing r = README.md + 3 src files; selection back to first
+  - keys: s
+  - note: hits containing s = package.json + 3 src files; selection back to first
     expectScreen:
       line:
         - {row: 5, matches: '│ Search \(1/4\) +│'}
-        - {row: 6, matches: '│ > r +│'}
+        - {row: 6, matches: '│ > s +│'}
         - {row: 7, matches: '│> '}
         - {row: 11, matches: '│ +│'}
   - keys: <BS>

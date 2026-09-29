@@ -2,8 +2,7 @@ id: F-NAV-10
 title: m landing on the same path keeps the cursor and resets top then follows
 # README.md restored and src/big.ts fully staged: src/big.ts is file 1 in all mode and the only file in staged mode,
 # with identical rows.
-# SPEC-MISMATCH: same flow with src/big.ts as file 2 in all mode (README.md still changed): spec F-MODE-03 says
-# path same as before m -> cursor kept; app places cursor on first change (L30) as if another file. Not asserted.
+# Same flow from file index 2: f-nav-10-mode-other-index.yaml.
 size: 96x12
 steps:
   - git: checkout -- README.md
