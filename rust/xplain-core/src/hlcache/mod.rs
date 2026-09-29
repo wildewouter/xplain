@@ -19,29 +19,33 @@
 //! Files above [`MAX_LINES`] lines are never highlighted.
 //!
 //! Thread code blocks. Each code line of a fenced block is keyed by (language, text) in a small LRU
-//! ([`CODE_CAP`] lines) computed once when the thread text changes (never per frame).
+//!
+//! Layout. `ranges` (per-side computed ranges), `code_lru` (thread code lines), `plan` (pure planner over
+//! `&State`; [`HlCache`] applies its plans). This file holds the cache, the shell hook and result intake.
 
-use std::collections::{HashMap, VecDeque};
-use std::hash::{DefaultHasher, Hash, Hasher};
+mod code_lru;
+mod plan;
+mod ranges;
 
 use crate::comments::PaneSide;
 use crate::diff::LineKind;
 use crate::effect::{Effect, Fx};
-use crate::highlight::{Carry, ClassRun, LineRuns, highlight_one, language_for_fence, language_for_path};
-use crate::rows::{RowLine, ShownRow};
-use crate::state::{LoadState, State};
-use crate::thread_layout::{BodyKind, box_width, thread_body};
+use crate::highlight::{Carry, ClassRun, LineRuns};
+use crate::rows::RowLine;
+use crate::state::State;
+
+use code_lru::CodeLru;
+use plan::{CodePlan, FilePlan, Planner};
+use ranges::{FileHl, Range};
 
 /// Rows around the viewport that get highlighted.
-pub const WINDOW: usize = 100;
+const WINDOW: usize = 100;
 /// Rows around the viewport that trigger a request when a line in them is not covered.
-pub const TRIGGER: usize = 50;
+const TRIGGER: usize = 50;
 /// Files with more lines than this stay plain.
-pub const MAX_LINES: u32 = 50_000;
+const MAX_LINES: u32 = 50_000;
 /// Most recently used files kept (current one included).
-pub const RECENT_FILES: usize = 4;
-/// Thread code lines kept.
-pub const CODE_CAP: usize = 500;
+const RECENT_FILES: usize = 4;
 
 /// Identifies one file side's content; results of older content (other hash) are dropped.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,134 +55,17 @@ pub struct HlKey {
     pub hash: u64,
 }
 
-#[derive(Debug, Clone)]
-struct Range {
-    /// First line number.
-    start: u32,
-    lines: Vec<LineRuns>,
-    /// Parser state after the last line (continues a following range).
-    end: Option<Carry>,
-}
-
-impl Range {
-    fn end_excl(&self) -> u32 {
-        self.start.saturating_add(self.lines.len() as u32)
-    }
-}
-
-#[derive(Debug, Clone)]
-struct FileHl {
-    path: String,
-    side: PaneSide,
-    hash: u64,
-    /// Sorted, non-overlapping, non-adjacent (adjacent ranges merge).
-    ranges: Vec<Range>,
-    /// Requested `[from, to)` line ranges not yet delivered.
-    pending: Vec<(u32, u32)>,
-}
-
-impl FileHl {
-    fn new(path: &str, side: PaneSide, hash: u64) -> FileHl {
-        FileHl { path: path.to_string(), side, hash, ranges: Vec::new(), pending: Vec::new() }
-    }
-
-    fn line(&self, no: u32) -> Option<&[ClassRun]> {
-        let i = self.ranges.partition_point(|r| r.end_excl() <= no);
-        let r = self.ranges.get(i)?;
-        if no < r.start {
-            return None;
-        }
-        r.lines.get((no - r.start) as usize).map(Vec::as_slice)
-    }
-
-    fn covered(&self, no: u32) -> bool {
-        self.line(no).is_some() || self.pending.iter().any(|(a, b)| no >= *a && no < *b)
-    }
-
-    /// Uncovered `[from, to)` pieces of `[a, b)` (not cached, not requested).
-    fn gaps(&self, a: u32, b: u32) -> Vec<(u32, u32)> {
-        let mut blocks: Vec<(u32, u32)> =
-            self.ranges.iter().map(|r| (r.start, r.end_excl())).chain(self.pending.iter().copied()).collect();
-        blocks.sort_unstable();
-        let mut out = Vec::new();
-        let mut cur = a;
-        for (s, e) in blocks {
-            if e <= cur {
-                continue;
-            }
-            if s >= b {
-                break;
-            }
-            if s > cur {
-                out.push((cur, s));
-            }
-            cur = cur.max(e);
-        }
-        if cur < b {
-            out.push((cur, b));
-        }
-        out
-    }
-
-    fn carry_ending_at(&self, no: u32) -> Option<Carry> {
-        self.ranges.iter().find(|r| r.end_excl() == no).and_then(|r| r.end.clone())
-    }
-
-    /// Add a delivered range; overlapping deliveries (races) are dropped, adjacent ranges merge.
-    fn insert(&mut self, r: Range) {
-        if r.lines.is_empty() {
-            return;
-        }
-        let end = r.end_excl();
-        if self.ranges.iter().any(|o| o.start < end && r.start < o.end_excl()) {
-            return;
-        }
-        let at = self.ranges.partition_point(|o| o.start < r.start);
-        self.ranges.insert(at, r);
-        if at + 1 < self.ranges.len() && self.ranges[at].end_excl() == self.ranges[at + 1].start {
-            let next = self.ranges.remove(at + 1);
-            self.ranges[at].lines.extend(next.lines);
-            self.ranges[at].end = next.end;
-        }
-        if at > 0 && self.ranges[at - 1].end_excl() == self.ranges[at].start {
-            let cur = self.ranges.remove(at);
-            self.ranges[at - 1].lines.extend(cur.lines);
-            self.ranges[at - 1].end = cur.end;
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-struct CodeEntry {
-    lang: &'static str,
-    text: String,
-    runs: LineRuns,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Memo {
-    /// (files_gen, file_index, browse open).
-    key: (u64, usize, bool),
-    hashes: [u64; 2],
-    big: bool,
-}
-
 /// Highlight cache in [`State`].
 #[derive(Debug, Default)]
 pub struct HlCache {
     files: Vec<FileHl>,
     /// Paths by recency, most recent last.
     recent: Vec<String>,
-    memo: Option<Memo>,
     /// Bumped when a result lands, so the planner looks again.
     epoch: u64,
-    last_plan: Option<PlanKey>,
-    code: HashMap<u64, CodeEntry>,
-    code_order: VecDeque<u64>,
-    code_sig: Option<u64>,
+    planner: Planner,
+    code: CodeLru,
 }
-
-type PlanKey = (u64, usize, usize, u16, usize, bool, u64);
 
 fn side_ix(s: PaneSide) -> usize {
     match s {
@@ -186,8 +73,6 @@ fn side_ix(s: PaneSide) -> usize {
         PaneSide::New => 1,
     }
 }
-
-const SIDES: [PaneSide; 2] = [PaneSide::Old, PaneSide::New];
 
 /// Side and line number the row line takes its colors from: deleted lines from the old side, everything else
 /// (context, added, browse) from the new side. `None` for the synthetic no-newline marker.
@@ -209,8 +94,12 @@ impl HlCache {
 
     /// Token classes of one thread code line, `None` while not computed.
     pub fn code_runs(&self, lang: &str, text: &str) -> Option<&[ClassRun]> {
-        let e = self.code.get(&code_hash(lang, text))?;
-        (e.text == text && e.lang == lang).then_some(e.runs.as_slice())
+        self.code.get(lang, text)
+    }
+
+    /// The entry for (path, side) when it holds content with `hash`.
+    fn file(&self, path: &str, side: PaneSide, hash: u64) -> Option<&FileHl> {
+        self.files.iter().find(|f| f.side == side && f.path == path && f.hash == hash)
     }
 
     /// Index of the entry for (path, side) with `hash`; an entry with other content is replaced.
@@ -241,23 +130,34 @@ impl HlCache {
         }
     }
 
-    fn code_insert(&mut self, lang: &'static str, text: &str) {
-        let h = code_hash(lang, text);
-        if let Some(e) = self.code.get(&h) {
-            if e.text == text && e.lang == lang {
-                self.code_order.retain(|k| *k != h);
-                self.code_order.push_back(h);
-                return;
-            }
+    fn apply_files(&mut self, plan: FilePlan, fx: &mut Fx) {
+        self.planner.last_plan = Some(plan.key);
+        self.planner.memo = Some(plan.memo);
+        if plan.touch {
+            self.touch(&plan.path);
         }
-        let runs = highlight_one(lang, text);
-        self.code.insert(h, CodeEntry { lang, text: text.to_string(), runs });
-        self.code_order.retain(|k| *k != h);
-        self.code_order.push_back(h);
-        while self.code_order.len() > CODE_CAP {
-            if let Some(old) = self.code_order.pop_front() {
-                self.code.remove(&old);
+        for (side, hash) in &plan.seen {
+            self.ensure(&plan.path, *side, *hash);
+        }
+        for r in plan.requests {
+            let i = self.ensure(&plan.path, r.side, r.hash);
+            if let Some(f) = self.files.get_mut(i) {
+                f.pending.push((r.start, r.start.saturating_add(r.lines.len() as u32)));
             }
+            fx.push(Effect::Highlight {
+                key: HlKey { path: plan.path.clone(), side: r.side, hash: r.hash },
+                lang: plan.lang.clone(),
+                start: r.start,
+                lines: r.lines,
+                carry: r.carry,
+            });
+        }
+    }
+
+    fn apply_code(&mut self, plan: CodePlan) {
+        self.planner.code_sig = Some(plan.sig);
+        for (lang, text) in &plan.lines {
+            self.code.insert(lang, text);
         }
     }
 
@@ -268,250 +168,27 @@ impl HlCache {
         self.files[i].insert(Range { start, lines, end: None });
     }
 
-    /// Number of cached thread code lines.
-    pub fn code_len(&self) -> usize {
-        self.code.len()
-    }
-
     /// Number of file entries (path + side).
-    pub fn file_entries(&self) -> usize {
+    #[cfg(test)]
+    fn file_entries(&self) -> usize {
         self.files.len()
     }
 
-    /// Whether the file side has a cached, current line (tests and diagnostics).
-    pub fn has_line(&self, path: &str, side: PaneSide, no: u32) -> bool {
+    /// Whether the file side has a cached, current line.
+    #[cfg(test)]
+    fn has_line(&self, path: &str, side: PaneSide, no: u32) -> bool {
         self.runs(path, side, no).is_some()
     }
 }
 
-fn code_hash(lang: &str, text: &str) -> u64 {
-    let mut h = DefaultHasher::new();
-    lang.hash(&mut h);
-    text.hash(&mut h);
-    h.finish()
-}
-
-fn current_path(state: &State) -> Option<&str> {
-    match &state.browse {
-        Some(b) => Some(b.path.as_str()),
-        None => state.files.get(state.nav.file_index).map(|f| f.path.as_str()),
-    }
-}
-
-/// (line number, text) of a side in file order: `New` = context + added (browse: all lines), `Old` = deleted.
-fn stream(state: &State, side: PaneSide) -> Vec<(u32, &str)> {
-    if let Some(b) = &state.browse {
-        if side == PaneSide::Old {
-            return Vec::new();
-        }
-        return b
-            .lines
-            .iter()
-            .enumerate()
-            .map(|(i, t)| (u32::try_from(i + 1).unwrap_or(u32::MAX), t.as_str()))
-            .collect();
-    }
-    let Some(f) = state.files.get(state.nav.file_index) else { return Vec::new() };
-    let mut out = Vec::new();
-    for l in f.hunks.iter().flat_map(|h| &h.lines) {
-        if l.no_newline_marker {
-            continue;
-        }
-        let no = match (side, l.kind) {
-            (PaneSide::New, LineKind::Add | LineKind::Context) => l.new_no,
-            (PaneSide::Old, LineKind::Del) => l.old_no,
-            _ => None,
-        };
-        if let Some(n) = no {
-            out.push((n, l.text.as_str()));
-        }
-    }
-    out
-}
-
-fn hash_stream(s: &[(u32, &str)]) -> u64 {
-    let mut h = DefaultHasher::new();
-    s.len().hash(&mut h);
-    for (n, t) in s {
-        n.hash(&mut h);
-        t.hash(&mut h);
-    }
-    h.finish()
-}
-
-/// Contiguous runs of a stream (consecutive line numbers).
-struct Seg<'a> {
-    first: u32,
-    lines: Vec<&'a str>,
-}
-
-fn segments<'a>(stream: &[(u32, &'a str)]) -> Vec<Seg<'a>> {
-    let mut out: Vec<Seg<'a>> = Vec::new();
-    for (n, t) in stream {
-        match out.last_mut() {
-            Some(s) if s.first.saturating_add(s.lines.len() as u32) == *n => s.lines.push(t),
-            _ => out.push(Seg { first: *n, lines: vec![t] }),
-        }
-    }
-    out
-}
-
-/// Row window `[from, to)` around the viewport, `pad` rows each way.
-fn zone(state: &State, pad: usize) -> (usize, usize) {
-    let top = state.nav.top;
-    let h = state.size.rows as usize;
-    (top.saturating_sub(pad), top.saturating_add(h).saturating_add(pad).min(state.rows.rows.len()))
-}
-
-/// (side, line number) of every shown code line in rows `[from, to)`.
-fn lines_in(rows: &[ShownRow], from: usize, to: usize) -> Vec<(PaneSide, u32)> {
-    let mut out = Vec::new();
-    for row in rows.get(from..to.max(from)).unwrap_or_default() {
-        match row {
-            ShownRow::Line(l) => out.extend(line_key(l)),
-            ShownRow::Pair { l, r } => {
-                out.extend(l.as_ref().and_then(line_key));
-                out.extend(r.as_ref().and_then(line_key));
-            }
-            ShownRow::Hunk(_) | ShownRow::Note(_) => {}
-        }
-    }
-    out
-}
-
 /// Hook after every event (`update`): request highlights near the viewport, prepare thread code blocks.
 pub fn sync(state: &mut State, fx: &mut Fx) {
-    let mut cache = std::mem::take(&mut state.hl);
-    plan_files(state, &mut cache, fx);
-    plan_code(state, &mut cache);
-    state.hl = cache;
-}
-
-fn plan_files(state: &State, cache: &mut HlCache, fx: &mut Fx) {
-    if !matches!(state.load, LoadState::Ready) || state.rows.rows.is_empty() {
-        return;
+    if let Some(plan) = plan::plan_files(state) {
+        state.hl.apply_files(plan, fx);
     }
-    let Some(path) = current_path(state) else { return };
-    let Some(lang) = language_for_path(path) else { return };
-    let split = state.rows.key.as_ref().is_some_and(|k| k.split);
-    let plan_key: PlanKey = (
-        state.files_gen,
-        state.nav.file_index,
-        state.nav.top,
-        state.size.rows,
-        state.rows.rows.len(),
-        split,
-        cache.epoch,
-    );
-    if cache.last_plan == Some(plan_key) {
-        return;
-    }
-    cache.last_plan = Some(plan_key);
-
-    let mk = (state.files_gen, state.nav.file_index, state.browse.is_some());
-    let memo = match cache.memo {
-        Some(m) if m.key == mk => m,
-        _ => {
-            let (old, new) = (stream(state, PaneSide::Old), stream(state, PaneSide::New));
-            let last = |s: &[(u32, &str)]| s.last().map_or(0, |(n, _)| *n);
-            let m = Memo {
-                key: mk,
-                hashes: [hash_stream(&old), hash_stream(&new)],
-                big: last(&old).max(last(&new)) > MAX_LINES,
-            };
-            cache.memo = Some(m);
-            m
-        }
-    };
-    if memo.big {
-        return;
-    }
-    cache.touch(path);
-
-    let rows = &state.rows.rows;
-    let (t0, t1) = zone(state, TRIGGER);
-    let mut trigger = false;
-    for (side, no) in lines_in(rows, t0, t1) {
-        let i = cache.ensure(path, side, memo.hashes[side_ix(side)]);
-        if !cache.files[i].covered(no) {
-            trigger = true;
-        }
-    }
-    if !trigger {
-        return;
-    }
-
-    let (f0, f1) = zone(state, WINDOW);
-    let mut need: [Option<(u32, u32)>; 2] = [None; 2];
-    for (side, no) in lines_in(rows, f0, f1) {
-        let e = &mut need[side_ix(side)];
-        *e = Some(match *e {
-            None => (no, no),
-            Some((a, b)) => (a.min(no), b.max(no)),
-        });
-    }
-    for side in SIDES {
-        let Some((lo, hi)) = need[side_ix(side)] else { continue };
-        let hash = memo.hashes[side_ix(side)];
-        let stream = stream(state, side);
-        let i = cache.ensure(path, side, hash);
-        for seg in segments(&stream) {
-            let seg_end = seg.first.saturating_add(seg.lines.len() as u32);
-            let (a, b) = (lo.max(seg.first), hi.saturating_add(1).min(seg_end));
-            if a >= b {
-                continue;
-            }
-            for (g0, g1) in cache.files[i].gaps(a, b) {
-                let from = (g0 - seg.first) as usize;
-                let to = (g1 - seg.first) as usize;
-                let Some(slice) = seg.lines.get(from..to) else { continue };
-                let carry = if g0 > seg.first { cache.files[i].carry_ending_at(g0) } else { None };
-                cache.files[i].pending.push((g0, g1));
-                fx.push(Effect::Highlight {
-                    key: HlKey { path: path.to_string(), side, hash },
-                    lang: lang.to_string(),
-                    start: g0,
-                    lines: slice.iter().map(|s| (*s).to_string()).collect(),
-                    carry,
-                });
-            }
-        }
-    }
-}
-
-fn has_fence(text: &str) -> bool {
-    text.contains("```") || text.contains("~~~")
-}
-
-fn plan_code(state: &State, cache: &mut HlCache) {
-    let bw = box_width(state).saturating_sub(3).max(1);
-    let mut h = DefaultHasher::new();
-    bw.hash(&mut h);
-    for c in &state.comments {
-        c.id.hash(&mut h);
-        crate::thread::turns_sig(c).hash(&mut h);
-    }
-    let sig = h.finish();
-    if cache.code_sig == Some(sig) {
-        return;
-    }
-    cache.code_sig = Some(sig);
-    for c in &state.comments {
-        let fenced = has_fence(&c.message)
-            || c.turns
-                .iter()
-                .any(|t| has_fence(&t.message) || t.answer.as_ref().is_some_and(|a| has_fence(&a.text)));
-        if !fenced {
-            continue;
-        }
-        for l in thread_body(c, bw) {
-            if l.kind != BodyKind::Code || l.text.trim().is_empty() {
-                continue;
-            }
-            if let Some(lang) = l.lang.as_deref().and_then(language_for_fence) {
-                cache.code_insert(lang, &l.text);
-            }
-        }
+    let bw = plan::code_width(state);
+    if let Some(plan) = plan::plan_code(&state.comments, bw, state.hl.planner.code_sig) {
+        state.hl.apply_code(plan);
     }
 }
 
@@ -536,6 +213,7 @@ mod tests {
     use crate::highlight::highlight_lines;
     use crate::keys::KeyEvent;
     use crate::screen::Size;
+    use crate::state::LoadState;
     use crate::state::testutil::{fake_state, k};
     use crate::theme::SyntaxClass;
     use crate::update::update;
@@ -726,22 +404,6 @@ mod tests {
     }
 
     #[test]
-    fn ranges_merge_and_gaps_skip_pending() {
-        let mut f = FileHl::new("x", PaneSide::New, 1);
-        let r = |start: u32, n: usize| Range { start, lines: vec![vec![]; n], end: None };
-        f.insert(r(10, 5));
-        f.insert(r(20, 5));
-        assert_eq!(f.ranges.len(), 2);
-        f.insert(r(15, 5));
-        assert_eq!(f.ranges.len(), 1);
-        assert_eq!((f.ranges[0].start, f.ranges[0].end_excl()), (10, 25));
-        f.insert(r(12, 2));
-        assert_eq!(f.ranges.len(), 1, "overlap dropped");
-        f.pending.push((30, 35));
-        assert_eq!(f.gaps(5, 40), vec![(5, 10), (25, 30), (35, 40)]);
-    }
-
-    #[test]
     fn huge_files_stay_plain() {
         let mut s = fake_state();
         let n = MAX_LINES as usize + 1;
@@ -795,25 +457,6 @@ mod tests {
         sync(&mut s, &mut fx);
         let hs = highlights(&fx);
         assert_eq!(hs, vec![(1, 30, false)]);
-    }
-
-    #[test]
-    fn thread_code_lines_cached_once_with_lru() {
-        let mut c = HlCache::default();
-        for i in 0..(CODE_CAP + 20) {
-            c.code_insert("rust", &format!("let x{i} = 1;"));
-        }
-        assert_eq!(c.code_len(), CODE_CAP);
-        assert!(c.code_runs("rust", "let x0 = 1;").is_none(), "oldest evicted");
-        assert!(c.code_runs("rust", &format!("let x{} = 1;", CODE_CAP + 19)).is_some());
-        // touching keeps an entry alive
-        c.code_insert("rust", "let x25 = 1;");
-        for i in 0..CODE_CAP - 2 {
-            c.code_insert("rust", &format!("y{i}"));
-        }
-        assert!(c.code_runs("rust", "let x25 = 1;").is_some());
-        // keyed by language and text
-        assert!(c.code_runs("python", "let x25 = 1;").is_none());
     }
 
     #[test]
