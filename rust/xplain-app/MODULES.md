@@ -16,12 +16,12 @@ IO crate. Core decides, app executes. All modules registered in `src/lib.rs` up 
 | `run.rs`       | `prepare` (argv -> config -> `State`) + `main_with_args` orchestration, stderr warnings, exit codes          | F-CLI-01..05, F-CONFIG-03/04                                                            | B            |
 | `input.rs`     | byte decoder: keys, paste, barriers                                                                          | Test seams, F-NAV-07, F-CLI-05, UNSPEC-8/26                                             | A            |
 | `barrier.rs`   | pure barrier queue (numbering, ordered release)                                                              | Test seams                                                                              | A            |
-| `runtime.rs`   | `drive` loop, `Clock` trait, `barrier_reply`, `run_loop` wiring, handles Clipboard/SetTimer/CancelTimer/Exit | Test seams, F-CLI-05, F-RELOAD-02                                                       | A            |
+| `runtime.rs`   | `drive_model` loop (`Io`/`Inputs` bundles), `Clock` trait, `barrier_reply`, `run_loop` wiring, handles Clipboard/SetTimer/CancelTimer/Exit | Test seams, F-CLI-05, F-RELOAD-02                                                       | A            |
 | `present.rs`   | `Screen` -> bytes (`encode_frame`), alt screen enter/leave                                                   | F-CLI-05, F-LAYOUT-01, Colors                                                           | A            |
-| `term.rs`      | raw mode, size, stdin reader thread, SIGWINCH                                                                | F-CLI-05, F-LAYOUT-01                                                                   | A            |
+| `term.rs`      | raw mode (injectable `RawMode`), size, stdin reader thread, SIGWINCH, panic hook + `restore_terminal`       | F-CLI-05, F-LAYOUT-01                                                                   | A            |
 | `timers.rs`    | `RealClock`: wall clock + tokio timers, pending accounting                                                   | Test seams (background timers), F-ASK-05, F-MCPSRV-06                                   | A            |
 | `clipboard.rs` | OSC 52 bytes                                                                                                 | F-ASK-08, PORTING clipboard                                                             | A            |
-| `exec.rs`      | `Executor` trait, `PendingWork`, `RealExecutor` dispatcher                                                   | Test seams (pending), all IO effects                                                    | C            |
+| `exec.rs`      | `Executor` trait, `PendingWork` (watch-backed counter), `RealExecutor` dispatcher                                                   | Test seams (pending), all IO effects                                                    | C            |
 | `http.rs`      | MCP server sockets, `HttpCounters`, `McpServer`                                                              | F-MCPSRV-01/02 (socket), F-MCPSRV-06 (drop), F-MCPUI-03 (drain), Test seams (reqs/done) | C            |
 | `token.rs`     | `mcp.json` token file IO                                                                                     | F-MCPSRV-01                                                                             | C            |
 | `proc.rs`      | integration CLI runner with timeout                                                                          | F-INTEG-01..04, UNSPEC-37                                                               | C            |
@@ -29,10 +29,10 @@ IO crate. Core decides, app executes. All modules registered in `src/lib.rs` up 
 ## Interfaces between modules (fixed signatures in the files)
 
 - `run::prepare(args, &RawEnv, abs_cwd, Size, read_config) -> Startup` (B). `Startup::Ui` -> `runtime::run_loop(state, effects, RuntimeConfig{sync, truecolor})` (A).
-- `runtime::drive(...)` (A) takes injected `Executor`, `Clock`, channels, output writer: unit-testable with fakes.
+- `runtime::drive_model(model, effects, cfg, Io)` (A) takes injected `Executor`, `Clock`, channels (`Inputs`), output writer and `RawMode`: unit-testable with fakes.
 - `Executor::dispatch(Effect)` (C) returns immediately; results -> `Event` via channel. `PendingWork::begin` before spawn, `end` after result event sent.
 - Runtime handles `Clipboard` (uses `clipboard::osc52`), `SetTimer`/`CancelTimer` (via `Clock`), `Exit`. Everything else goes to `Executor`. Exec ignores those four.
-- `Exit{code}`: runtime waits `PendingWork == 0` (so `HttpReply`s written, `McpStop` done), leaves alt screen, returns.
+- `Exit{code}`: runtime `Clock::cancel_all`, then waits (max 5 s, `EXIT_GRACE`) for `PendingWork == 0` (so `HttpReply`s written, `McpStop` done), leaves alt screen, returns.
 - Exec calls B's functions: `git::load_diff`, `git::list_files`, `fsio::read_file`, `fsio::write_export`, `config_io::save_config`; C's own: `proc::run_command`, `token::ensure_token` (called inside `McpServer::start`), `http::McpServer`.
 - `http::HttpCounters` is created by `run_loop`, shared with `RealExecutor::new`, `McpServer::start`, `runtime::barrier_reply`.
 - `timers::RealClock::new(tx, pending)`; `Clock::now` fills `state.clock` before every `update`.
@@ -47,8 +47,8 @@ IO crate. Core decides, app executes. All modules registered in `src/lib.rs` up 
 
 ## Additions after implementation
 
-- runtime: private `Model` trait + `pub(crate) drive_model` (test without core State); `drive` keeps signature.
-- present: `Presenter::with_truecolor`. term: `SizeTracker`, `spawn_stdin_reader_sized`, `spawn_resize_watcher_tracked`, `normalize_size`, `RawMode::is_active`.
+- runtime: private `Model` trait + `pub(crate) drive_model` (test without core State); no `drive` wrapper. Loop waits on `PendingWork::subscribe` (watch), no polling.
+- present: `Presenter::with_truecolor`, `Presenter::enter(out, RawMode)`, `Drop` restores terminal if not left. term: `SizeTracker`, `spawn_stdin_reader_sized`, `spawn_resize_watcher_tracked`, `normalize_size`, `RawMode::{is_active,inactive}`, `install_panic_hook` (called by `run`).
 - barrier: `PendingWork::guard()`, `WorkGuard`. http: `McpServer::reply_tracked`.
-- Known gaps: no panic hook restoring terminal; Exit drops later effects in batch, no timeout on pending wait; local UTC offset computed after tokio start (RealClock falls back to `date +%z`).
+- Known gaps: Exit drops later effects in batch; local UTC offset computed after tokio start (RealClock falls back to `date +%z`).
 - exec: `Effect::Highlight` runs `highlight_lines` on the tokio blocking pool (pure CPU), counted as pending work. runtime: all queued stdin chunks are decoded before each draw. Release profile: lto, `panic = "abort"` (nothing uses `catch_unwind`).

@@ -29,6 +29,7 @@ use crate::exec::{Executor, PendingWork, RealExecutor};
 use crate::http::HttpCounters;
 use crate::input::{BarrierKind, InputDecoder, InputItem};
 use crate::present::Presenter;
+use crate::term::RawMode;
 use crate::timers::RealClock;
 
 /// Clock abstraction so tests can drive time. Timers are events: the runtime schedules `TimerId`s and
@@ -37,6 +38,8 @@ pub trait Clock {
     fn now(&self) -> xplain_core::state::Now;
     fn schedule(&mut self, id: TimerId, after: Duration, background: bool);
     fn cancel(&mut self, id: TimerId);
+    /// Cancel every armed timer (releases their pending-work units); used when the loop is exiting.
+    fn cancel_all(&mut self);
 }
 
 /// Formats the barrier reply `ESC ] 7770 ; <kind> ; <n> ; <reqs> ; <done> BEL` (Test seams).
@@ -84,37 +87,24 @@ impl Model for CoreModel {
     }
 }
 
-/// Testable core of the loop: all collaborators injected. `input` carries raw stdin bytes, `resize` terminal
-/// size changes, `events` results/timers/HTTP events from executor and clock. Draws the first frame (`Loading...`
-/// from `view`) before sending `Event::Started`. Returns the exit code.
-#[allow(clippy::too_many_arguments)]
-pub async fn drive<E: Executor, C: Clock, W: Write>(
-    state: xplain_core::State,
-    initial_effects: Vec<xplain_core::Effect>,
-    cfg: &RuntimeConfig,
-    exec: E,
-    clock: C,
-    pending: PendingWork,
-    counters: HttpCounters,
-    events: UnboundedReceiver<Event>,
-    input: UnboundedReceiver<Vec<u8>>,
-    resize: UnboundedReceiver<Size>,
-    out: W,
-) -> i32 {
-    drive_model(
-        CoreModel(state),
-        initial_effects,
-        cfg,
-        exec,
-        clock,
-        pending,
-        counters,
-        events,
-        input,
-        resize,
-        out,
-    )
-    .await
+/// Receivers feeding the loop: `events` results/timers/HTTP events from executor and clock, `input` raw stdin
+/// bytes, `resize` terminal size changes.
+pub struct Inputs {
+    pub events: UnboundedReceiver<Event>,
+    pub input: UnboundedReceiver<Vec<u8>>,
+    pub resize: UnboundedReceiver<Size>,
+}
+
+/// Every collaborator of the loop, injected so tests can fake them: executor, clock, shared counters, input
+/// channels, output writer and the raw-mode guard the presenter takes over.
+pub struct Io<E, C, W> {
+    pub exec: E,
+    pub clock: C,
+    pub pending: PendingWork,
+    pub counters: HttpCounters,
+    pub inputs: Inputs,
+    pub out: W,
+    pub raw: RawMode,
 }
 
 /// Loop state: everything `step`/`dispatch` touch.
@@ -163,34 +153,30 @@ impl<M: Model, E: Executor, C: Clock, W: Write> Rt<M, E, C, W> {
         Ok(())
     }
 
-    /// Exit: wait for earlier work (HttpReply, McpStop, ...), restore the terminal, return the code.
+    /// Exit: cancel timers, wait (bounded) for earlier work (HttpReply, McpStop, ...), restore the terminal,
+    /// return the code.
     async fn finish(mut self, code: i32) -> i32 {
-        while self.pending.count() > 0 {
-            tokio::time::sleep(POLL).await;
-        }
+        self.clock.cancel_all();
+        let _ = tokio::time::timeout(EXIT_GRACE, self.pending.wait_idle()).await;
         let _ = self.presenter.leave(&mut self.out);
         code
     }
 }
 
-/// Poll interval while waiting for the pending-work counter (it changes without waking the loop).
-const POLL: Duration = Duration::from_millis(1);
+/// Longest exit waits for outstanding work before restoring the terminal anyway.
+const EXIT_GRACE: Duration = Duration::from_secs(5);
 
-#[allow(clippy::too_many_arguments)]
+/// The loop with all collaborators injected. Draws the first frame (`Loading...` from `view`) before sending
+/// `Event::Started`. Returns the exit code.
 pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
     model: M,
     initial_effects: Vec<Effect>,
     cfg: &RuntimeConfig,
-    exec: E,
-    clock: C,
-    pending: PendingWork,
-    counters: HttpCounters,
-    mut events: UnboundedReceiver<Event>,
-    mut input: UnboundedReceiver<Vec<u8>>,
-    mut resize: UnboundedReceiver<Size>,
-    mut out: W,
+    io: Io<E, C, W>,
 ) -> i32 {
-    let Ok(presenter) = Presenter::enter(&mut out) else { return 1 };
+    let Io { exec, clock, pending, counters, inputs, mut out, raw } = io;
+    let Inputs { mut events, mut input, mut resize } = inputs;
+    let Ok(presenter) = Presenter::enter(&mut out, raw) else { return 1 };
     let mut rt = Rt {
         model,
         exec,
@@ -216,6 +202,7 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
     }
     step!(Event::Started);
 
+    let mut pending_rx = pending.subscribe();
     let mut decoder = InputDecoder::new(cfg.sync);
     let mut items: VecDeque<InputItem> = VecDeque::new();
     let mut barriers = BarrierQueue::new();
@@ -259,7 +246,7 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
         // already queued, so a reply never counts a request whose effects are not applied yet.
         let (quiet, snap) = loop {
             let snap = counters.snapshot();
-            let quiet = pending.count() == 0;
+            let quiet = *pending_rx.borrow_and_update() == 0;
             let mut got = false;
             while let Ok(ev) = events.try_recv() {
                 got = true;
@@ -304,21 +291,23 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
                 Some(s) => step!(Event::Resize(s)),
                 None => resize_open = false,
             },
-            _ = tokio::time::sleep(POLL), if waiting => {}
+            // A barrier waits on pending work, which changes without producing an event.
+            _ = pending_rx.changed(), if waiting => {}
         }
     }
 }
 
 /// Run the app until `Effect::Exit`. Returns the exit code. Wires the real pieces (channels, `RealClock`,
-/// `RealExecutor`, `Presenter` on stdout, `term::spawn_stdin_reader`/`spawn_resize_watcher`) and calls [`drive`].
+/// `RealExecutor`, `Presenter` on stdout, `term::spawn_stdin_reader_sized`/`spawn_resize_watcher_tracked`) and
+/// calls [`drive_model`].
 pub async fn run_loop(
     state: xplain_core::State,
     initial_effects: Vec<xplain_core::Effect>,
     cfg: RuntimeConfig,
 ) -> i32 {
-    let (events_tx, events_rx) = unbounded_channel();
-    let (input_tx, input_rx) = unbounded_channel();
-    let (resize_tx, resize_rx) = unbounded_channel();
+    let (events_tx, events) = unbounded_channel();
+    let (input_tx, input) = unbounded_channel();
+    let (resize_tx, resize) = unbounded_channel();
     let pending = PendingWork::default();
     let counters = HttpCounters::default();
     let clock = RealClock::new(events_tx.clone(), pending.clone());
@@ -326,20 +315,16 @@ pub async fn run_loop(
     let tracker = crate::term::SizeTracker::new(crate::term::size());
     crate::term::spawn_resize_watcher_tracked(resize_tx.clone(), tracker.clone());
     crate::term::spawn_stdin_reader_sized(input_tx, Some((resize_tx, tracker)));
-    drive(
-        state,
-        initial_effects,
-        &cfg,
+    let io = Io {
         exec,
         clock,
         pending,
         counters,
-        events_rx,
-        input_rx,
-        resize_rx,
-        std::io::stdout(),
-    )
-    .await
+        inputs: Inputs { events, input, resize },
+        out: std::io::stdout(),
+        raw: RawMode::enable(),
+    };
+    drive_model(CoreModel(state), initial_effects, &cfg, io).await
 }
 
 #[cfg(test)]
@@ -487,6 +472,11 @@ mod tests {
                 TestClock::Real(c) => c.cancel(id),
             }
         }
+        fn cancel_all(&mut self) {
+            if let TestClock::Real(c) = self {
+                c.cancel_all();
+            }
+        }
     }
 
     struct Rig {
@@ -538,19 +528,16 @@ mod tests {
             };
             let model = Fake { ready: self.initial.is_empty(), keys: 0, log: log.clone() };
             let cfg = RuntimeConfig { sync: self.sync, truecolor: true };
-            let fut = drive_model(
-                model,
-                self.initial,
-                &cfg,
+            let io = Io {
                 exec,
                 clock,
                 pending,
-                self.counters,
-                erx,
-                irx,
-                rrx,
-                out.clone(),
-            );
+                counters: self.counters,
+                inputs: Inputs { events: erx, input: irx, resize: rrx },
+                out: out.clone(),
+                raw: RawMode::inactive(),
+            };
+            let fut = drive_model(model, self.initial, &cfg, io);
             let code = tokio::time::timeout(Duration::from_secs(5), fut).await.unwrap_or(-999);
             drop((etx, itx, rtx));
             let log = log.lock().map(|l| l.clone()).unwrap_or_default();
@@ -569,7 +556,7 @@ mod tests {
         hay.find(needle).unwrap_or_else(|| panic!("{needle:?} not in {hay:?}"))
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn f_cli_05_first_frame_loading_before_started() {
         let mut rig = Rig::new(&[b"q"]);
         rig.initial = read_file();
@@ -581,7 +568,7 @@ mod tests {
         assert!(out.contains("Loading..."));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn f_cli_05_exit_leaves_alt_screen_last() {
         let (code, out, _) = Rig::new(&[b"q"]).run().await;
         assert_eq!(code, 3);
@@ -589,13 +576,13 @@ mod tests {
         assert_eq!(out.matches("\x1b[?1049l").count(), 1);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn f_cli_05_effects_after_exit_do_not_run() {
         let (_, out, _) = Rig::new(&[b"q"]).run().await;
         assert!(!out.contains("\x1b]52;"), "{out:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn f_cli_05_exit_waits_for_pending_work() {
         let mut rig = Rig::new(&[b"lq"]);
         rig.read_delay_ms = 40;
@@ -605,7 +592,26 @@ mod tests {
         assert!(out.ends_with("\x1b[?1049l"));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
+    async fn f_cli_05_exit_cancels_timers_instead_of_waiting_for_them() {
+        let mut rig = Rig::new(&[b"tq"]);
+        rig.real_clock = true;
+        let (code, out, log) = rig.run().await;
+        assert_eq!(code, 3);
+        assert!(out.ends_with("\x1b[?1049l"));
+        assert!(!log.iter().any(|l| l.starts_with("Timer")), "{log:?}");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn f_cli_05_exit_wait_is_bounded() {
+        let mut rig = Rig::new(&[b"lq"]);
+        rig.read_delay_ms = 60_000;
+        let (code, out, _) = rig.run().await;
+        assert_eq!(code, 3, "exit must not hang on stuck work");
+        assert!(out.ends_with("\x1b[?1049l"));
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn f_cli_05_initial_effects_go_to_executor() {
         let mut rig = Rig::new(&[b"q"]);
         rig.initial = read_file();
@@ -613,14 +619,14 @@ mod tests {
         assert!(log.iter().any(|l| l.starts_with("exec ReadFile")));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn f_ask_08_clipboard_written_as_osc52() {
         let (_, out, log) = Rig::new(&[b"cq"]).run().await;
         assert!(out.contains("\x1b]52;c;aGk=\x07"), "{out:?}");
         assert!(!log.iter().any(|l| l.starts_with("exec")));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn f_ask_05_timers_go_to_clock_not_executor() {
         let (_, _, log) = Rig::new(&[b"tbxq"]).run().await;
         assert!(log.contains(&"schedule Spinner 40 false".to_string()));
@@ -629,7 +635,7 @@ mod tests {
         assert!(!log.iter().any(|l| l.starts_with("exec")));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_replies_numbered_in_order_both_kinds() {
         let (_, out, _) = Rig::new(&[IDLE, FRAME, IDLE, b"q"]).run().await;
         let a = pos(&out, "\x1b]7770;idle;1;0;0\x07");
@@ -638,7 +644,7 @@ mod tests {
         assert!(a < b && b < c);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_reply_carries_http_counters() {
         let rig = Rig::new(&[IDLE, b"q"]);
         rig.counters.received.store(5, std::sync::atomic::Ordering::SeqCst);
@@ -647,7 +653,7 @@ mod tests {
         assert!(out.contains("\x1b]7770;idle;1;5;4\x07"), "{out:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_idle_before_ready_waits_for_initial_load() {
         let mut rig = Rig::new(&[IDLE, b"q"]);
         rig.initial = read_file();
@@ -656,7 +662,7 @@ mod tests {
         assert!(pos(&out, "R") < pos(&out, "\x1b]7770;idle;1;"), "{out:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_frame_before_ready_does_not_wait_for_load() {
         let mut rig = Rig::new(&[FRAME, b"q"]);
         rig.initial = read_file();
@@ -666,7 +672,7 @@ mod tests {
         assert!(pos(&out, "Loading...") < pos(&out, "\x1b]7770;frame;1;"));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_idle_waits_for_pending_work_after_key() {
         let mut rig = Rig::new(&[b"l", IDLE, b"q"]);
         rig.read_delay_ms = 30;
@@ -674,7 +680,7 @@ mod tests {
         assert!(pos(&out, "R") < pos(&out, "\x1b]7770;idle;1;"), "{out:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_frame_ignores_pending_work() {
         let mut rig = Rig::new(&[b"l", FRAME, b"q"]);
         rig.read_delay_ms = 30;
@@ -684,7 +690,7 @@ mod tests {
         assert!(out.contains("\x1b]7770;frame;1;"));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_frame_reply_before_slow_result_lands() {
         let mut rig = Rig::new(&[b"l", FRAME, b"q"]);
         rig.read_delay_ms = 60;
@@ -696,7 +702,7 @@ mod tests {
         assert!(log.contains(&"exec done".to_string()));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_input_after_barrier_handled_after_reply() {
         let (_, out, _) = Rig::new(&[b"a", IDLE, b"a", IDLE, b"q"]).run().await;
         let first = pos(&out, "\x1b]7770;idle;1;");
@@ -705,7 +711,7 @@ mod tests {
         assert_eq!(out[first..second].matches('K').count(), 1, "{out:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn queued_input_chunks_cost_one_frame() {
         // Four single-key chunks are already queued: all are applied before the next draw.
         let (_, out, log) = Rig::new(&[b"a", b"a", b"a", b"a", IDLE, b"q"]).run().await;
@@ -717,7 +723,7 @@ mod tests {
         assert_eq!(out[..first].matches("KKKK").count(), 1, "{out:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn queued_chunks_after_barrier_still_wait_for_its_reply() {
         let (_, out, _) = Rig::new(&[b"a", IDLE, b"a", b"a", IDLE, b"q"]).run().await;
         let first = pos(&out, "\x1b]7770;idle;1;");
@@ -727,7 +733,7 @@ mod tests {
         assert_eq!(out[first..second].matches('K').count(), 2, "{out:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_input_after_barrier_in_same_chunk() {
         let mut chunk = b"a".to_vec();
         chunk.extend_from_slice(IDLE);
@@ -739,19 +745,19 @@ mod tests {
         assert_eq!(out[first..second].matches('K').count(), 1, "{out:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_lone_esc_before_barrier_is_escape_key() {
         let (_, _, log) = Rig::new(&[b"\x1b\x1b[9999~q"]).run().await;
         assert!(log.iter().any(|l| l.contains("Esc")), "{log:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_barrier_bytes_never_reach_core_as_keys() {
         let (_, _, log) = Rig::new(&[IDLE, FRAME, b"q"]).run().await;
         assert_eq!(log.iter().filter(|l| l.starts_with("Key")).count(), 1, "{log:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_no_replies_without_sync() {
         let mut rig = Rig::new(&[IDLE, b"q"]);
         rig.sync = false;
@@ -760,7 +766,7 @@ mod tests {
         assert_eq!(log.iter().filter(|l| l.starts_with("Key")).count(), 1);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_background_timer_is_not_pending_work() {
         let mut rig = Rig::new(&[b"b", IDLE, b"q"]);
         rig.real_clock = true;
@@ -770,7 +776,7 @@ mod tests {
         assert!(!log.iter().any(|l| l.starts_with("Timer")), "idle answered before 150 ms bg timer: {log:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_non_background_timer_is_pending_work() {
         let mut rig = Rig::new(&[b"t", IDLE, b"q"]);
         rig.real_clock = true;
@@ -780,7 +786,7 @@ mod tests {
         assert!(timer < q, "{log:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_seams_cancelled_timer_releases_pending() {
         let mut rig = Rig::new(&[b"t", b"x", IDLE, b"q"]);
         rig.real_clock = true;
@@ -788,7 +794,7 @@ mod tests {
         assert!(!log.iter().any(|l| l.starts_with("Timer")), "{log:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn f_layout_01_resize_becomes_event() {
         let mut rig = Rig::new(&[b"q"]);
         rig.resizes = vec![Size { cols: 100, rows: 30 }];
@@ -796,13 +802,13 @@ mod tests {
         assert!(log.iter().any(|l| l.contains("Resize") && l.contains("100")), "{log:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn f_cli_05_paste_becomes_one_event() {
         let (_, _, log) = Rig::new(&[b"\x1b[200~a\nb\x1b[201~q"]).run().await;
         assert!(log.iter().any(|l| l.contains("Paste(\"a\\nb\")")), "{log:?}");
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn f_reload_02_result_events_redraw() {
         let mut rig = Rig::new(&[IDLE, b"q"]);
         rig.initial = read_file();
