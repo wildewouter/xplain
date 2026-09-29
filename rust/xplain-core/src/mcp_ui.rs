@@ -197,6 +197,7 @@ pub fn stop_server(state: &mut State, fx: &mut Fx) {
     state.mcp.clients.clear();
     state.mcp.queue.clear();
     cancel_live(state);
+    crate::thread::on_mcp_stopped(state);
     if let Overlay::Editor(e) = &mut state.overlay {
         e.ask_mode = false;
     }
@@ -211,6 +212,7 @@ fn cancel_live(state: &mut State) {
             if matches!(a.status, AnswerStatus::Pending | AnswerStatus::Streaming) {
                 a.status = AnswerStatus::Cancelled;
                 a.text = "MCP stopped".to_string();
+                a.agent = None; // oracle `setAnswer({status, text})` replaces the answer, dropping the agent
             }
         }
     }
@@ -794,7 +796,11 @@ mod tests {
         let mut c = crate::comments::from_cursor(&mut s, "m");
         c.turns = vec![Turn {
             message: "m".into(),
-            answer: Some(Answer { status: AnswerStatus::Streaming, text: String::new(), agent: None }),
+            answer: Some(Answer {
+                status: AnswerStatus::Streaming,
+                text: String::new(),
+                agent: Some("bot".into()),
+            }),
             prior: vec![],
         }];
         s.comments.push(c);
@@ -805,8 +811,11 @@ mod tests {
             ask_mode: true,
             ext: Default::default(),
         });
+        s.thread.chosen = Some(false);
         let mut fx = Vec::new();
         stop_server(&mut s, &mut fx);
+        assert_eq!(s.thread.chosen, None, "chosen editor mode reset by stop");
+        assert!(s.comments[0].turns[0].answer.as_ref().is_some_and(|a| a.agent.is_none()));
         assert!(matches!(fx.last(), Some(Effect::McpStop { .. })));
         assert!(fx[..fx.len() - 1].iter().all(|e| !matches!(e, Effect::McpStop { .. })));
         let a = s.comments[0].turns[0].answer.as_ref().map(|a| (a.status, a.text.clone()));
