@@ -38,7 +38,14 @@ pub async fn save_config(path: &str, change: &ConfigChange) -> Result<(), Config
     let out = apply_patch(existing.as_deref(), &change.to_patch())?;
     let p = Path::new(path);
     if let Some(parent) = p.parent().filter(|d| !d.as_os_str().is_empty()) {
-        tokio::fs::create_dir_all(parent).await.map_err(io)?;
+        // Existing non-directory on the path reports AlreadyExists; TS ensureDir maps it to ENOTDIR.
+        tokio::fs::create_dir_all(parent).await.map_err(|e| {
+            if e.kind() == ErrorKind::AlreadyExists {
+                ConfigSaveError::Io(IoReason::NotDirectory)
+            } else {
+                io(e)
+            }
+        })?;
     }
     let mut tmp = p.as_os_str().to_owned();
     tmp.push(format!(".{}.tmp", std::process::id()));
@@ -116,6 +123,8 @@ mod tests {
         let blocker = d.join("file");
         std::fs::write(&blocker, "x").unwrap();
         let r = save_config(blocker.join("sub/c.json").to_str().unwrap(), &ConfigChange::Split(true)).await;
-        assert!(matches!(r, Err(ConfigSaveError::Io(_))));
+        assert_eq!(r, Err(ConfigSaveError::Io(IoReason::NotDirectory)));
+        let r = save_config(blocker.join("c.json").to_str().unwrap(), &ConfigChange::Split(true)).await;
+        assert_eq!(r, Err(ConfigSaveError::Io(IoReason::NotDirectory)));
     }
 }

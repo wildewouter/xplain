@@ -24,14 +24,14 @@ pub enum Cli {
 
 /// Usage text, verbatim from F-CLI-01 (no trailing newline).
 pub const USAGE: &str = "usage: xplain [--cwd dir] [--config file] [--mode all|staged|unstaged | --staged | --unstaged] [git diff args...]\n\
-  --mode <m>   all (git diff HEAD, default), staged (--cached), unstaged\n\
-  --staged     same as --mode staged\n\
-  --unstaged   same as --mode unstaged\n\
-  --split      start in side-by-side view (s toggles)\n\
-  --changes-only  start with git hunks only, not the full file (c toggles)\n\
-  --theme <t>  solarized, vibrant, dull, contrast, colorblind, light (first is default) (t cycles)\n\
-  --config <f> config file (default $XPLAIN_CONFIG or ~/.config/xplain/config.json)\n\
-  -h, --help   show this help\n\
+\x20 --mode <m>   all (git diff HEAD, default), staged (--cached), unstaged\n\
+\x20 --staged     same as --mode staged\n\
+\x20 --unstaged   same as --mode unstaged\n\
+\x20 --split      start in side-by-side view (s toggles)\n\
+\x20 --changes-only  start with git hunks only, not the full file (c toggles)\n\
+\x20 --theme <t>  solarized, vibrant, dull, contrast, colorblind, light (first is default) (t cycles)\n\
+\x20 --config <f> config file (default $XPLAIN_CONFIG or ~/.config/xplain/config.json)\n\
+\x20 -h, --help   show this help\n\
 xplain config path  print the resolved config path\n\
 extra git args replace HEAD in \"all\" mode, and are appended in the other modes.\n\
 keys: ? help, s split/unified, c full/changes, ]/[ next/prev change, m cycles mode, t cycles theme, C config, q quits";
@@ -139,6 +139,7 @@ mod tests {
     fn usage_theme_list_matches() {
         assert!(USAGE.contains("solarized, vibrant, dull, contrast, colorblind, light (first"));
         assert!(!USAGE.ends_with('\n'));
+        assert!(USAGE.contains("\n  --mode <m>   all"));
     }
 
     #[test]
