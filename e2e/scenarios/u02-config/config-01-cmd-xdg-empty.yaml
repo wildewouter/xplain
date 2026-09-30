@@ -1,8 +1,0 @@
-id: F-CONFIG-01
-title: empty XDG_CONFIG_HOME counts as unset, $HOME/.config used
-tui: false
-env: {XDG_CONFIG_HOME: ''}
-args: [config, path]
-steps:
-  - expectExit: 0
-  - expectStdout: {equals: "${HOME}/.config/xplain/config.json\n"}

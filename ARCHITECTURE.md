@@ -1,9 +1,8 @@
 # xplain Rust rewrite: architecture
 
-The Rust app lives in `rust/` next to the TypeScript reference app (`src/`, untouched). The contract is
-[`spec/SPEC.md`](spec/SPEC.md) (feature IDs `F-<GROUP>-NN`, Test seams, Messages, UNSPEC). The gate is the parity
-suite in [`e2e/`](e2e/README.md) run against the Rust binary (see [`PORTING.md`](PORTING.md)). Anything in UNSPEC is
-free; everything else must match.
+The app lives in `rust/`. The contract is [`spec/SPEC.md`](spec/SPEC.md) (feature IDs `F-<GROUP>-NN`, Test seams,
+Messages, UNSPEC). The gate is `cargo test` in `rust/`, including the spec coverage gate (section 5). Anything in
+UNSPEC is free; everything else must match.
 
 ## 1. Model: Elm style
 
@@ -147,22 +146,26 @@ front so workers never edit them.
   effects and `view` screens (`Screen::row_text`). No terminal, no tokio needed.
 - Runtime tests: `InputDecoder` byte-for-byte; barrier logic with a fake `Executor` and fake `Clock`.
 - Integrations: assert exact argv and texts from SPEC F-INTEG-*.
-- Gate: parity suite `XPLAIN_BIN=rust/target/release/xplain npm run e2e`. Progress is read per spec ID from
-  `--- by spec id ---` (`PASS`/`FAIL F-XXX n/m`). A component is done when its spec IDs pass 100% and unit tests pass.
-  `npm run e2e -- --coverage` stays green (spec and suite in step).
-- Never edit `spec/`, `e2e/`, `src/`, `tests/` from Rust work. Spec doubts go to the spec owner.
-- Regression rule: fix a parity failure by adding a unit test first when it can be reproduced in core.
+- Scenario tests: `rust/xplain-sim` runs the real core in-process (manual clock, real git/fs in temp dirs, fake agent
+  CLIs, in-process MCP HTTP). Tests live in `rust/xplain-sim/tests/uNN_<area>.rs`; fixture repos in
+  `rust/xplain-sim/fixtures/{base,work}`. See its README.
+- Spec coverage gate: `rust/xplain-sim/tests/spec_coverage.rs` reads the Coverage index of `spec/SPEC.md`; every
+  in-scope `F-<GROUP>-NN` needs a test fn named `f_<group>_<nn>_...` or a `// covers: F-X-NN` marker, else an entry in
+  `rust/xplain-sim/tests/app_pending.txt`.
+- CI: `.github/workflows/rust.yml` runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+  on Linux and macOS.
+- Regression rule: fix a bug by adding a test first when it can be reproduced in core or in a `Sim` scenario.
 
 ## 6. Build order
 
 1. Spike (app lead + core lead): `InputDecoder`, `run_loop` with barrier replies, `Presenter`, `State::new`,
    `LoadDiff` effect, `view` producing header/rule/footer + `Loading...` and a plain unified diff. Goal: F-CLI-01..06,
-   F-CLI-05, barrier plumbing and first frame pass in e2e; this proves the runtime/barrier design.
+   F-CLI-05, barrier plumbing and first frame pass in scenario tests; this proves the runtime/barrier design.
 2. Core in parallel per spec group: diff parser + git argv, config, reducer navigation/cursor, views (unified/split/
    browse, header/footer, themes), modals (picker, search, config, quit).
 3. Comments, visual, find/goto, export, help panel.
 4. MCP protocol + HTTP server + MCP modal, integrations, ask flow.
-5. Polish: UNSPEC decisions, `cargo clippy`, release binary size, CI stage (`XPLAIN_BIN=...`).
+5. Polish: UNSPEC decisions, `cargo clippy`, release binary size, CI.
 
 ## 7. Conventions
 

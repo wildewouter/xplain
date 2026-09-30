@@ -1,9 +1,0 @@
-id: F-LAYOUT-07
-title: 'header and footer wider than screen: cut to cols-1 cells + … in last cell'
-size: 60x24
-steps:
-  - expectScreen:
-      line:
-        - {row: 0, equals: '[all] [full] [unified] [solarized] [mcp: off] [1/4] [cursor…'}
-        - {row: -1, equals: '(1-5/5) hjkl move  enter ask  J/K comments  ? help'}
-  - expectCell: {at: {row: 0, col: 59}, chars: '…'}

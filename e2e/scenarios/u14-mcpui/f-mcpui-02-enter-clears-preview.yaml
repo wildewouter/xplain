@@ -1,9 +1,0 @@
-id: F-MCPUI-02
-title: 'integration Enter clears preview'
-shims:
-  claude: [{match: [mcp, get], exit: 0}]
-steps:
-  - keys: M<Enter>jc
-  - expectScreen: {contains: 'register command (copied):'}
-  - keys: <Enter>
-  - expectScreen: {contains: 'already registered (d to remove)', notContains: 'register command (copied)'}

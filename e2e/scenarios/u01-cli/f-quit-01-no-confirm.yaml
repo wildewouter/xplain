@@ -1,8 +1,0 @@
-id: F-QUIT-01
-title: 'confirmQuit off - q quits at once with exit 0'
-files:
-  ${CONFIG}/xplain/config.json: {app: {confirmQuit: false}}
-steps:
-  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] '}}
-  - keys: q
-  - expectExit: 0

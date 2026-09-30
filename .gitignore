@@ -1,13 +1,8 @@
-# deps
-node_modules/
-
 # build
-dist/
-*.tsbuildinfo
+target/
 
 # logs
 *.log
-npm-debug.log*
 
 # env
 .env
@@ -20,9 +15,5 @@ npm-debug.log*
 .vscode/
 *.swp
 
-# coverage
-coverage/
-
 # agent worktrees
 .claude/worktrees/
-*.bun-build

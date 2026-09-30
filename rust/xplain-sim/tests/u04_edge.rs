@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u04-edge`.
+//! Scenario tests: edge.
 #![allow(clippy::panic, clippy::unwrap_used)]
 
 use std::os::unix::fs::PermissionsExt;

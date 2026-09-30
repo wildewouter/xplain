@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u03-mode` (F-MODE, F-RELOAD, F-SCOPE).
+//! Scenario tests (F-MODE, F-RELOAD, F-SCOPE).
 //!
 //! The black box suite scripted a fake `git`; here git is real, so canned outputs are replaced by real repos and
 //! the git argv is asserted on the `LoadDiff` effects core emits (`DiffSpec::git_argv` / `untracked_argv`).

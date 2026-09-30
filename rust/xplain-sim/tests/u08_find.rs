@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u08-find`.
+//! Scenario tests: find.
 
 mod search_support;
 

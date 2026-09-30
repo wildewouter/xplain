@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u01-cli`.
+//! Scenario tests: cli.
 //!
 //! Not portable in-process (see the port report): the alternate/main screen switch, stderr kept apart from the
 //! PTY, and the git-shim screens (the sim runs real git for diff loads, so the "shimmed git prints nothing"

@@ -1,7 +1,0 @@
-id: F-CLI-05
-title: 'Ctrl+C on the git error screen exits 0'
-fixture: nogit
-steps:
-  - expectScreen: {notContains: ['[mcp: off]', 'hjkl move'], matches: '\S'}
-  - keys: <C-c>
-  - expectExit: 0

@@ -1,7 +1,0 @@
-id: F-CLI-03
-title: '--theme=contrast (= form) starts with contrast theme'
-args: [--theme=contrast]
-steps:
-  - expectScreen:
-      line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[contrast\] \[mcp: off\] '}
-  - expectCell: {at: {text: '[contrast]', row: 0, offset: 1}, fg: '#ff00ff'}

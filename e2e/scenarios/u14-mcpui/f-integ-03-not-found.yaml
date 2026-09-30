@@ -1,7 +1,0 @@
-id: F-INTEG-03
-title: 'register with CLI missing: "<label> CLI not found"'
-steps:
-  - keys: M<Enter>jj
-  - expectScreen: {matches: '^ +│> Codex not registered', notContains: 'CLI not found'}
-  - keys: <Enter>y
-  - expectScreen: {matches: '^ +│> Codex not registered[^\n]*│\n( +│[^\n]*│\n)*? +│ Codex CLI not found +│$'}

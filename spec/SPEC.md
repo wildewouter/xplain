@@ -1384,7 +1384,7 @@ Bugs / quirks of current app and library-dependent details. Not contract. Tests 
 
 ## Coverage index
 
-Test: `yes` = in test scope; `no (REMOVED)` / `no (UNSPEC)` = out of test scope. UNSPEC parts of in-scope features never asserted (UNSPEC section). Parts marked `(not black-box tested)` in a feature body are contract but have no e2e trigger (F-MCPSRV-02 500 / missing Host, F-MCPSRV-04 clientInfo caps, F-MCPSRV-05 20000-char cap, F-MCPSRV-06 requeue of a delivered question whose response was not written, 1..120 `wait_seconds` clamp, F-MCPUI-03 other listen failure).
+Test: `yes` = has Rust tests (in-process scenario tests live in `rust/xplain-sim`, unit tests in each crate; `rust/xplain-sim/tests/spec_coverage.rs` gates this index); `no (REMOVED)` / `no (UNSPEC)` = out of test scope. UNSPEC parts of in-scope features never asserted (UNSPEC section). Parts marked `(not black-box tested)` in a feature body are contract but have no scenario-test trigger (F-MCPSRV-02 500 / missing Host, F-MCPSRV-04 clientInfo caps, F-MCPSRV-05 20000-char cap, F-MCPSRV-06 requeue of a delivered question whose response was not written, 1..120 `wait_seconds` clamp, F-MCPUI-03 other listen failure).
 
 | ID           | Summary                                                               | Test         |
 | ------------ | --------------------------------------------------------------------- | ------------ |

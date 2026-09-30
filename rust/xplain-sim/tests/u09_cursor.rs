@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u09-cursor`.
+//! Scenario tests: cursor.
 
 use serde_json::json;
 use xplain_sim::{CellExpect as C, Fixture, Sim};

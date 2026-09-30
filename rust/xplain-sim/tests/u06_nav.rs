@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u06-nav`.
+//! Scenario tests: nav.
 
 use xplain_sim::{CellExpect as C, Fixture, Sim};
 

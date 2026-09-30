@@ -1,8 +1,0 @@
-id: F-CLI-06
-title: '--config -c.json takes the dash value verbatim as config path (not a flag, not a git arg)'
-args: [--config, -c.json]
-files:
-  -c.json: {theme: light, view: {split: true}}
-steps:
-  - expectScreen:
-      line: {row: 0, matches: '^\[all\] \[full\] \[split\] \[light\] \[mcp: off\] '}

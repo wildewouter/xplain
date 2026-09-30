@@ -1,9 +1,0 @@
-id: F-MCPUI-01
-title: 'M inside a text input is typed, no modal'
-steps:
-  - keys: a
-  - expectScreen: {contains: 'enter send'}
-  - keys: M
-  - expectScreen: {matches: '│ M +│', notContains: INTEGRATIONS}
-  - keys: <Esc>M
-  - expectScreen: {contains: INTEGRATIONS}

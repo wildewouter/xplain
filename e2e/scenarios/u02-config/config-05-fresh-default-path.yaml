@@ -1,6 +1,0 @@
-id: F-CONFIG-05
-title: select with no config file creates $XDG_CONFIG_HOME/xplain/config.json
-steps:
-  - expectFile: {path: '${CONFIG}/xplain/config.json', exists: false}
-  - keys: Cll<Enter>
-  - expectFile: {path: '${CONFIG}/xplain/config.json', equals: "{\n\t\"version\": 1,\n\t\"theme\": \"dull\"\n}\n"}

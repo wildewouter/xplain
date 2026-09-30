@@ -1,9 +1,0 @@
-id: F-CLI-04
-title: 'config path honors $XPLAIN_CONFIG'
-tui: false
-args: [config, path]
-env: {XPLAIN_CONFIG: '${TMP}/env.json'}
-steps:
-  - expectExit: 0
-  - expectStdout: {equals: "${TMP}/env.json\n"}
-  - expectStderr: {equals: ''}

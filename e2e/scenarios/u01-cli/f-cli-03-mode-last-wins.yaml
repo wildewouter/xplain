@@ -1,6 +1,0 @@
-id: F-CLI-03
-title: 'several mode flags - last one wins (--staged then --mode unstaged gives unstaged)'
-args: [--staged, --mode, unstaged]
-steps:
-  - expectScreen:
-      line: {row: 0, matches: '^\[unstaged\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/3\] '}

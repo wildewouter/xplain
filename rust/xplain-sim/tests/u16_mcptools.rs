@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u16-mcptools` (MCP tools: next_question, answer, annotate, get_questions,
+//! Scenario tests (MCP tools: next_question, answer, annotate, get_questions,
 //! files_changed, modal counters).
 //!
 //! Concurrent clients without a session are told apart by their TCP remote port in the real app; here every

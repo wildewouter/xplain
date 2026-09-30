@@ -1,9 +1,0 @@
-id: F-CONFIG-01
-title: --config=<f> file is read
-env: {XPLAIN_CONFIG: '${TMP}/env/cfg.json'}
-args: ['--config=${TMP}/flag/cfg.json']
-files:
-  ${TMP}/flag/cfg.json: {theme: light}
-  ${TMP}/env/cfg.json: {theme: contrast}
-steps:
-  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[light\] \[mcp: off\] '}}

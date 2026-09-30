@@ -1,6 +1,6 @@
 //! Find (`/`, `n`, `N`) and goto-line (`:`).
 //!
-//! Spec: F-FIND-01..03, F-GOTO-01/02. Oracle: `sOpen/sText/term/matchRows/findNext`, `goLine` in `src/app.tsx`.
+//! Spec: F-FIND-01..03, F-GOTO-01/02.
 //! Owner: component `navops` (C). Uses `rows::{find_all, search_texts}` and `nav::place`. Must not render
 //! (highlights are drawn by view rows from `state.find.term`).
 

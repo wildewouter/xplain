@@ -1,8 +1,0 @@
-id: F-CLI-05
-title: 'Ctrl+C in diff view exits 0 at once - no quit confirm even with confirmQuit on (default); alternate screen left'
-steps:
-  - expectScreen:
-      line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] '}
-  - keys: <C-c>
-  - expectExit: 0
-  - expectScreen: {notContains: ['Quit xplain?', '[mcp: off]', 'hjkl move']}

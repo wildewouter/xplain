@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u07-search`.
+//! Scenario tests: search.
 
 mod search_support;
 

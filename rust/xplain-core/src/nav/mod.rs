@@ -56,7 +56,7 @@ pub fn clear_count(state: &mut State) {
 
 /// Handle a key in cursor/visual/browse context: hjkl w b e 0 ^ $ d u Space PgUp PgDn g G arrows, digits
 /// (count), `p`, `v` `V`, Esc chain (F-CURSOR-10, selection end). Ctrl combos ignored (F-NAV-07). Returns true
-/// when consumed. Runs after overlays and comment focus had their turn. Home/End are unbound (oracle).
+/// when consumed. Runs after overlays and comment focus had their turn. Home/End are unbound.
 /// Keys not handled here (returns false) clear the pending count.
 pub fn on_key(state: &mut State, key: KeyEvent, _fx: &mut Fx) -> bool {
     if !key.mods.ctrl

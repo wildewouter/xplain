@@ -1,6 +1,6 @@
-//! Ported from `e2e/scenarios/u02-config`.
+//! Scenario tests: config.
 //!
-//! Warnings that the e2e suite read off the main screen after exit are checked on `Sim::stderr()` instead.
+//! Warnings printed to stderr before the UI are checked on `Sim::stderr()` instead.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

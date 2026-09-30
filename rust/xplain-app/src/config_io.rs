@@ -38,7 +38,7 @@ pub async fn save_config(path: &str, change: &ConfigChange) -> Result<(), Config
     let out = apply_patch(existing.as_deref(), &change.to_patch())?;
     let p = Path::new(path);
     if let Some(parent) = p.parent().filter(|d| !d.as_os_str().is_empty()) {
-        // Existing non-directory on the path reports AlreadyExists; TS ensureDir maps it to ENOTDIR.
+        // Existing non-directory on the path reports AlreadyExists, which is reported as ENOTDIR.
         tokio::fs::create_dir_all(parent).await.map_err(|e| {
             if e.kind() == ErrorKind::AlreadyExists {
                 ConfigSaveError::Io(IoReason::NotDirectory)

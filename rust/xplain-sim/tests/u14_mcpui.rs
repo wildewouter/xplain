@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u14-mcpui` (MCP modal, integration registration, copy texts).
+//! Scenario tests (MCP modal, integration registration, copy texts).
 
 use serde_json::json;
 use xplain_sim::{CellExpect as C, Http, Rule, Sim, SimBuilder};
@@ -6,7 +6,7 @@ use xplain_sim::{CellExpect as C, Http, Rule, Sim, SimBuilder};
 const PORT: &str = "47615";
 const TOKEN: &str = "tok-0123456789abcdefXYZ";
 
-/// Builder with the MCP port pinned (the e2e runner passes a free `${PORT}`; the sim never listens).
+/// Builder with the MCP port pinned (the sim never listens).
 fn base() -> SimBuilder {
     Sim::builder().env("XPLAIN_MCP_PORT", PORT)
 }

@@ -241,7 +241,7 @@ pub enum SyntaxClass {
 }
 
 /// Color of a syntax class in a theme, and whether syntax tokens are bold (F-THEME-02, UNSPEC-31).
-/// `None` = terminal default (punctuation has no token color in the oracle).
+/// `None` = terminal default (punctuation has no token color).
 pub fn syntax_color(id: ThemeId, class: SyntaxClass) -> Option<Color> {
     let p: [Color; 6] = match id {
         ThemeId::Vibrant => [

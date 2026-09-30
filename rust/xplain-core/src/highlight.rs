@@ -99,7 +99,7 @@ fn known_lang(name: &str) -> Option<&'static str> {
 /// Language id for a file path by extension (same table as `langs` in highlight.ts), `None` = plain.
 pub fn language_for_path(path: &str) -> Option<&'static str> {
     let name = path.rsplit(['/', '\\']).next().unwrap_or(path);
-    // oracle: text after the last `.` of the whole path (a dotless name maps to itself and misses the table)
+    // text after the last `.` of the whole path (a dotless name maps to itself and misses the table)
     let ext = name.rsplit('.').next().unwrap_or(name).to_lowercase();
     if !name.contains('.') {
         return None;

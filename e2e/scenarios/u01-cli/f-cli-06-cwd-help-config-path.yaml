@@ -1,8 +1,0 @@
-id: F-CLI-06
-title: '--cwd --help consumes --help as the dir value, so config path runs instead of help'
-tui: false
-args: [--cwd, --help, config, path]
-steps:
-  - expectExit: 0
-  - expectStdout: {equals: "${CONFIG}/xplain/config.json\n"}
-  - expectStderr: {equals: ''}

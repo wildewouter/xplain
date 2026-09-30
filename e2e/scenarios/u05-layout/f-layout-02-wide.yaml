@@ -1,8 +1,0 @@
-id: F-LAYOUT-02
-title: 'footer at cols 100 with split: no narrow part, split hints, n = 4 paired split rows'
-size: 100x24
-args: [--split]
-steps:
-  - expectScreen:
-      line: {row: -1, matches: '^\(1-4/4\) hjkl move  enter ask  J/K comments  p pane  \? help$'}
-      notContains: too narrow

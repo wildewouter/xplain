@@ -1,9 +1,0 @@
-id: F-CONFIG-01
-title: --config "" (empty) falls back to XPLAIN_CONFIG for reading
-env: {XPLAIN_CONFIG: '${TMP}/env/cfg.json'}
-args: [--config, '']
-files:
-  ${TMP}/env/cfg.json: {theme: contrast}
-  ${CONFIG}/xplain/config.json: {theme: vibrant}
-steps:
-  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[contrast\] \[mcp: off\] '}}

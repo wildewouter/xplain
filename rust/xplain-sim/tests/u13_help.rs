@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u13-help`.
+//! Scenario tests: help.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use regex::Regex;
@@ -10,7 +10,7 @@ fn j(text: &str) -> Value {
 }
 
 /// Multiline regex over the screen text where `(?P<wI_N>..)` groups mark whole lines that must be exactly N
-/// chars wide (the e2e regexes used a look-ahead for that; the regex crate has none).
+/// chars wide (the regex crate has no look-ahead).
 #[track_caller]
 fn assert_wide(s: &Sim, pattern: &str) {
     s.assert_matches(pattern);

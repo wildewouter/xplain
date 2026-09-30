@@ -1,7 +1,0 @@
-id: F-CLI-05
-title: 'Ctrl+C inside the quit confirm modal exits 0'
-steps:
-  - keys: q
-  - expectScreen: {contains: 'Quit xplain? (y/n)'}
-  - keys: <C-c>
-  - expectExit: 0

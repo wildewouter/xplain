@@ -4,7 +4,7 @@
 //! Owner: component `shell` (G). Routing only: every behavior lives in the handler modules named below.
 //! Must not: perform IO, read the clock, block, or contain feature logic beyond dispatch.
 //!
-//! Key routing order (first handler that consumes wins; mirrors the `useInput` order in `src/app.tsx`):
+//! Key routing order (first handler that consumes wins):
 //! 1. Ctrl+C -> `Effect::Exit{0}` in every state (after `mcp_ui`-style stop is NOT needed: exit is immediate).
 //! 2. `help::on_key` (panel open / `?`).
 //! 3. Open overlay -> `Overlay::route_key` (the per-modal dispatch lives beside the `Overlay` type in `state`).

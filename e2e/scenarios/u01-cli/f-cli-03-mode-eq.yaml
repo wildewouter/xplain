@@ -1,7 +1,0 @@
-id: F-CLI-03
-title: '--mode=staged (= form) starts in staged mode; nothing staged in fixture, so no-changes header'
-args: [--mode=staged]
-steps:
-  - expectScreen:
-      line: {row: 0, matches: '^\[staged\] \[mcp: off\] No changes '}
-      notContains: README.md

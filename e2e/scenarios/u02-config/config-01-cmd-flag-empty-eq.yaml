@@ -1,8 +1,0 @@
-id: F-CONFIG-01
-title: --config= (empty) counts as unset, XPLAIN_CONFIG used
-tui: false
-env: {XPLAIN_CONFIG: '${TMP}/env/cfg.json'}
-args: ['--config=', config, path]
-steps:
-  - expectExit: 0
-  - expectStdout: {equals: "${TMP}/env/cfg.json\n"}

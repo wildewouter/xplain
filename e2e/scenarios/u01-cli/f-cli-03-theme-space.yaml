@@ -1,7 +1,0 @@
-id: F-CLI-03
-title: '--theme light (space form) starts with light theme (chip text and light view color)'
-args: [--theme, light]
-steps:
-  - expectScreen:
-      line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[light\] \[mcp: off\] '}
-  - expectCell: {at: {text: '[light]', row: 0, offset: 1}, fg: '#8f1f8f'}

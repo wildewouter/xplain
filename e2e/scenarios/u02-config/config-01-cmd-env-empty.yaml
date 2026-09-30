@@ -1,8 +1,0 @@
-id: F-CONFIG-01
-title: empty XPLAIN_CONFIG counts as unset, XDG path used
-tui: false
-env: {XPLAIN_CONFIG: ''}
-args: [config, path]
-steps:
-  - expectExit: 0
-  - expectStdout: {equals: "${CONFIG}/xplain/config.json\n"}

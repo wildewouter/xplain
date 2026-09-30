@@ -1,8 +1,0 @@
-id: F-CLI-05
-title: 'Ctrl+C inside the config modal exits 0 without saving anything'
-steps:
-  - keys: C
-  - expectScreen: {contains: ' Config', matches: 'confirm quit'}
-  - keys: <C-c>
-  - expectExit: 0
-  - expectFile: {path: '${CONFIG}/xplain/config.json', exists: false}

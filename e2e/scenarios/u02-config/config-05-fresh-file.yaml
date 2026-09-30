@@ -1,9 +1,0 @@
-id: F-CONFIG-05
-title: 'select on missing file writes {"version": 1} + patch, tab indent, trailing newline, parent dirs created'
-args: [--config, '${TMP}/new/deep/cfg.json']
-steps:
-  - expectFile: {path: '${TMP}/new', exists: false}
-  - note: theme row, two right = dull, select
-    keys: Cll<Enter>
-  - expectScreen: {line: {row: 0, matches: '^\[all\] \[full\] \[unified\] \[dull\] '}}
-  - expectFile: {path: '${TMP}/new/deep/cfg.json', equals: "{\n\t\"version\": 1,\n\t\"theme\": \"dull\"\n}\n"}

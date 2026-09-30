@@ -3,7 +3,7 @@
 Dev-only crate (`publish = false`): the in-process scenario test harness. It runs the real `xplain-core`
 (`update`/`view`) with the real integration registry (`xplain_integrations::all()`), the app's own argv/config
 startup (`xplain_app::run::prepare`), real git and files in temp dirs, a manual clock, a fake command runner and
-in-process MCP HTTP. No terminal, no sockets, no sleeps. It replaces the black box `e2e/` suite.
+in-process MCP HTTP. No terminal, no sockets, no sleeps.
 
 ```rust
 use xplain_sim::{Sim, CellExpect as C};
@@ -14,15 +14,14 @@ s.assert_row_matches(0, r"\[2/4\] \[cursor L30:C1\] src/big\.ts ");
 s.assert_text_cell("[all]", 0, C::new().fg("#b58900"));
 ```
 
-Run: `cargo test -p xplain-sim` (a scenario takes about 0.1 s). Files: `tests/uNN_<area>.rs` mirror
-`e2e/scenarios/uNN-<area>/`, test fns are `f_<group>_<nn>_<what>` (spec id `F-NAV-09` -> `f_nav_09_...`).
+Run: `cargo test -p xplain-sim` (a scenario takes about 0.1 s). Files: `tests/uNN_<area>.rs` group scenarios by area, test fns are `f_<group>_<nn>_<what>` (spec id `F-NAV-09` -> `f_nav_09_...`).
 `tests/harness.rs` tests the harness itself.
 
 ## Builder (`Sim::builder()`, then `.build()`)
 
 | method                                   | meaning                                                                                   |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `fixture(Fixture::Standard/Empty/NoGit)` | like `e2e/fixture.sh` (default Standard)                                                  |
+| `fixture(Fixture::Standard/Empty/NoGit)` | Standard = git repo, HEAD = `fixtures/base`, work tree = `fixtures/work` (default)        |
 | `args([..])`, `theme(name)`              | argv, parsed by `xplain_app::cli` exactly as the binary does; `theme` prepends `--theme`  |
 | `size(cols, rows)`                       | default 120x40                                                                            |
 | `env(k, v)`, `env_unset(k)`              | `HOME XDG_CONFIG_HOME XDG_STATE_HOME XPLAIN_CONFIG XPLAIN_MCP_PORT XPLAIN_SYNC COLORTERM` |
@@ -40,7 +39,7 @@ The standard fixture repo is built once per fixture content (cached in the OS te
 
 ## Driving
 
-Key notation is the one of `e2e/README.md`: literal text = one key per char; tokens `<Esc> <Enter> <Tab> <S-Tab>
+Key notation: literal text = one key per char; tokens `<Esc> <Enter> <Tab> <S-Tab>
 <Up> <Down> <Left> <Right> <Home> <End> <PageUp> <PageDown> <Space> <BS> <Del>`, `<C-x>`, `<A-x>`/`<M-x>`,
 `<lt>` for `<`. Unknown tokens and a bare `<` panic.
 

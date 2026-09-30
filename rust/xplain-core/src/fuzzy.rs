@@ -1,6 +1,6 @@
 //! fzf-style path matcher for file search.
 //!
-//! Spec: F-SEARCH-01 (matching, smart case, ordering, highlight indices). Oracle: `src/match.ts`.
+//! Spec: F-SEARCH-01 (matching, smart case, ordering, highlight indices).
 //! Owner: component `parse` (A). Pure, no state.
 //! Must not: know about UI state or the search modal.
 
@@ -96,7 +96,7 @@ fn score(t: &[char], idx: &[usize]) -> i64 {
 }
 
 /// Empty query returns all paths in input order with empty `idx`. Otherwise smart-case subsequence match,
-/// ranked exact > score > shorter path > input order (same algorithm as `matchPaths` in match.ts).
+/// ranked exact > score > shorter path > input order.
 pub fn match_paths(query: &str, paths: &[String]) -> Vec<PathHit> {
     if query.is_empty() {
         return paths.iter().map(|p| PathHit { path: p.clone(), idx: Vec::new() }).collect();

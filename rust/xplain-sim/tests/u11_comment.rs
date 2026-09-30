@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u11-comment` (F-COMMENT-06..10, F-EXPORT-01/02).
+//! Scenario tests (F-COMMENT-06..10, F-EXPORT-01/02).
 
 #![allow(clippy::expect_used, clippy::panic)]
 

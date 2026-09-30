@@ -299,7 +299,7 @@ impl Sim {
 
     // ---- paths and temp files -------------------------------------------------------------------------------
 
-    /// Expand `${TMP} ${REPO} ${HOME} ${CONFIG} ${STATE}` (same names as the e2e suite).
+    /// Expand `${TMP} ${REPO} ${HOME} ${CONFIG} ${STATE}`.
     pub fn expand(&self, s: &str) -> String {
         s.replace("${TMP}", &self.root.path().to_string_lossy())
             .replace("${REPO}", &self.repo.to_string_lossy())

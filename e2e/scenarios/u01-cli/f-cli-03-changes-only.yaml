@@ -1,6 +1,0 @@
-id: F-CLI-03
-title: '--changes-only starts in changes scope'
-args: [--changes-only]
-steps:
-  - expectScreen:
-      line: {row: 0, matches: '^\[all\] \[changes\] \[unified\] \[solarized\] \[mcp: off\] \[1/4\] '}

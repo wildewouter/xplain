@@ -1,8 +1,7 @@
 //! Review export: markdown rendering, file name, `E` key.
 //!
 //! Spec: F-EXPORT-01 (`E`: file `xplain-review-<local timestamp>.md` in cwd, notes, `WriteExport` effect,
-//! `export failed` note), F-EXPORT-02 (exact markdown format). Oracle: `src/ask/export.ts`, `exportReview`
-//! in `src/app.tsx`. Owner: component `agent` (E). Must not: do IO (effect only).
+//! `export failed` note), F-EXPORT-02 (exact markdown format). Owner: component `agent` (E). Must not: do IO (effect only).
 
 use crate::comments::{Answer, AnswerStatus, Comment, Origin, PaneSide};
 use crate::effect::{Effect, Fx};

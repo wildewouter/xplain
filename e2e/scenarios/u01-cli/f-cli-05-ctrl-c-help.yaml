@@ -1,7 +1,0 @@
-id: F-CLI-05
-title: 'Ctrl+C with the help panel open exits 0'
-steps:
-  - keys: '?'
-  - expectScreen: {contains: 'Help · Diff view'}
-  - keys: <C-c>
-  - expectExit: 0

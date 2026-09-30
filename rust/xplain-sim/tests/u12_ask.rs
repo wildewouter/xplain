@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u12-ask`.
+//! Scenario tests: ask.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use regex::Regex;
@@ -9,7 +9,7 @@ fn j(text: &str) -> Value {
     serde_json::from_str(text).unwrap_or_else(|e| panic!("bad json {text}: {e}"))
 }
 
-/// JSON subset match of the e2e runner: objects need only the listed keys, arrays match element-wise (same
+/// JSON subset match: objects need only the listed keys, arrays match element-wise (same
 /// length), scalars are equal. An object of `$` operators (`$contains`, `$matches`, `$len`, `$exists`,
 /// `$not_contains`) checks the actual value instead.
 #[track_caller]

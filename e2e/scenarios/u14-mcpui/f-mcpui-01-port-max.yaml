@@ -1,9 +1,0 @@
-id: F-MCPUI-01
-title: 'XPLAIN_MCP_PORT 65535 (max) is valid: start binds it or reports the port busy, never the invalid-port error'
-env: {XPLAIN_MCP_PORT: '65535'}
-steps:
-  - keys: M<Enter>
-  - note: another process may hold 65535 - both outcomes use port 65535
-    expectScreen:
-      matches: '^ +│> (● on  127\.0\.0\.1:65535 +│|○ off +│\n +│ MCP port 65535 is already in use on 127\.0\.0\.1\. )'
-      notContains: invalid XPLAIN_MCP_PORT

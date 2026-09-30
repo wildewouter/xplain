@@ -1,6 +1,6 @@
-//! Temp dirs, fixture repos (same layout as `e2e/fixture.sh`) and isolated git invocations.
+//! Temp dirs, fixture repos and isolated git invocations.
 //!
-//! `standard` = git repo with HEAD = `tests/fixture/base`, work tree = `tests/fixture/work` (`*.fx` renamed).
+//! `standard` = git repo with HEAD = `fixtures/base`, work tree = `fixtures/work`.
 //! `empty` = git repo with one empty commit. `nogit` = plain empty dir. The standard repo is built once per
 //! fixture content (cached under the OS temp dir, keyed by a content hash) and copied per Sim, so a Sim costs a
 //! directory copy, not four git processes.
@@ -90,20 +90,7 @@ fn git_ok(dir: &Path, home: &Path, args: &[&str]) {
 }
 
 fn fixture_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixture")
-}
-
-fn unfx(dir: &Path) {
-    let Ok(rd) = std::fs::read_dir(dir) else { return };
-    for e in rd.flatten() {
-        let p = e.path();
-        let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
-        if is_dir {
-            unfx(&p);
-        } else if p.extension().is_some_and(|x| x == "fx") {
-            must(std::fs::rename(&p, p.with_extension("")), "rename .fx");
-        }
-    }
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures")
 }
 
 fn copy_tree(from: &Path, to: &Path) {
@@ -147,10 +134,8 @@ fn standard_template() -> &'static Path {
         must(std::fs::create_dir_all(&home), "create template home");
         let repo = build.join("repo");
         copy_tree(&root.join("base"), &repo);
-        unfx(&repo);
         commit_all(&repo, &home);
         copy_tree(&root.join("work"), &repo);
-        unfx(&repo);
         if std::fs::rename(&repo, &done).is_err() {
             // Another process won the race: use theirs.
             let _ = std::fs::remove_dir_all(&build);

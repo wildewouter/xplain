@@ -1,4 +1,4 @@
-# In-scope spec IDs with no Rust test yet (covered only by the old e2e suite).
+# In-scope spec IDs with no Rust test yet .
 # Format: F-X-NN <reason>. The gate fails if a listed ID already has a test.
 # Empty: all 119 in-scope IDs have at least one Rust test. Partial gaps inside covered
 # features (real terminal, real git shim, real sockets) are tracked in the merge report.

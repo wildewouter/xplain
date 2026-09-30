@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u05-layout`.
+//! Scenario tests: layout.
 #![allow(clippy::panic, clippy::unwrap_used)]
 
 use xplain_sim::{CellExpect as C, Fixture, Sim};

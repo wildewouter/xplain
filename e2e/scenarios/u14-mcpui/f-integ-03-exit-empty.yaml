@@ -1,9 +1,0 @@
-id: F-INTEG-03
-title: 'register non-zero exit, no output: no ": " suffix'
-shims:
-  claude:
-    - {match: [mcp, get], exit: 1}
-    - {match: [mcp, add], exit: 5}
-steps:
-  - keys: M<Enter>j<Enter>y
-  - expectScreen: {matches: '^ +│ Claude Code register failed \(exit 5\) +│$'}

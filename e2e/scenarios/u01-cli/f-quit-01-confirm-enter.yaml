@@ -1,7 +1,0 @@
-id: F-QUIT-01
-title: 'Enter in the quit confirm quits with exit 0'
-steps:
-  - keys: q
-  - expectScreen: {contains: 'Quit xplain? (y/n)'}
-  - keys: <Enter>
-  - expectExit: 0

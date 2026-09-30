@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u10-visual`.
+//! Scenario tests: visual.
 
 #![allow(clippy::panic, clippy::unwrap_used)]
 
@@ -657,8 +657,7 @@ fn f_comment_04_code_hint() {
 }
 
 /// F-COMMENT-04: comment box - dim round border, accent head ` sent  <head>` + dim `saved · not asked`; focused -
-/// accent border, ` ▸ ` bold head, hint row. (The oracle draws the focused border with heavy box chars; either
-/// line style is accepted, accent fg only.)
+/// accent border, ` ▸ ` bold head, hint row. (Either heavy or light box chars are accepted, accent fg only.)
 #[test]
 fn f_comment_04_focus_render() {
     let mut s = sim(80, 20, &[("f.txt", "alpha beta\ntwo words here\n")]);

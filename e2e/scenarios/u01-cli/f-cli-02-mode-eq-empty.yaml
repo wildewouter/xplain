@@ -1,9 +1,0 @@
-id: F-CLI-02
-title: '--mode= (empty) fails with "invalid mode: " (trailing space)'
-tui: false
-args: [--mode=]
-steps:
-  - expectExit: 1
-  - expectStdout: {equals: ''}
-  - expectStderr:
-      {matches: '(?<![\s\S])xplain: invalid mode: \nusage: xplain \[--cwd dir\][\s\S]*C config, q quits\n(?![\s\S])'}

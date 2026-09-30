@@ -3,8 +3,8 @@
 //!
 //! A test covers an ID when its fn is named `f_<group>_<nn>_...` (maps to `F-<GROUP>-<NN>`)
 //! or when a `// covers: F-X-NN[, F-Y-NN]` comment marker is present.
-//! `app_pending.txt`: one `F-X-NN reason` per line, `#` comments allowed. IDs covered only by
-//! the old e2e suite until app integration tests exist. Entries that already have a test fail.
+//! `app_pending.txt`: one `F-X-NN reason` per line, `#` comments allowed. IDs not yet covered
+//! by any Rust test. Entries that already have a test fail.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

@@ -1,9 +1,0 @@
-id: F-CLI-06
-title: '--cwd -h takes -h as the dir (no help); dir missing - error screen "cannot open directory -h: not found"'
-args: [--cwd, -h]
-steps:
-  - expectScreen:
-      contains: 'cannot open directory -h: not found'
-      notContains: ['usage: xplain', '[mcp: off]', README.md]
-  - keys: <C-c>
-  - expectExit: 0

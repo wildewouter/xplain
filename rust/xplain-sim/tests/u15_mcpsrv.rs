@@ -1,4 +1,4 @@
-//! Ported from `e2e/scenarios/u15-mcpsrv` (MCP server: token file, request checks, JSON-RPC envelope, tools/list).
+//! Scenario tests (MCP server: token file, request checks, JSON-RPC envelope, tools/list).
 //!
 //! Not portable (no sockets): `expectRefused` before start / after stop of `f-mcpsrv-01-token-created-on-start`
 //! (replaced by `mcp_endpoint()` checks).
@@ -15,7 +15,7 @@ fn base() -> SimBuilder {
     Sim::builder().env("XPLAIN_MCP_PORT", PORT)
 }
 
-/// Autostarted server with a known token (the config + token file of the e2e scenarios).
+/// Autostarted server with a known token (config + token file).
 fn known() -> SimBuilder {
     base()
         .config_json(json!({"mcp": {"autostart": true}}))
@@ -238,8 +238,7 @@ fn f_mcpsrv_01_token_short() {
 /// Token file cannot be written (state dir not writable): error row "cannot write <state dir>/mcp.json:
 /// permission denied".
 ///
-/// The e2e scenario uses a relative `XDG_STATE_HOME` to keep the path short enough for the 64-col modal row; the
-/// sim resolves the state dir against the test process, so the absolute temp path is used and the modal cuts the
+/// The sim resolves the state dir against the test process, so the absolute temp path is used (long) and the modal cuts the
 /// message: only its prefix is visible.
 #[test]
 fn f_mcpsrv_01_write_denied() {

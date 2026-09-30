@@ -1,6 +1,6 @@
 //! OSC 52 clipboard sequence.
 //!
-//! Spec: Contract surface "stdout escape OSC 52", PORTING "Clipboard via OSC 52", F-ASK-08.
+//! Spec: Contract surface "stdout escape OSC 52", F-ASK-08.
 //! Owner: component A (runtime).
 //! Must not: write to any stream or call system clipboard tools. Pure bytes; the runtime writes them to
 //! the same stdout as frames, never interleaved inside a frame.

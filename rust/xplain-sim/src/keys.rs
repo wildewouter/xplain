@@ -1,4 +1,4 @@
-//! Key notation of `e2e/README.md`: literal text is one key per char, `<Name>` tokens are special keys.
+//! Key notation: literal text is one key per char, `<Name>` tokens are special keys.
 //!
 //! Tokens: `<Esc> <Enter> <Tab> <S-Tab> <Up> <Down> <Left> <Right> <Home> <End> <PageUp> <PageDown> <Space> <BS>
 //! <Del>`, `<C-x>` (ctrl), `<A-x>` / `<M-x>` (alt), `<lt>` for a literal `<`. Unknown tokens panic (a typo must

@@ -1,9 +1,0 @@
-id: F-CLI-03
-title: '--config=<f> (= form) reads that file'
-args: ['--config=${TMP}/custom.json']
-files:
-  ${TMP}/custom.json: {theme: colorblind, view: {mode: unstaged}}
-  ${CONFIG}/xplain/config.json: {theme: vibrant}
-steps:
-  - expectScreen:
-      line: {row: 0, matches: '^\[unstaged\] \[full\] \[unified\] \[colorblind\] \[mcp: off\] \[1/3\] '}

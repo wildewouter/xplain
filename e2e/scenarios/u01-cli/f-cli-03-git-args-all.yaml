@@ -1,9 +1,0 @@
-id: F-CLI-03
-title: 'non-flag args (also unknown --x and --) go to git in order; in all mode they replace HEAD'
-args: [v1, --x, --, 'a b.txt']
-shims: [git]
-steps:
-  - expectScreen: {line: {row: 0, matches: '^\[all\] \[mcp: off\] No changes '}}
-  - expectShimCall:
-      {name: git, args: [diff, --no-color, --no-ext-diff, -U1000000, v1, --x, --, 'a b.txt'], cwd: '${REPO}'}
-  - expectShimCall: {name: git, argsContain: [HEAD], count: 0}
