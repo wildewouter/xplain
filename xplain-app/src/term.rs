@@ -69,6 +69,24 @@ impl Drop for RawMode {
     }
 }
 
+/// `XPLAIN_KEYLOG` debug aid: appends one line per stdin read (`<unix ms> bytes=<hex> items=<decoded>`).
+pub struct KeyLog(std::fs::File);
+
+impl KeyLog {
+    /// Open (append, create) `path`; `None` when it cannot be opened (logging is best effort).
+    pub fn open(path: &str) -> Option<KeyLog> {
+        std::fs::OpenOptions::new().create(true).append(true).open(path).ok().map(KeyLog)
+    }
+
+    pub fn record(&mut self, bytes: &[u8], items: &[crate::input::InputItem]) {
+        use std::io::Write;
+        let ms =
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
+        let hex: Vec<String> = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        let _ = writeln!(self.0, "{ms} bytes={} items={items:?}", hex.join(" "));
+    }
+}
+
 /// Last terminal size seen, shared by the stdin reader and the SIGWINCH watcher so a resize is reported once.
 /// Chains a panic hook that restores the terminal (raw mode off, main screen, cursor) before the previous hook
 /// prints the message. Needed because the release profile aborts on panic, so no `Drop` runs.
@@ -154,6 +172,19 @@ pub fn spawn_resize_watcher_tracked(tx: UnboundedSender<Size>, tracker: SizeTrac
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn f_cli_05_keylog_appends_hex_and_items() {
+        let path = std::env::temp_dir().join(format!("xplain-keylog-{}", std::process::id()));
+        let p = path.to_str().unwrap();
+        let mut l = KeyLog::open(p).unwrap();
+        let items = crate::input::InputDecoder::new().feed(b"F\x1b");
+        l.record(b"F\x1b", &items);
+        let text = std::fs::read_to_string(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert!(text.contains("bytes=46 1b items=[Key("), "{text}");
+        assert!(text.contains("Esc"), "{text}");
+    }
 
     #[test]
     fn f_layout_01_zero_size_defaults() {

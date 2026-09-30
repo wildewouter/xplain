@@ -58,6 +58,9 @@ Crates:
 - `xplain-app`: runtime and binary `xplain` (terminal, effects, HTTP server, argv).
 - `xplain-sim`: dev-only in-process scenario test harness; see its README.
 
+Debugging keys: `XPLAIN_KEYLOG=/tmp/keys.log xplain` appends one line per stdin read (raw bytes as hex, decoded
+keys), so a terminal that sends unexpected bytes can be diagnosed with `tail -f /tmp/keys.log`.
+
 ```sh
 cargo run --bin xplain                 # run in the current git repo (use --cwd <dir> for another)
 cargo run --bin xplain -- --help

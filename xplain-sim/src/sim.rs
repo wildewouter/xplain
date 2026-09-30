@@ -151,6 +151,7 @@ pub struct Sim {
     config_home: PathBuf,
     state_home: PathBuf,
     state: Option<Box<State>>,
+    decoder: xplain_app::input::InputDecoder,
     size: Size,
     elapsed_ms: u64,
     utc_offset_secs: i32,
@@ -216,6 +217,7 @@ impl Sim {
             config_home,
             state_home,
             state: None,
+            decoder: Default::default(),
             size: Size { cols: b.size.0, rows: b.size.1 },
             elapsed_ms: 0,
             utc_offset_secs: b.utc_offset_secs,
@@ -411,6 +413,19 @@ impl Sim {
     pub fn keys(&mut self, spec: &str) -> &mut Self {
         for k in parse_keys(spec) {
             self.input(Event::Key(k));
+        }
+        self
+    }
+    /// Raw terminal bytes, one read: decoded by the real `InputDecoder`, each item delivered and settled.
+    #[track_caller]
+    pub fn bytes(&mut self, raw: &[u8]) -> &mut Self {
+        use xplain_app::input::InputItem;
+        for item in self.decoder.feed(raw) {
+            self.input(match item {
+                InputItem::Key(k) => Event::Key(k),
+                InputItem::Paste(t) => Event::Paste(t),
+                InputItem::Resize(sz) => Event::Resize(sz),
+            });
         }
         self
     }

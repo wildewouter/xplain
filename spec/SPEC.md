@@ -22,9 +22,10 @@ Everything test may touch:
   - `HOME`: fallback for both.
   - `PATH`: finds `git`, `claude`, `codex`, `copilot`.
   - `XPLAIN_MCP_PORT`: MCP listen port (Environment below).
+  - `XPLAIN_KEYLOG`: key debug log file (Environment below).
   - color depth: terminal color detection (`COLORTERM=truecolor` gives 24-bit SGR). Tests pin `COLORTERM=truecolor`, `TERM=xterm-256color`.
 - terminal size: columns (default 80 when unknown), rows (default 24).
-- stdin keys. Escape key = lone `ESC` (held until the next byte arrives; no escape timeout).
+- stdin keys. Escape key = an `ESC` that is the last byte of a read (no escape timeout). `ESC` followed by more bytes in the same read is a key sequence or Alt+key. A sequence split across reads (ESC at the end of one read) decodes as Escape then text: known rare edge case. Also accepted: CSI-u and modifyOtherKeys key reports.
 - screen: header row, rule row, diff viewport, footer row, overlays.
 - stdout escape OSC 52 for clipboard.
 - stderr: flag errors, config warnings.
@@ -37,6 +38,7 @@ Everything test may touch:
 ## Environment
 
 - `XPLAIN_MCP_PORT`: MCP listen port. Unset or empty: 47615. Decimal `0`-`65535` (`0` = any free port). Other value: app runs; MCP start fails with error `invalid XPLAIN_MCP_PORT "<value>" (0-65535)`, shown where start errors show (F-MCPUI-01 error row, F-MCPUI-04 note). Elsewhere `<port>` (URLs, modal power row, port-busy message, integration `<url>`) = effective port; `0` gives actual bound port.
+- `XPLAIN_KEYLOG`: debug aid. Non-empty: file path; each stdin read appends one line `<unix ms> bytes=<hex> items=<decoded keys>` (file created if missing; open failure ignored). Unset or empty: off.
 
 ## Messages
 

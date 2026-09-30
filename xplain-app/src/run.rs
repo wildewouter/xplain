@@ -93,7 +93,14 @@ pub fn main_with_args(args: &[String]) -> i32 {
                 }
             };
             term::install_panic_hook();
-            rt.block_on(runtime::run_loop(*state, effects, RuntimeConfig { truecolor }))
+            rt.block_on(runtime::run_loop(
+                *state,
+                effects,
+                RuntimeConfig {
+                    truecolor,
+                    keylog: std::env::var("XPLAIN_KEYLOG").ok().filter(|s| !s.is_empty()),
+                },
+            ))
         }
     }
 }
