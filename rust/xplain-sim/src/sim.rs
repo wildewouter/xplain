@@ -278,7 +278,9 @@ impl Sim {
         args.extend(b.args.iter().map(|a| sim.expand(a)));
 
         let abs_cwd = sim.proc_cwd.to_string_lossy().into_owned();
-        match prepare(&args, &raw, &abs_cwd, sim.size, &read_config_file) {
+        // relative config paths are relative to the app's cwd, not the test process's
+        let read = |p: &str| read_config_file(&std::path::Path::new(&abs_cwd).join(p).to_string_lossy());
+        match prepare(&args, &raw, &abs_cwd, sim.size, &read) {
             Startup::Exit { code, stdout, stderr } => {
                 sim.exit_code = Some(code);
                 sim.stdout = stdout;
