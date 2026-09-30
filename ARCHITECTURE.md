@@ -76,6 +76,9 @@ xplain-app  --> xplain-core
   argv shapes and agent-specific texts (memory rule: no leaky abstractions; nothing agent specific in UI code).
 - `xplain-app`: everything with side effects. Depends on both. Contains no UI logic and no decisions core can make.
   It never shows OS error text: `IoReason::from_io_error` then core/`fail_msg` words.
+- `xplain-sim` (dev only, `publish = false`, nothing depends on it): in-process scenario test harness. Depends on core,
+  integrations and, for pure startup helpers only (argv, env, config read), app. Runs core with a manual clock, real git
+  and fs in temp dirs and a fake command runner. See `rust/xplain-sim/README.md`.
 - Dependency versions are pinned once in `rust/Cargo.toml` `[workspace.dependencies]`; crates write
   `foo.workspace = true`. Add a dependency to a crate only when used and allowed above.
 

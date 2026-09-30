@@ -1,0 +1,18 @@
+[package]
+name = "xplain-sim"
+description = "Dev-only in-process scenario test harness: drives xplain-core with keys, a manual clock and real git/fs in temp dirs."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+xplain-core.workspace = true
+xplain-integrations.workspace = true
+# Pure argv/env/startup helpers only (`cli`, `env`, `run::prepare`, `config_io::read_config_file`); no terminal, no tokio use.
+xplain-app.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+
+[lints]
+workspace = true
