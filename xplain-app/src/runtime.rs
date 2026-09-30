@@ -24,7 +24,7 @@ use crate::clipboard::osc52;
 use crate::exec::{Executor, PendingWork, RealExecutor};
 use crate::input::{InputDecoder, InputItem};
 use crate::present::Presenter;
-use crate::term::RawMode;
+use crate::term::{KeyLog, RawMode};
 use crate::timers::RealClock;
 
 /// Clock abstraction so tests can drive time. Timers are events: the runtime schedules `TimerId`s and
@@ -41,6 +41,8 @@ pub trait Clock {
 pub struct RuntimeConfig {
     /// 24-bit colors (`COLORTERM`), passed to the presenter.
     pub truecolor: bool,
+    /// `XPLAIN_KEYLOG` file: raw input bytes and decoded items per read are appended (debug aid).
+    pub keylog: Option<String>,
 }
 
 /// What the loop needs from the core: `update`, `view`, clock injection. Real impl wraps
@@ -180,6 +182,14 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
     step!(Event::Started);
 
     let mut decoder = InputDecoder::new();
+    let mut keylog = cfg.keylog.as_deref().and_then(KeyLog::open);
+    let mut decode = |b: &[u8]| {
+        let out = decoder.feed(b);
+        if let Some(l) = keylog.as_mut() {
+            l.record(b, &out);
+        }
+        out
+    };
     let mut items: VecDeque<InputItem> = VecDeque::new();
     let (mut events_open, mut input_open, mut resize_open) = (true, true, true);
     loop {
@@ -194,7 +204,7 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
             match input.try_recv() {
                 Ok(b) => {
                     progress = true;
-                    items.extend(decoder.feed(&b));
+                    items.extend(decode(&b));
                 }
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
@@ -234,7 +244,7 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
                 None => events_open = false,
             },
             bytes = input.recv(), if input_open => match bytes {
-                Some(b) => items.extend(decoder.feed(&b)),
+                Some(b) => items.extend(decode(&b)),
                 None => input_open = false,
             },
             size = resize.recv(), if resize_open => match size {
@@ -469,7 +479,7 @@ mod tests {
                 TestClock::Fake(log.clone())
             };
             let model = Fake { ready: self.initial.is_empty(), keys: 0, log: log.clone() };
-            let cfg = RuntimeConfig { truecolor: true };
+            let cfg = RuntimeConfig { truecolor: true, keylog: None };
             let io = Io {
                 exec,
                 clock,
