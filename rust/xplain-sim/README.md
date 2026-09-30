@@ -20,19 +20,19 @@ Run: `cargo test -p xplain-sim` (a scenario takes about 0.1 s). Files: `tests/uN
 
 ## Builder (`Sim::builder()`, then `.build()`)
 
-| method                                | meaning                                                                                       |
-| ------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `fixture(Fixture::Standard/Empty/NoGit)` | like `e2e/fixture.sh` (default Standard)                                                   |
-| `args([..])`, `theme(name)`           | argv, parsed by `xplain_app::cli` exactly as the binary does; `theme` prepends `--theme`      |
-| `size(cols, rows)`                    | default 120x40                                                                                |
-| `env(k, v)`, `env_unset(k)`           | `HOME XDG_CONFIG_HOME XDG_STATE_HOME XPLAIN_CONFIG XPLAIN_MCP_PORT XPLAIN_SYNC COLORTERM`      |
-| `config(text)`, `config_json(value)`  | writes `${CONFIG}/xplain/config.json` before start                                            |
-| `file(path, text)`, `file_bytes(..)`  | files written before start (relative to the repo)                                             |
-| `cwd(rel)`                            | app working dir inside the repo (created)                                                     |
-| `shim(name)`, `shim_rules(name, [Rule])` | fake integration CLI (see below)                                                           |
-| `hold_io()`                           | hold git/file effects (incl. the initial diff load) until `release_io()`                      |
-| `busy_port(p)`                        | MCP start on `p` fails with the port-busy message                                             |
-| `utc_offset_secs(n)`                  | local offset reported to the app (export file names), default 0                               |
+| method                                   | meaning                                                                                   |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `fixture(Fixture::Standard/Empty/NoGit)` | like `e2e/fixture.sh` (default Standard)                                                  |
+| `args([..])`, `theme(name)`              | argv, parsed by `xplain_app::cli` exactly as the binary does; `theme` prepends `--theme`  |
+| `size(cols, rows)`                       | default 120x40                                                                            |
+| `env(k, v)`, `env_unset(k)`              | `HOME XDG_CONFIG_HOME XDG_STATE_HOME XPLAIN_CONFIG XPLAIN_MCP_PORT XPLAIN_SYNC COLORTERM` |
+| `config(text)`, `config_json(value)`     | writes `${CONFIG}/xplain/config.json` before start                                        |
+| `file(path, text)`, `file_bytes(..)`     | files written before start (relative to the repo)                                         |
+| `cwd(rel)`                               | app working dir inside the repo (created)                                                 |
+| `shim(name)`, `shim_rules(name, [Rule])` | fake integration CLI (see below)                                                          |
+| `hold_io()`                              | hold git/file effects (incl. the initial diff load) until `release_io()`                  |
+| `busy_port(p)`                           | MCP start on `p` fails with the port-busy message                                         |
+| `utc_offset_secs(n)`                     | local offset reported to the app (export file names), default 0                           |
 
 `${TMP} ${REPO} ${HOME} ${CONFIG} ${STATE}` expand in args, env values, file paths (`Sim::expand`). The temp dir
 is removed on drop; `XPLAIN_SIM_KEEP=1` keeps it. Temp paths: `tmp() repo() home() config_dir() state_dir()`.
@@ -82,18 +82,18 @@ Key notation is the one of `e2e/README.md`: literal text = one key per char; tok
 
 ## What is faked and what is real
 
-| effect                               | in the sim                                                                                    |
-| ------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `LoadDiff`, `ListFiles`              | real `git` in the temp repo (hermetic env: no user/system git config), same argv/untracked rules as the app |
-| `ReadFile`, `WriteExport`            | real fs                                                                                       |
-| `SaveConfig`                         | real read-merge-write of the config file (core `apply_patch`), parents created               |
-| `McpStart` / `McpStop`               | token file `mcp.json` real (dir 0700, file 0600, reuse rule); "listening" is bookkeeping, port 0 = fake port 40001+; `busy_port` simulates a taken port |
-| `HttpReply`                          | captured per connection id; dropped when the connection was aborted                          |
-| `RunCommand`                         | fake runner (scripted result, recorded call, optional block); no process is spawned           |
-| `Highlight`                          | real syntect run, result delivered as an event on the next settle                            |
-| `Clipboard`                          | recorded (decoded text, no OSC 52 bytes)                                                      |
-| `SetTimer` / `CancelTimer`           | manual clock; only `advance_clock` fires timers                                               |
-| `Exit`                               | recorded; input after exit panics                                                             |
+| effect                     | in the sim                                                                                                                                              |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LoadDiff`, `ListFiles`    | real `git` in the temp repo (hermetic env: no user/system git config), same argv/untracked rules as the app                                             |
+| `ReadFile`, `WriteExport`  | real fs                                                                                                                                                 |
+| `SaveConfig`               | real read-merge-write of the config file (core `apply_patch`), parents created                                                                          |
+| `McpStart` / `McpStop`     | token file `mcp.json` real (dir 0700, file 0600, reuse rule); "listening" is bookkeeping, port 0 = fake port 40001+; `busy_port` simulates a taken port |
+| `HttpReply`                | captured per connection id; dropped when the connection was aborted                                                                                     |
+| `RunCommand`               | fake runner (scripted result, recorded call, optional block); no process is spawned                                                                     |
+| `Highlight`                | real syntect run, result delivered as an event on the next settle                                                                                       |
+| `Clipboard`                | recorded (decoded text, no OSC 52 bytes)                                                                                                                |
+| `SetTimer` / `CancelTimer` | manual clock; only `advance_clock` fires timers                                                                                                         |
+| `Exit`                     | recorded; input after exit panics                                                                                                                       |
 
 Held or in-flight work in the real app is "pending work"; here `settle()` drains everything except held IO,
 blocked fake CLIs and armed timers.
