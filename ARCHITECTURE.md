@@ -139,7 +139,7 @@ front so workers never edit them.
 - Spec coverage gate: `xplain-sim/tests/spec_coverage.rs` reads the Coverage index of `spec/SPEC.md`; every
   in-scope `F-<GROUP>-NN` needs a test fn named `f_<group>_<nn>_...` or a `// covers: F-X-NN` marker, else an entry in
   `xplain-sim/tests/app_pending.txt`.
-- CI: `.github/workflows/rust.yml` runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- CI: `.github/workflows/rust.yml` runs `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`
   on Linux and macOS.
 - Regression rule: fix a bug by adding a test first when it can be reproduced in core or in a `Sim` scenario.
 

@@ -64,7 +64,7 @@ cargo run --bin xplain -- --help
 cargo build --release                  # target/release/xplain
 
 cargo test                             # unit tests + scenario tests + spec coverage gate
-cargo clippy --all-targets -- -D warnings
+cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --check
 ```
 
