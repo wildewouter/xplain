@@ -9,39 +9,36 @@ IO crate. Core decides, app executes. All modules registered in `src/lib.rs` up 
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ------------ |
 | `main.rs`      | calls `run::main_with_args`, exits. No logic                                                                                               | -                                                                                       | (lead, done) |
 | `cli.rs`       | pure argv parser, `USAGE`, error texts                                                                                                     | F-CLI-01..04, F-CLI-06                                                                  | B            |
-| `env.rs`       | `RawEnv` snapshot, config path env, state dir, sync/truecolor flags, `EnvInfo`                                                             | F-CONFIG-01, F-MCPSRV-01 (dir), Test seams (env)                                        | B            |
+| `env.rs`       | `RawEnv` snapshot, config path env, state dir, truecolor flag, `EnvInfo`                                                             | F-CONFIG-01, F-MCPSRV-01 (dir), Environment                                        | B            |
 | `config_io.rs` | read config file (`ConfigFile`), `SaveConfig` read-merge-write                                                                             | F-CONFIG-01/04/05, F-CFGUI-03                                                           | B            |
 | `git.rs`       | `LoadDiff` (cwd check, git via `proc::run_command`, untracked), `ListFiles` (`-z`)                                                         | F-MODE-01/02/04, F-CLI-06, F-FILES/F-SEARCH listing, UNSPEC-37                          | B            |
 | `fsio.rs`      | `ReadFile`, `WriteExport`, `io_reason`, `atomic_write` (temp + rename, used by token/config_io)                                            | F-BROWSE-01, F-COMMENT-09, F-EXPORT-01                                                  | B            |
 | `run.rs`       | `prepare` (argv -> config -> `State`) + `main_with_args` orchestration, stderr warnings, exit codes                                        | F-CLI-01..05, F-CONFIG-03/04                                                            | B            |
-| `input.rs`     | byte decoder: keys, paste, barriers                                                                                                        | Test seams, F-NAV-07, F-CLI-05, UNSPEC-8/26                                             | A            |
-| `barrier.rs`   | pure barrier queue (numbering, ordered release)                                                                                            | Test seams                                                                              | A            |
-| `runtime.rs`   | `drive_model` loop (`Io`/`Inputs` bundles), `Clock` trait, `barrier_reply`, `run_loop` wiring, handles Clipboard/SetTimer/CancelTimer/Exit | Test seams, F-CLI-05, F-RELOAD-02                                                       | A            |
+| `input.rs`     | byte decoder: keys, paste                                                                                                        | F-NAV-07, F-CLI-05, UNSPEC-8/26                                             | A            |
+| `runtime.rs`   | `drive_model` loop (`Io`/`Inputs` bundles), `Clock` trait, `run_loop` wiring, handles Clipboard/SetTimer/CancelTimer/Exit | F-CLI-05, F-RELOAD-02                                                       | A            |
 | `present.rs`   | `Screen` -> bytes (`encode_frame`), alt screen enter/leave                                                                                 | F-CLI-05, F-LAYOUT-01, Colors                                                           | A            |
 | `term.rs`      | raw mode (injectable `RawMode`), size, stdin reader thread, SIGWINCH, panic hook + `restore_terminal`                                      | F-CLI-05, F-LAYOUT-01                                                                   | A            |
-| `timers.rs`    | `RealClock`: wall clock + tokio timers, pending accounting                                                                                 | Test seams (background timers), F-ASK-05, F-MCPSRV-06                                   | A            |
+| `timers.rs`    | `RealClock`: wall clock + tokio timers, pending accounting                                                                                 | F-ASK-05 (background timers), F-MCPSRV-06                                   | A            |
 | `clipboard.rs` | OSC 52 bytes                                                                                                                               | F-ASK-08                                                             | A            |
-| `exec.rs`      | `Executor` trait, `PendingWork` (watch-backed counter), `RealExecutor` dispatcher                                                          | Test seams (pending), all IO effects                                                    | C            |
-| `http.rs`      | MCP server sockets, `HttpCounters`, `McpServer`                                                                                            | F-MCPSRV-01/02 (socket), F-MCPSRV-06 (drop), F-MCPUI-03 (drain), Test seams (reqs/done) | C            |
+| `exec.rs`      | `Executor` trait, `PendingWork` (watch-backed counter), `RealExecutor` dispatcher                                                          | all IO effects (pending work)                                                    | C            |
+| `http.rs`      | MCP server sockets, `McpServer`                                                                                            | F-MCPSRV-01/02 (socket), F-MCPSRV-06 (drop), F-MCPUI-03 (drain) | C            |
 | `token.rs`     | `mcp.json` token file IO                                                                                                                   | F-MCPSRV-01                                                                             | C            |
 | `proc.rs`      | integration CLI runner: own process group, group kill on timeout, bounded output                                                           | F-INTEG-01..04, UNSPEC-37                                                               | C            |
 
 ## Interfaces between modules (fixed signatures in the files)
 
-- `run::prepare(args, &RawEnv, abs_cwd, Size, read_config) -> Startup` (B). `Startup::Ui` -> `runtime::run_loop(state, effects, RuntimeConfig{sync, truecolor})` (A).
+- `run::prepare(args, &RawEnv, abs_cwd, Size, read_config) -> Startup` (B). `Startup::Ui` -> `runtime::run_loop(state, effects, RuntimeConfig{truecolor})` (A).
 - `runtime::drive_model(model, effects, cfg, Io)` (A) takes injected `Executor`, `Clock`, channels (`Inputs`), output writer and `RawMode`: unit-testable with fakes.
 - `Executor::dispatch(Effect)` (C) returns immediately; results -> `Event` via channel. `PendingWork::begin` before spawn, `end` after result event sent.
 - Runtime handles `Clipboard` (uses `clipboard::osc52`), `SetTimer`/`CancelTimer` (via `Clock`), `Exit`. Everything else goes to `Executor`. Exec ignores those four.
 - `Exit{code}`: runtime `Clock::cancel_all`, then waits (max 5 s, `EXIT_GRACE`) for `PendingWork == 0` (so `HttpReply`s written, `McpStop` done), leaves alt screen, returns.
 - Exec calls B's functions: `git::load_diff`, `git::list_files`, `fsio::read_file`, `fsio::write_export`, `config_io::save_config`; C's own: `proc::run_command`, `token::ensure_token` (called inside `McpServer::start`), `http::McpServer`.
-- `http::HttpCounters` is created by `run_loop`, shared with `RealExecutor::new`, `McpServer::start`, `runtime::barrier_reply`.
 - `timers::RealClock::new(tx, pending)`; `Clock::now` fills `state.clock` before every `update`.
 - Errors: only `IoReason::from_io_error` / `fail_msg`; never OS text.
-- Sync: `Barrier` items from `input` -> `barrier::BarrierQueue::push`; after each settle `due(Settle{frame_written, idle})` -> `barrier_reply` bytes written after the frame flush.
 
 ## Components
 
-- A `runtime`: input, barrier, runtime, present, term, timers, clipboard.
+- A `runtime`: input, runtime, present, term, timers, clipboard.
 - `test_util.rs` (cfg(test) only): shared `tmp(tag, name)` temp dir helper.
 - B `startup-io`: cli, env, config_io, git, fsio, run.
 - C `mcp-exec`: exec, http, token, proc.
@@ -50,6 +47,6 @@ IO crate. Core decides, app executes. All modules registered in `src/lib.rs` up 
 
 - runtime: private `Model` trait + `pub(crate) drive_model` (test without core State); no `drive` wrapper. Loop waits on `PendingWork::subscribe` (watch), no polling.
 - present: `Presenter::with_truecolor`, `Presenter::enter(out, RawMode)`, `Drop` restores terminal if not left. term: `SizeTracker`, `spawn_stdin_reader_sized`, `spawn_resize_watcher_tracked`, `normalize_size`, `RawMode::{is_active,inactive}`, `install_panic_hook` (called by `run`).
-- barrier: `PendingWork::guard()`, `WorkGuard`. http: `McpServer::reply_tracked`.
+- exec: `PendingWork::guard()`, `WorkGuard`. http: `McpServer::reply_tracked`.
 - Known gaps: Exit drops later effects in batch; local UTC offset computed after tokio start (RealClock falls back to `date +%z`).
 - exec: `Effect::Highlight` runs `highlight_lines` on the tokio blocking pool (pure CPU), counted as pending work. runtime: all queued stdin chunks are decoded before each draw. Release profile: lto, `panic = "abort"` (nothing uses `catch_unwind`).

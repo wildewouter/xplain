@@ -4,8 +4,8 @@
 //! F-CONFIG-05 (read-merge-write), F-EXPORT-01 (write), F-INTEG-* (process spawn, timeouts, not-found),
 //! Clipboard (OSC 52), Messages (IoReason mapping), UNSPEC-37 (timeouts: git 60 s, integrations 20 s).
 //! Owner: component C (mcp/exec).
-//! Must not: decide behavior. It maps effect -> IO -> event and reports pending-work counts so the barrier
-//! logic in `runtime` can tell when everything settled. Never surfaces OS error text.
+//! Must not: decide behavior. It maps effect -> IO -> event and reports pending-work counts so `runtime` can
+//! wait for outstanding work on exit. Never surfaces OS error text.
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -13,7 +13,7 @@ use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use xplain_core::effect::Effect;
 use xplain_core::event::{Event, ReqId};
 
-use crate::http::{HttpCounters, McpServer};
+use crate::http::McpServer;
 use crate::{config_io, fsio, git, proc};
 
 /// Runs effects. `dispatch` must return immediately; results come back through `tx` as events.
@@ -24,7 +24,7 @@ pub trait Executor {
 }
 
 /// Shared counter of outstanding non-background async work (git loads, file IO, MCP start/stop,
-/// integration commands, HTTP request body reads). Idle barrier replies wait for zero. Changes are observable
+/// integration commands, HTTP request body reads). Exit waits for zero. Changes are observable
 /// through [`PendingWork::subscribe`], so waiters never poll.
 #[derive(Debug, Clone)]
 pub struct PendingWork {
@@ -96,15 +96,14 @@ fn lock(slot: &Slot) -> MutexGuard<'_, Option<McpServer>> {
 pub struct RealExecutor {
     tx: UnboundedSender<Event>,
     pending: PendingWork,
-    counters: HttpCounters,
     server: Slot,
     /// Serial queue for McpStart/McpStop, created on first use.
     server_cmds: Option<UnboundedSender<ServerCmd>>,
 }
 
 impl RealExecutor {
-    pub fn new(tx: UnboundedSender<Event>, pending: PendingWork, counters: HttpCounters) -> Self {
-        RealExecutor { tx, pending, counters, server: Arc::new(Mutex::new(None)), server_cmds: None }
+    pub fn new(tx: UnboundedSender<Event>, pending: PendingWork) -> Self {
+        RealExecutor { tx, pending, server: Arc::new(Mutex::new(None)), server_cmds: None }
     }
 
     /// Run `fut` in a task; its output event is sent, then the pending unit is released.
@@ -127,7 +126,6 @@ impl RealExecutor {
         }
         let (q, mut rx) = unbounded_channel::<ServerCmd>();
         let tx = self.tx.clone();
-        let counters = self.counters.clone();
         let pending = self.pending.clone();
         let slot = self.server.clone();
         tokio::spawn(async move {
@@ -138,9 +136,7 @@ impl RealExecutor {
                         if let Some(old) = old {
                             old.stop().await;
                         }
-                        let started =
-                            McpServer::start(port, &state_dir, tx.clone(), counters.clone(), pending.clone())
-                                .await;
+                        let started = McpServer::start(port, &state_dir, tx.clone(), pending.clone()).await;
                         let result = started.map(|(server, endpoint)| {
                             *lock(&slot) = Some(server);
                             endpoint
@@ -248,7 +244,7 @@ mod tests {
     fn make() -> (RealExecutor, tokio::sync::mpsc::UnboundedReceiver<Event>, PendingWork) {
         let (tx, rx) = unbounded_channel();
         let pending = PendingWork::default();
-        (RealExecutor::new(tx, pending.clone(), HttpCounters::default()), rx, pending)
+        (RealExecutor::new(tx, pending.clone()), rx, pending)
     }
 
     #[test]

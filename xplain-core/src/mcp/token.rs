@@ -1,12 +1,12 @@
 //! Token and port helpers (pure).
 //!
-//! Spec: F-MCPSRV-01 (token file reuse rule, base64url 43 chars from 32 random bytes), Test seams
+//! Spec: F-MCPSRV-01 (token file reuse rule, base64url 43 chars from 32 random bytes), Environment
 //! (`XPLAIN_MCP_PORT`), F-INTEG-05/06 (masking the token in shown text). Owner: component `agent` (E).
 //! The boundary fns `parse_port` / `plan_token` live in `mcp/mod.rs` and delegate here.
 
 use super::TokenPlan;
 
-/// Default listen port (Test seams).
+/// Default listen port (Environment).
 pub const DEFAULT_PORT: u16 = 47615;
 
 const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";

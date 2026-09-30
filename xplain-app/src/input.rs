@@ -1,27 +1,17 @@
-//! Terminal input decoding: bytes -> keys/paste/resize/barriers.
+//! Terminal input decoding: bytes -> keys/paste/resize.
 //!
-//! Spec: Test seams (barrier bytes `ESC [ 9 9 9 9 ~` idle / `ESC [ 9 9 9 8 ~` frame, never keys; lone ESC
-//! directly before a barrier = Escape key; no escape timeout), F-NAV-07, F-CLI-05 (Ctrl+C), UNSPEC-8/26.
+//! Spec: F-NAV-07, F-CLI-05 (Ctrl+C, lone ESC waits for the next byte), UNSPEC-8/26.
 //! Owner: component A (runtime).
 //! Must not: talk to core state or the terminal; pure byte decoder so it is unit-testable byte-for-byte.
-//! Without `XPLAIN_SYNC` barrier bytes are decoded like any other unknown CSI (no special meaning).
 
 use xplain_core::keys::{Key, KeyEvent, Mods};
 use xplain_core::screen::Size;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BarrierKind {
-    Idle,
-    Frame,
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum InputItem {
     Key(KeyEvent),
     Paste(String),
     Resize(Size),
-    /// Sync barrier; only produced when the decoder was created with `sync = true`.
-    Barrier(BarrierKind),
 }
 
 /// Incremental decoder (handles sequences split across reads).
@@ -29,10 +19,9 @@ pub enum InputItem {
 /// Backspace (0x7f/0x08), Delete, arrows, Home/End (CSI and SS3 forms, `~` forms), PageUp/PageDown, Esc,
 /// Alt+char (ESC prefix), ctrl letters (0x01..0x1a; Ctrl+C is `KeyEvent::ctrl('c')`), modifiers via
 /// `CSI 1;<m>X`, bracketed paste `ESC [ 200 ~ .. ESC [ 201 ~` -> one `Paste`. Unknown CSI/SS3 sequences are
-/// swallowed (no keys). Escape without following byte stays buffered (no timeout, except before a barrier).
+/// swallowed (no keys). Escape without following byte stays buffered (no timeout).
 #[derive(Debug, Default)]
 pub struct InputDecoder {
-    pub sync: bool,
     buf: Vec<u8>,
     /// Inside a bracketed paste: bytes collected so far (after `ESC[200~`).
     paste: Option<Vec<u8>>,
@@ -135,12 +124,11 @@ fn csi_key(params: &[u32], has_params: bool, fin: u8) -> Option<(Key, Mods)> {
 }
 
 impl InputDecoder {
-    pub fn new(sync: bool) -> Self {
-        Self { sync, buf: Vec::new(), paste: None }
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    /// Feed raw stdin bytes. A trailing lone `ESC` stays buffered until the next byte arrives, except
-    /// that `ESC` followed by a barrier yields `Key(Esc)` then `Barrier`.
+    /// Feed raw stdin bytes. A trailing lone `ESC` stays buffered until the next byte arrives.
     pub fn feed(&mut self, bytes: &[u8]) -> Vec<InputItem> {
         let mut out = Vec::new();
         // Like Ink: a raw chunk mixing text with CR/LF (before any escape) is one paste, not keys.
@@ -258,13 +246,6 @@ impl InputDecoder {
         let len = i + 1;
         let raw = &b[2..params_end];
         let plain_params = i == params_end;
-        if self.sync && plain_params && fin == b'~' {
-            match raw {
-                b"9999" => return Parsed::Item(len, Some(InputItem::Barrier(BarrierKind::Idle))),
-                b"9998" => return Parsed::Item(len, Some(InputItem::Barrier(BarrierKind::Frame))),
-                _ => {}
-            }
-        }
         if !plain_params {
             return Parsed::Item(len, None);
         }
@@ -284,8 +265,8 @@ impl InputDecoder {
 mod tests {
     use super::*;
 
-    fn keys(sync: bool, b: &[u8]) -> Vec<InputItem> {
-        InputDecoder::new(sync).feed(b)
+    fn keys(b: &[u8]) -> Vec<InputItem> {
+        InputDecoder::new().feed(b)
     }
     fn k(key: Key) -> InputItem {
         InputItem::Key(KeyEvent::plain(key))
@@ -296,38 +277,37 @@ mod tests {
 
     #[test]
     fn f_nav_07_ctrl_letters() {
-        assert_eq!(keys(false, &[0x03]), vec![InputItem::Key(KeyEvent::ctrl('c'))]);
-        assert_eq!(keys(false, &[0x01]), vec![InputItem::Key(KeyEvent::ctrl('a'))]);
-        assert_eq!(keys(false, &[0x1a]), vec![InputItem::Key(KeyEvent::ctrl('z'))]);
-        assert_eq!(keys(false, &[0x0e]), vec![InputItem::Key(KeyEvent::ctrl('n'))]);
+        assert_eq!(keys(&[0x03]), vec![InputItem::Key(KeyEvent::ctrl('c'))]);
+        assert_eq!(keys(&[0x01]), vec![InputItem::Key(KeyEvent::ctrl('a'))]);
+        assert_eq!(keys(&[0x1a]), vec![InputItem::Key(KeyEvent::ctrl('z'))]);
+        assert_eq!(keys(&[0x0e]), vec![InputItem::Key(KeyEvent::ctrl('n'))]);
     }
 
     #[test]
     fn f_comment_02_mixed_chunk_is_paste() {
-        assert_eq!(keys(false, b"\r\nx\r\n\ny"), vec![InputItem::Paste("\r\nx\r\n\ny".into())]);
-        let got = keys(true, b"a\rb\x1b[9999~");
-        assert_eq!(got, vec![InputItem::Paste("a\rb".into()), InputItem::Barrier(BarrierKind::Idle)]);
+        assert_eq!(keys(b"\r\nx\r\n\ny"), vec![InputItem::Paste("\r\nx\r\n\ny".into())]);
+        assert_eq!(keys(b"a\rb"), vec![InputItem::Paste("a\rb".into())]);
     }
 
     #[test]
     fn f_nav_07_basic_keys() {
-        assert_eq!(keys(false, b"\r\n"), vec![k(Key::Enter), k(Key::Enter)]);
-        assert_eq!(keys(false, b"\t"), vec![k(Key::Tab)]);
-        assert_eq!(keys(false, b"\x1b[Z"), vec![k(Key::BackTab)]);
-        assert_eq!(keys(false, &[0x7f, 0x08]), vec![k(Key::Backspace), k(Key::Backspace)]);
-        assert_eq!(keys(false, b"aJ?"), vec![k(Key::Char('a')), k(Key::Char('J')), k(Key::Char('?'))]);
+        assert_eq!(keys(b"\r\n"), vec![k(Key::Enter), k(Key::Enter)]);
+        assert_eq!(keys(b"\t"), vec![k(Key::Tab)]);
+        assert_eq!(keys(b"\x1b[Z"), vec![k(Key::BackTab)]);
+        assert_eq!(keys(&[0x7f, 0x08]), vec![k(Key::Backspace), k(Key::Backspace)]);
+        assert_eq!(keys(b"aJ?"), vec![k(Key::Char('a')), k(Key::Char('J')), k(Key::Char('?'))]);
     }
 
     #[test]
     fn f_nav_07_csi_and_ss3() {
         assert_eq!(
-            keys(false, b"\x1b[A\x1b[B\x1b[C\x1b[D"),
+            keys(b"\x1b[A\x1b[B\x1b[C\x1b[D"),
             vec![k(Key::Up), k(Key::Down), k(Key::Right), k(Key::Left)]
         );
-        assert_eq!(keys(false, b"\x1bOA\x1bOH\x1bOF"), vec![k(Key::Up), k(Key::Home), k(Key::End)]);
-        assert_eq!(keys(false, b"\x1b[H\x1b[F"), vec![k(Key::Home), k(Key::End)]);
+        assert_eq!(keys(b"\x1bOA\x1bOH\x1bOF"), vec![k(Key::Up), k(Key::Home), k(Key::End)]);
+        assert_eq!(keys(b"\x1b[H\x1b[F"), vec![k(Key::Home), k(Key::End)]);
         assert_eq!(
-            keys(false, b"\x1b[1~\x1b[4~\x1b[7~\x1b[8~\x1b[3~\x1b[5~\x1b[6~"),
+            keys(b"\x1b[1~\x1b[4~\x1b[7~\x1b[8~\x1b[3~\x1b[5~\x1b[6~"),
             vec![
                 k(Key::Home),
                 k(Key::End),
@@ -342,22 +322,22 @@ mod tests {
 
     #[test]
     fn f_nav_07_modifiers() {
-        assert_eq!(keys(false, b"\x1b[1;5A"), vec![km(Key::Up, true, false, false)]);
-        assert_eq!(keys(false, b"\x1b[1;2D"), vec![km(Key::Left, false, false, true)]);
-        assert_eq!(keys(false, b"\x1b[3;3~"), vec![km(Key::Delete, false, true, false)]);
-        assert_eq!(keys(false, b"\x1bx"), vec![km(Key::Char('x'), false, true, false)]);
+        assert_eq!(keys(b"\x1b[1;5A"), vec![km(Key::Up, true, false, false)]);
+        assert_eq!(keys(b"\x1b[1;2D"), vec![km(Key::Left, false, false, true)]);
+        assert_eq!(keys(b"\x1b[3;3~"), vec![km(Key::Delete, false, true, false)]);
+        assert_eq!(keys(b"\x1bx"), vec![km(Key::Char('x'), false, true, false)]);
     }
 
     #[test]
     fn f_nav_07_unknown_swallowed() {
-        assert_eq!(keys(false, b"\x1b[2~a"), vec![k(Key::Char('a'))]);
-        assert_eq!(keys(false, b"\x1b[15~\x1bOPb"), vec![k(Key::Char('b'))]);
-        assert_eq!(keys(false, b"\x1b[?25ha"), vec![k(Key::Char('a'))]);
+        assert_eq!(keys(b"\x1b[2~a"), vec![k(Key::Char('a'))]);
+        assert_eq!(keys(b"\x1b[15~\x1bOPb"), vec![k(Key::Char('b'))]);
+        assert_eq!(keys(b"\x1b[?25ha"), vec![k(Key::Char('a'))]);
     }
 
     #[test]
     fn f_nav_07_utf8_split_across_reads() {
-        let mut d = InputDecoder::new(false);
+        let mut d = InputDecoder::new();
         let e = "é€😀".as_bytes();
         let mut out = Vec::new();
         for b in e {
@@ -368,7 +348,7 @@ mod tests {
 
     #[test]
     fn f_nav_07_csi_split_byte_by_byte() {
-        let mut d = InputDecoder::new(false);
+        let mut d = InputDecoder::new();
         let mut out = Vec::new();
         for b in b"\x1b[1;5A\x1bOB" {
             out.extend(d.feed(&[*b]));
@@ -378,7 +358,7 @@ mod tests {
 
     #[test]
     fn f_cli_05_lone_esc_waits() {
-        let mut d = InputDecoder::new(false);
+        let mut d = InputDecoder::new();
         assert!(d.feed(b"\x1b").is_empty());
         assert_eq!(d.feed(b"[A"), vec![k(Key::Up)]);
     }
@@ -386,24 +366,21 @@ mod tests {
     #[test]
     fn f_cli_05_paste_single_item() {
         assert_eq!(
-            keys(false, b"\x1b[200~a\nb\x1b[201~x"),
+            keys(b"\x1b[200~a\nb\x1b[201~x"),
             vec![InputItem::Paste("a\nb".into()), k(Key::Char('x'))]
         );
     }
 
     #[test]
     fn f_cli_05_raw_paste_chunk() {
-        assert_eq!(
-            keys(true, b"a\r\n\r\nb\nc\x1b[9999~"),
-            vec![InputItem::Paste("a\r\n\r\nb\nc".into()), InputItem::Barrier(BarrierKind::Idle)]
-        );
-        assert_eq!(keys(false, b"\r"), vec![k(Key::Enter)]);
-        assert_eq!(keys(false, b"\r\n"), vec![k(Key::Enter), k(Key::Enter)]);
+        assert_eq!(keys(b"a\r\n\r\nb\nc"), vec![InputItem::Paste("a\r\n\r\nb\nc".into())]);
+        assert_eq!(keys(b"\r"), vec![k(Key::Enter)]);
+        assert_eq!(keys(b"\r\n"), vec![k(Key::Enter), k(Key::Enter)]);
     }
 
     #[test]
     fn f_cli_05_paste_split_chunks() {
-        let mut d = InputDecoder::new(false);
+        let mut d = InputDecoder::new();
         let all = "\x1b[200~héllo\nwörld\x1b[201~q".as_bytes();
         let mut out = Vec::new();
         for b in all {
@@ -413,46 +390,7 @@ mod tests {
     }
 
     #[test]
-    fn f_cli_05_paste_ignores_barrier_bytes() {
-        let out = keys(true, b"\x1b[200~\x1b[9999~\x1b[201~");
-        assert_eq!(out, vec![InputItem::Paste("\x1b[9999~".into())]);
-    }
-
-    #[test]
-    fn test_seams_barriers() {
-        assert_eq!(
-            keys(true, b"\x1b[9999~\x1b[9998~"),
-            vec![InputItem::Barrier(BarrierKind::Idle), InputItem::Barrier(BarrierKind::Frame)]
-        );
-        assert_eq!(keys(true, b"j\x1b[9999~k")[1], InputItem::Barrier(BarrierKind::Idle));
-    }
-
-    #[test]
-    fn test_seams_barrier_split() {
-        let mut d = InputDecoder::new(true);
-        let mut out = Vec::new();
-        for b in b"\x1b[9998~" {
-            out.extend(d.feed(&[*b]));
-        }
-        assert_eq!(out, vec![InputItem::Barrier(BarrierKind::Frame)]);
-    }
-
-    #[test]
-    fn test_seams_lone_esc_before_barrier_is_escape() {
-        assert_eq!(keys(true, b"\x1b\x1b[9999~"), vec![k(Key::Esc), InputItem::Barrier(BarrierKind::Idle)]);
-        let mut d = InputDecoder::new(true);
-        assert!(d.feed(b"\x1b").is_empty());
-        assert_eq!(d.feed(b"\x1b[9998~"), vec![k(Key::Esc), InputItem::Barrier(BarrierKind::Frame)]);
-    }
-
-    #[test]
-    fn test_seams_barrier_bytes_ordinary_without_sync() {
-        assert!(keys(false, b"\x1b[9999~\x1b[9998~").is_empty());
-        assert_eq!(keys(false, b"\x1b[9999~a"), vec![k(Key::Char('a'))]);
-    }
-
-    #[test]
     fn unspec_8_paste_keeps_newlines() {
-        assert_eq!(keys(false, b"\x1b[200~a\r\nb\x1b[201~"), vec![InputItem::Paste("a\r\nb".into())]);
+        assert_eq!(keys(b"\x1b[200~a\r\nb\x1b[201~"), vec![InputItem::Paste("a\r\nb".into())]);
     }
 }

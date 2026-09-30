@@ -1,7 +1,7 @@
 //! Terminal presenter: alternate screen, raw mode, size, and drawing a core `Screen`.
 //!
 //! Spec: F-CLI-05 (alt screen enter/leave, raw mode, exit), F-LAYOUT-01 (size, default 80x24), Colors
-//! (24-bit when `COLORTERM=truecolor`), Test seams ("frame fully written" = flushed).
+//! (24-bit when `COLORTERM=truecolor`), frames are flushed before `draw` returns.
 //! Owner: component A (runtime).
 //! Must not: interpret app state; it only turns a `Screen` into bytes (diffing against the previous frame
 //! is allowed). ratatui may be used purely as buffer/backend here.
@@ -196,7 +196,7 @@ impl Presenter {
         crate::term::size()
     }
 
-    /// Draw `screen` and flush before returning (the barrier reply is written after this returns).
+    /// Draw `screen` and flush before returning.
     pub fn draw(&mut self, screen: &Screen, out: &mut dyn Write) -> std::io::Result<()> {
         let bytes = encode_frame(self.prev.as_ref(), screen, self.truecolor);
         if !bytes.is_empty() {

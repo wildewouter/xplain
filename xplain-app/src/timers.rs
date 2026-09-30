@@ -1,6 +1,6 @@
 //! Timers and wall clock for the real runtime.
 //!
-//! Spec: Test seams (spinner not pending work; `background` timers), F-ASK-05 (80 ms spinner),
+//! Spec: `background` timers are not pending work, F-ASK-05 (80 ms spinner),
 //! F-MCPSRV-06 (poll timeout timers), F-EXPORT-01 (local time offset for `state.clock`).
 //! Owner: component A (runtime).
 //! Must not: decide when to arm timers (core emits `SetTimer`/`CancelTimer`). Non-background timers count

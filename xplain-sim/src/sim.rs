@@ -63,7 +63,7 @@ impl SimBuilder {
         self
     }
     /// Set an env var the app reads: `HOME XDG_CONFIG_HOME XDG_STATE_HOME XPLAIN_CONFIG XPLAIN_MCP_PORT
-    /// XPLAIN_SYNC COLORTERM` (others panic). Placeholders expand. Empty string = set but empty.
+    /// COLORTERM` (others panic). Placeholders expand. Empty string = set but empty.
     pub fn env(mut self, k: &str, v: &str) -> Self {
         self.env.push((k.into(), Some(v.into())));
         self
@@ -266,7 +266,6 @@ impl Sim {
                 "XDG_STATE_HOME" => raw.xdg_state_home = v,
                 "XPLAIN_CONFIG" => raw.xplain_config = v,
                 "XPLAIN_MCP_PORT" => raw.xplain_mcp_port = v,
-                "XPLAIN_SYNC" => raw.xplain_sync = v,
                 "COLORTERM" => raw.colorterm = v,
                 other => panic!("xplain-sim: env var {other} is not read by the app"),
             }
@@ -439,7 +438,7 @@ impl Sim {
         self.settle();
     }
 
-    /// Run everything that is ready: effect results, until no work is left (the sync barrier). Held IO stays
+    /// Run everything that is ready: effect results, until no work is left. Held IO stays
     /// held; timers only move with [`advance_clock`](Self::advance_clock).
     pub fn settle(&mut self) {
         loop {

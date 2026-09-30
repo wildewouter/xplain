@@ -1,6 +1,6 @@
 //! Everything core asks the outside world to do. The only output of `update` besides state.
 //!
-//! Spec: Test seams (pending work definition), F-MODE-01/02, F-CONFIG-05, F-EXPORT-01, F-MCPSRV-*,
+//! Spec: F-MODE-01/02, F-CONFIG-05, F-EXPORT-01, F-MCPSRV-*,
 //! F-INTEG-*. Owner: core lead (types frozen at skeleton).
 //! Must not: perform anything. Effects run strictly in the order returned by one `update` call.
 //! Ordering guarantee the runtime must keep: `HttpReply` effects preceding `McpStop` are written

@@ -2,8 +2,7 @@
 //!
 //! Spec: F-MCPSRV-01 (bind 127.0.0.1:<port>, token file IO using core `plan_token`, dir 0700 / file 0600),
 //! F-MCPSRV-02 (socket-level: body size cap, connection close), F-MCPSRV-06 (connection drop while parked),
-//! Test seams (`reqs` counted on arrival, `done` when response written or connection gone and handler
-//! finished), F-MCPUI-03 (drain replies before close), Messages (`cannot listen ...`, `cannot write ...`).
+//! F-MCPUI-03 (drain replies before close), Messages (`cannot listen ...`, `cannot write ...`).
 //! Owner: component C (mcp/exec).
 //! Must not: interpret requests. It reads a request, sends `Event::McpHttp`, and writes whatever
 //! `Effect::HttpReply` says for that `ConnId`. All checks, JSON-RPC and tool logic are in core.
@@ -48,24 +47,6 @@ const STOP_GRACE: Duration = Duration::from_millis(2000);
 /// Ids stay unique across server restarts so a stale `HttpReply` never hits a new connection.
 static NEXT_CONN: AtomicU64 = AtomicU64::new(1);
 
-/// Process-wide request counters reported in every barrier reply (`<reqs>`, `<done>`).
-#[derive(Debug, Clone, Default)]
-pub struct HttpCounters {
-    pub received: Arc<AtomicU64>,
-    pub done: Arc<AtomicU64>,
-}
-
-impl HttpCounters {
-    /// Frozen copy of the current values (independent atomics).
-    pub fn snapshot(&self) -> HttpCounters {
-        use std::sync::atomic::Ordering::SeqCst;
-        HttpCounters {
-            received: Arc::new(AtomicU64::new(self.received.load(SeqCst))),
-            done: Arc::new(AtomicU64::new(self.done.load(SeqCst))),
-        }
-    }
-}
-
 /// A reply handed to a waiting handler; the guard keeps `PendingWork` open until it is written.
 struct Reply {
     response: HttpResponse,
@@ -74,7 +55,6 @@ struct Reply {
 
 struct Shared {
     tx: UnboundedSender<Event>,
-    counters: HttpCounters,
     pending: PendingWork,
     parked: Mutex<HashMap<ConnId, oneshot::Sender<Reply>>>,
     stopping: std::sync::atomic::AtomicBool,
@@ -99,7 +79,6 @@ impl McpServer {
         state_dir: &str, // token via `crate::token::ensure_token`
 
         tx: UnboundedSender<Event>,
-        counters: HttpCounters,
         pending: PendingWork,
     ) -> Result<(McpServer, McpEndpoint), String> {
         let token = crate::token::ensure_token(state_dir).await?;
@@ -116,7 +95,6 @@ impl McpServer {
             .map_err(|e| cannot_listen(port, IoReason::from_io_error(&e)))?;
         let shared = Arc::new(Shared {
             tx,
-            counters,
             pending,
             parked: Mutex::new(HashMap::new()),
             stopping: Default::default(),
@@ -219,19 +197,9 @@ async fn peer_gone(stream: &TcpStream) {
     }
 }
 
-/// Increments `done` exactly once, when dropped (response written, or handler gone).
-struct DoneGuard(Arc<AtomicU64>);
-
-impl Drop for DoneGuard {
-    fn drop(&mut self) {
-        self.0.fetch_add(1, Ordering::SeqCst);
-    }
-}
-
-/// Response body that keeps its guards alive until hyper is finished with it (written or dropped).
+/// Response body that keeps its work guard alive until hyper is finished with it (written or dropped).
 struct GuardedBody {
     inner: Full<Bytes>,
-    _done: DoneGuard,
     _work: Option<WorkGuard>,
 }
 
@@ -259,11 +227,8 @@ async fn handle(
     stream: Arc<TcpStream>,
     remote_port: u16,
 ) -> Result<Response<GuardedBody>, io::Error> {
-    // Counted on arrival, before the body is read. The pending guard comes first so a request that is
-    // counted is always covered by pending work until its event is queued (barrier `reqs` snapshot).
+    // Pending from arrival (before the body is read) until the request event is queued.
     let work = shared.pending.guard();
-    shared.counters.received.fetch_add(1, Ordering::SeqCst);
-    let done = DoneGuard(shared.counters.done.clone());
     let conn = ConnId(NEXT_CONN.fetch_add(1, Ordering::SeqCst));
 
     let (parts, mut body) = req.into_parts();
@@ -304,7 +269,7 @@ async fn handle(
     let Some(Reply { response, work }) = reply else {
         return Err(io::Error::new(io::ErrorKind::ConnectionAborted, "connection gone"));
     };
-    Ok(build_response(response, done, work))
+    Ok(build_response(response, work))
 }
 
 /// Reports `McpConnClosed` when the handler ends while its request is still parked (no reply taken yet).
@@ -339,9 +304,8 @@ async fn read_capped(body: &mut Incoming) -> Result<(Vec<u8>, bool), io::Error> 
     Ok((data, false))
 }
 
-fn build_response(r: HttpResponse, done: DoneGuard, work: Option<WorkGuard>) -> Response<GuardedBody> {
-    let mut res =
-        Response::new(GuardedBody { inner: Full::new(Bytes::from(r.body)), _done: done, _work: work });
+fn build_response(r: HttpResponse, work: Option<WorkGuard>) -> Response<GuardedBody> {
+    let mut res = Response::new(GuardedBody { inner: Full::new(Bytes::from(r.body)), _work: work });
     *res.status_mut() = StatusCode::from_u16(r.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
     for (k, v) in r.headers {
         if let (Ok(name), Ok(value)) = (HeaderName::from_bytes(k.as_bytes()), HeaderValue::from_str(&v)) {
@@ -393,7 +357,6 @@ impl AsyncWrite for SharedIo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::Ordering::SeqCst;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 
@@ -401,7 +364,6 @@ mod tests {
         server: McpServer,
         port: u16,
         rx: UnboundedReceiver<Event>,
-        counters: HttpCounters,
         pending: PendingWork,
         dir: std::path::PathBuf,
     }
@@ -412,17 +374,15 @@ mod tests {
         let _ = std::fs::create_dir_all(&dir);
         let _ = std::fs::write(dir.join("mcp.json"), "{\"token\":\"0123456789abcdef0123\"}");
         let (tx, rx) = unbounded_channel();
-        let counters = HttpCounters::default();
         let pending = PendingWork::default();
-        let started =
-            McpServer::start(0, &dir.to_string_lossy(), tx, counters.clone(), pending.clone()).await;
+        let started = McpServer::start(0, &dir.to_string_lossy(), tx, pending.clone()).await;
         let (server, ep) = match started {
             Ok(x) => x,
             Err(e) => unreachable!("start failed: {e}"),
         };
         assert_eq!(ep.url, format!("http://127.0.0.1:{}/mcp", ep.port));
         assert_eq!(ep.token, "0123456789abcdef0123");
-        Fixture { server, port: ep.port, rx, counters, pending, dir }
+        Fixture { server, port: ep.port, rx, pending, dir }
     }
 
     async fn next_http(rx: &mut UnboundedReceiver<Event>) -> HttpRequest {
@@ -446,17 +406,8 @@ mod tests {
         String::from_utf8_lossy(&out).into_owned()
     }
 
-    async fn settle(c: &HttpCounters, done: u64) {
-        for _ in 0..200 {
-            if c.done.load(SeqCst) >= done {
-                return;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    }
-
     #[tokio::test]
-    async fn request_roundtrip_fields_and_counters() {
+    async fn request_roundtrip_fields() {
         let mut f = fixture("rt").await;
         let mut s = TcpStream::connect(("127.0.0.1", f.port)).await.unwrap_or_else(|e| unreachable!("{e}"));
         let local = s.local_addr().map(|a| a.port()).unwrap_or(0);
@@ -467,7 +418,6 @@ mod tests {
         );
         let _ = s.write_all(req.as_bytes()).await;
         let r = next_http(&mut f.rx).await;
-        assert_eq!(f.counters.received.load(SeqCst), 1);
         assert_eq!(r.method, "POST");
         assert_eq!(r.path, "/mcp?x=1");
         assert_eq!(r.body, body.as_bytes());
@@ -481,8 +431,6 @@ mod tests {
         assert!(text.starts_with("HTTP/1.1 200 OK"), "{text}");
         assert!(text.contains("content-type: application/json"));
         assert!(text.ends_with("{\"ok\":true}"));
-        settle(&f.counters, 1).await;
-        assert_eq!(f.counters.done.load(SeqCst), 1);
         f.server.stop().await;
         let _ = std::fs::remove_dir_all(&f.dir);
     }
@@ -518,9 +466,6 @@ mod tests {
             Ok(Some(Event::McpConnClosed(c))) => assert_eq!(c, r.conn),
             other => unreachable!("expected McpConnClosed, got {other:?}"),
         }
-        settle(&f.counters, 1).await;
-        assert_eq!(f.counters.done.load(SeqCst), 1);
-        assert_eq!(f.counters.received.load(SeqCst), 1);
         // late reply is ignored
         f.server.reply(r.conn, resp(200, "late"));
         f.server.stop().await;
@@ -577,16 +522,10 @@ mod tests {
     async fn port_busy_and_zero_port() {
         let f = fixture("busy").await;
         let (tx, _rx) = unbounded_channel();
-        let e = McpServer::start(
-            f.port,
-            &f.dir.to_string_lossy(),
-            tx,
-            HttpCounters::default(),
-            PendingWork::default(),
-        )
-        .await
-        .err()
-        .unwrap_or_default();
+        let e = McpServer::start(f.port, &f.dir.to_string_lossy(), tx, PendingWork::default())
+            .await
+            .err()
+            .unwrap_or_default();
         assert_eq!(e, port_busy_message(f.port));
         f.server.stop().await;
         let _ = std::fs::remove_dir_all(&f.dir);

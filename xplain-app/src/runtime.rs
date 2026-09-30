@@ -1,16 +1,13 @@
-//! The event loop and sync barrier.
+//! The event loop.
 //!
-//! Spec: Test seams (whole section), F-CLI-05 (start/exit), F-RELOAD-02 (silent reload is just an event).
+//! Spec: F-CLI-05 (start/exit), F-RELOAD-02 (silent reload is just an event).
 //! Owner: component A (runtime); first thing built (spike). Effects `Clipboard`, `SetTimer`, `CancelTimer`, `Exit` are
 //! handled here (stdout/clock/loop); all other effects go to the `Executor`. `Exit` waits until `PendingWork == 0`
 //! (earlier effects incl. HttpReply/McpStop finished), leaves the alternate screen, returns the code.
 //! Must not: hold UI state beyond `xplain_core::State`, or interpret keys.
 //!
 //! Loop: decode ALL queued input chunks -> for each item call `update` (after setting `state.clock`) -> hand effects to the
-//! `Executor` -> when the queue is drained call `view` + `Presenter::draw` -> answer any barrier whose
-//! conditions hold. Idle barrier holds when: all earlier input handled, the frame was written, event queue
-//! empty, `PendingWork == 0`, and (before ready) first frame + initial load done (`State::is_ready`).
-//! Frame barrier holds when earlier input handled and frame written. Barrier replies are written in order.
+//! `Executor` -> when the queue is drained call `view` + `Presenter::draw`.
 
 use std::collections::VecDeque;
 use std::io::Write;
@@ -23,11 +20,9 @@ use xplain_core::event::{Event, TimerId};
 use xplain_core::screen::{Screen, Size};
 use xplain_core::state::Now;
 
-use crate::barrier::{BarrierQueue, Settle};
 use crate::clipboard::osc52;
 use crate::exec::{Executor, PendingWork, RealExecutor};
-use crate::http::HttpCounters;
-use crate::input::{BarrierKind, InputDecoder, InputItem};
+use crate::input::{InputDecoder, InputItem};
 use crate::present::Presenter;
 use crate::term::RawMode;
 use crate::timers::RealClock;
@@ -42,32 +37,18 @@ pub trait Clock {
     fn cancel_all(&mut self);
 }
 
-/// Formats the barrier reply `ESC ] 7770 ; <kind> ; <n> ; <reqs> ; <done> BEL` (Test seams).
-pub fn barrier_reply(kind: BarrierKind, n: u64, counters: &HttpCounters) -> Vec<u8> {
-    use std::sync::atomic::Ordering::SeqCst;
-    let k = match kind {
-        BarrierKind::Idle => "idle",
-        BarrierKind::Frame => "frame",
-    };
-    format!("\x1b]7770;{k};{n};{};{}\x07", counters.received.load(SeqCst), counters.done.load(SeqCst))
-        .into_bytes()
-}
-
 /// Everything `run` needs from the outside.
 pub struct RuntimeConfig {
-    /// `XPLAIN_SYNC=1`: decode and answer barriers.
-    pub sync: bool,
     /// 24-bit colors (`COLORTERM`), passed to the presenter.
     pub truecolor: bool,
 }
 
-/// What the loop needs from the core: `update`, `view`, readiness, clock injection. Real impl wraps
+/// What the loop needs from the core: `update`, `view`, clock injection. Real impl wraps
 /// `xplain_core::State`; tests use a fake so the loop is testable on its own.
 pub(crate) trait Model {
     fn set_clock(&mut self, now: Now);
     fn update(&mut self, event: Event) -> Vec<Effect>;
     fn view(&self) -> Screen;
-    fn is_ready(&self) -> bool;
 }
 
 struct CoreModel(xplain_core::State);
@@ -82,9 +63,6 @@ impl Model for CoreModel {
     fn view(&self) -> Screen {
         xplain_core::view(&self.0)
     }
-    fn is_ready(&self) -> bool {
-        self.0.is_ready()
-    }
 }
 
 /// Receivers feeding the loop: `events` results/timers/HTTP events from executor and clock, `input` raw stdin
@@ -95,13 +73,12 @@ pub struct Inputs {
     pub resize: UnboundedReceiver<Size>,
 }
 
-/// Every collaborator of the loop, injected so tests can fake them: executor, clock, shared counters, input
+/// Every collaborator of the loop, injected so tests can fake them: executor, clock, pending-work counter, input
 /// channels, output writer and the raw-mode guard the presenter takes over.
 pub struct Io<E, C, W> {
     pub exec: E,
     pub clock: C,
     pub pending: PendingWork,
-    pub counters: HttpCounters,
     pub inputs: Inputs,
     pub out: W,
     pub raw: RawMode,
@@ -174,7 +151,7 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
     cfg: &RuntimeConfig,
     io: Io<E, C, W>,
 ) -> i32 {
-    let Io { exec, clock, pending, counters, inputs, mut out, raw } = io;
+    let Io { exec, clock, pending, inputs, mut out, raw } = io;
     let Inputs { mut events, mut input, mut resize } = inputs;
     let Ok(presenter) = Presenter::enter(&mut out, raw) else { return 1 };
     let mut rt = Rt {
@@ -202,10 +179,8 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
     }
     step!(Event::Started);
 
-    let mut pending_rx = pending.subscribe();
-    let mut decoder = InputDecoder::new(cfg.sync);
+    let mut decoder = InputDecoder::new();
     let mut items: VecDeque<InputItem> = VecDeque::new();
-    let mut barriers = BarrierQueue::new();
     let (mut events_open, mut input_open, mut resize_open) = (true, true, true);
     loop {
         let mut progress = false;
@@ -228,48 +203,24 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
                 }
             }
         }
-        // Input after a barrier waits for that barrier's reply.
-        while barriers.is_empty() {
-            let Some(item) = items.pop_front() else { break };
+        while let Some(item) = items.pop_front() {
             progress = true;
             match item {
                 InputItem::Key(k) => step!(Event::Key(k)),
                 InputItem::Paste(t) => step!(Event::Paste(t)),
                 InputItem::Resize(sz) => step!(Event::Resize(sz)),
-                InputItem::Barrier(kind) => {
-                    barriers.push(kind);
-                }
             }
         }
-        // Drain results; quiet = no tracked work was outstanding before a drain that found nothing.
-        // Counters are read before the pending check: a counted request is then covered by pending work or
-        // already queued, so a reply never counts a request whose effects are not applied yet.
-        let (quiet, snap) = loop {
-            let snap = counters.snapshot();
-            let quiet = *pending_rx.borrow_and_update() == 0;
-            let mut got = false;
-            while let Ok(ev) = events.try_recv() {
-                got = true;
-                step!(ev);
-            }
-            if !got {
-                break (quiet, snap);
-            }
+        // Drain results.
+        while let Ok(ev) = events.try_recv() {
             progress = true;
-        };
+            step!(ev);
+        }
         if rt.dirty {
             progress = true;
             if rt.draw().is_err() {
                 return rt.finish(1).await;
             }
-        }
-        let due = barriers.due(Settle { frame_written: true, idle: quiet && rt.model.is_ready() });
-        if !due.is_empty() {
-            progress = true;
-            for (kind, n) in due {
-                let _ = rt.out.write_all(&barrier_reply(kind, n, &snap));
-            }
-            let _ = rt.out.flush();
         }
         if progress {
             continue;
@@ -277,7 +228,6 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
         if !events_open && !input_open && !resize_open {
             return rt.finish(0).await;
         }
-        let waiting = !barriers.is_empty();
         tokio::select! {
             ev = events.recv(), if events_open => match ev {
                 Some(ev) => step!(ev),
@@ -291,8 +241,6 @@ pub(crate) async fn drive_model<M: Model, E: Executor, C: Clock, W: Write>(
                 Some(s) => step!(Event::Resize(s)),
                 None => resize_open = false,
             },
-            // A barrier waits on pending work, which changes without producing an event.
-            _ = pending_rx.changed(), if waiting => {}
         }
     }
 }
@@ -309,9 +257,8 @@ pub async fn run_loop(
     let (input_tx, input) = unbounded_channel();
     let (resize_tx, resize) = unbounded_channel();
     let pending = PendingWork::default();
-    let counters = HttpCounters::default();
     let clock = RealClock::new(events_tx.clone(), pending.clone());
-    let exec = RealExecutor::new(events_tx, pending.clone(), counters.clone());
+    let exec = RealExecutor::new(events_tx, pending.clone());
     let tracker = crate::term::SizeTracker::new(crate::term::size());
     crate::term::spawn_resize_watcher_tracked(resize_tx.clone(), tracker.clone());
     crate::term::spawn_stdin_reader_sized(input_tx, Some((resize_tx, tracker)));
@@ -319,7 +266,6 @@ pub async fn run_loop(
         exec,
         clock,
         pending,
-        counters,
         inputs: Inputs { events, input, resize },
         out: std::io::stdout(),
         raw: RawMode::enable(),
@@ -419,9 +365,6 @@ mod tests {
             }
             s
         }
-        fn is_ready(&self) -> bool {
-            self.ready
-        }
     }
 
     struct FakeExec {
@@ -480,11 +423,11 @@ mod tests {
     }
 
     struct Rig {
-        sync: bool,
         initial: Vec<Effect>,
         real_clock: bool,
         read_delay_ms: u64,
-        counters: HttpCounters,
+        /// Send `q` through the event channel after this many ms (0 = never), so results can land first.
+        quit_after_ms: u64,
         input: Vec<Vec<u8>>,
         resizes: Vec<Size>,
     }
@@ -492,11 +435,10 @@ mod tests {
     impl Rig {
         fn new(input: &[&[u8]]) -> Rig {
             Rig {
-                sync: true,
                 initial: vec![],
                 real_clock: false,
                 read_delay_ms: 20,
-                counters: HttpCounters::default(),
+                quit_after_ms: 0,
                 input: input.iter().map(|b| b.to_vec()).collect(),
                 resizes: vec![],
             }
@@ -527,16 +469,22 @@ mod tests {
                 TestClock::Fake(log.clone())
             };
             let model = Fake { ready: self.initial.is_empty(), keys: 0, log: log.clone() };
-            let cfg = RuntimeConfig { sync: self.sync, truecolor: true };
+            let cfg = RuntimeConfig { truecolor: true };
             let io = Io {
                 exec,
                 clock,
                 pending,
-                counters: self.counters,
                 inputs: Inputs { events: erx, input: irx, resize: rrx },
                 out: out.clone(),
                 raw: RawMode::inactive(),
             };
+            if self.quit_after_ms > 0 {
+                let (tx, d) = (etx.clone(), self.quit_after_ms);
+                tokio::spawn(async move {
+                    tokio::time::sleep(Duration::from_millis(d)).await;
+                    let _ = tx.send(Event::Key(xplain_core::keys::KeyEvent::plain(Key::Char('q'))));
+                });
+            }
             let fut = drive_model(model, self.initial, &cfg, io);
             let code = tokio::time::timeout(Duration::from_secs(5), fut).await.unwrap_or(-999);
             drop((etx, itx, rtx));
@@ -547,13 +495,6 @@ mod tests {
 
     fn read_file() -> Vec<Effect> {
         vec![Effect::ReadFile { req: ReqId(1), path: "p".into() }]
-    }
-
-    const IDLE: &[u8] = b"\x1b[9999~";
-    const FRAME: &[u8] = b"\x1b[9998~";
-
-    fn pos(hay: &str, needle: &str) -> usize {
-        hay.find(needle).unwrap_or_else(|| panic!("{needle:?} not in {hay:?}"))
     }
 
     #[tokio::test(start_paused = true)]
@@ -636,162 +577,15 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn test_seams_replies_numbered_in_order_both_kinds() {
-        let (_, out, _) = Rig::new(&[IDLE, FRAME, IDLE, b"q"]).run().await;
-        let a = pos(&out, "\x1b]7770;idle;1;0;0\x07");
-        let b = pos(&out, "\x1b]7770;frame;2;0;0\x07");
-        let c = pos(&out, "\x1b]7770;idle;3;0;0\x07");
-        assert!(a < b && b < c);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_seams_reply_carries_http_counters() {
-        let rig = Rig::new(&[IDLE, b"q"]);
-        rig.counters.received.store(5, std::sync::atomic::Ordering::SeqCst);
-        rig.counters.done.store(4, std::sync::atomic::Ordering::SeqCst);
-        let (_, out, _) = rig.run().await;
-        assert!(out.contains("\x1b]7770;idle;1;5;4\x07"), "{out:?}");
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_seams_idle_before_ready_waits_for_initial_load() {
-        let mut rig = Rig::new(&[IDLE, b"q"]);
-        rig.initial = read_file();
-        rig.read_delay_ms = 30;
-        let (_, out, _) = rig.run().await;
-        assert!(pos(&out, "R") < pos(&out, "\x1b]7770;idle;1;"), "{out:?}");
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_seams_frame_before_ready_does_not_wait_for_load() {
-        let mut rig = Rig::new(&[FRAME, b"q"]);
-        rig.initial = read_file();
-        rig.read_delay_ms = 30;
-        let (_, out, _) = rig.run().await;
-        assert!(!out[..pos(&out, "\x1b]7770;frame;1;")].contains('R'), "{out:?}");
-        assert!(pos(&out, "Loading...") < pos(&out, "\x1b]7770;frame;1;"));
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_seams_idle_waits_for_pending_work_after_key() {
-        let mut rig = Rig::new(&[b"l", IDLE, b"q"]);
-        rig.read_delay_ms = 30;
-        let (_, out, _) = rig.run().await;
-        assert!(pos(&out, "R") < pos(&out, "\x1b]7770;idle;1;"), "{out:?}");
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_seams_frame_ignores_pending_work() {
-        let mut rig = Rig::new(&[b"l", FRAME, b"q"]);
-        rig.read_delay_ms = 30;
-        rig.initial = vec![];
-        let (_, out, _) = rig.run().await;
-        // model was ready from the start, so "ready" is the first frame already: check via exec log instead
-        assert!(out.contains("\x1b]7770;frame;1;"));
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_seams_frame_reply_before_slow_result_lands() {
-        let mut rig = Rig::new(&[b"l", FRAME, b"q"]);
-        rig.read_delay_ms = 60;
-        let (_, out, log) = rig.run().await;
-        assert!(out.contains("\x1b]7770;frame;1;"));
-        // 'q' handled right after the frame reply; the result event is never fed to core (exit only waits)
-        assert!(log.iter().any(|l| l.contains("Char('q')")));
-        assert!(!log.iter().any(|l| l.starts_with("FileRead")), "{log:?}");
-        assert!(log.contains(&"exec done".to_string()));
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_seams_input_after_barrier_handled_after_reply() {
-        let (_, out, _) = Rig::new(&[b"a", IDLE, b"a", IDLE, b"q"]).run().await;
-        let first = pos(&out, "\x1b]7770;idle;1;");
-        let second = pos(&out, "\x1b]7770;idle;2;");
-        assert_eq!(out[..first].matches('K').count(), 1, "{out:?}");
-        assert_eq!(out[first..second].matches('K').count(), 1, "{out:?}");
-    }
-
-    #[tokio::test(start_paused = true)]
     async fn queued_input_chunks_cost_one_frame() {
         // Four single-key chunks are already queued: all are applied before the next draw.
-        let (_, out, log) = Rig::new(&[b"a", b"a", b"a", b"a", IDLE, b"q"]).run().await;
+        let mut rig = Rig::new(&[b"a", b"a", b"a", b"a"]);
+        rig.quit_after_ms = 100;
+        let (_, out, log) = rig.run().await;
         let views = log.iter().filter(|l| l.as_str() == "view").count();
         assert_eq!(views, 2, "first frame + one frame for the whole burst: {log:?}");
         assert_eq!(log.iter().filter(|l| l.starts_with("Key")).count(), 5);
-        assert!(out.contains("\x1b]7770;idle;1;"));
-        let first = pos(&out, "\x1b]7770;idle;1;");
-        assert_eq!(out[..first].matches("KKKK").count(), 1, "{out:?}");
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn queued_chunks_after_barrier_still_wait_for_its_reply() {
-        let (_, out, _) = Rig::new(&[b"a", IDLE, b"a", b"a", IDLE, b"q"]).run().await;
-        let first = pos(&out, "\x1b]7770;idle;1;");
-        let second = pos(&out, "\x1b]7770;idle;2;");
-        assert_eq!(out[..first].matches('K').count(), 1, "{out:?}");
-        // the two chunks queued behind the barrier land in one frame after its reply
-        assert_eq!(out[first..second].matches('K').count(), 2, "{out:?}");
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_seams_input_after_barrier_in_same_chunk() {
-        let mut chunk = b"a".to_vec();
-        chunk.extend_from_slice(IDLE);
-        chunk.extend_from_slice(b"a\x1b[9998~q");
-        let (_, out, _) = Rig::new(&[&chunk]).run().await;
-        let first = pos(&out, "\x1b]7770;idle;1;");
-        let second = pos(&out, "\x1b]7770;frame;2;");
-        assert_eq!(out[..first].matches('K').count(), 1, "{out:?}");
-        assert_eq!(out[first..second].matches('K').count(), 1, "{out:?}");
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_seams_lone_esc_before_barrier_is_escape_key() {
-        let (_, _, log) = Rig::new(&[b"\x1b\x1b[9999~q"]).run().await;
-        assert!(log.iter().any(|l| l.contains("Esc")), "{log:?}");
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_seams_barrier_bytes_never_reach_core_as_keys() {
-        let (_, _, log) = Rig::new(&[IDLE, FRAME, b"q"]).run().await;
-        assert_eq!(log.iter().filter(|l| l.starts_with("Key")).count(), 1, "{log:?}");
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_seams_no_replies_without_sync() {
-        let mut rig = Rig::new(&[IDLE, b"q"]);
-        rig.sync = false;
-        let (_, out, log) = rig.run().await;
-        assert!(!out.contains("\x1b]7770"), "{out:?}");
-        assert_eq!(log.iter().filter(|l| l.starts_with("Key")).count(), 1);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_seams_background_timer_is_not_pending_work() {
-        let mut rig = Rig::new(&[b"b", IDLE, b"q"]);
-        rig.real_clock = true;
-        let (code, out, log) = rig.run().await;
-        assert_eq!(code, 3);
-        assert!(out.contains("\x1b]7770;idle;1;"));
-        assert!(!log.iter().any(|l| l.starts_with("Timer")), "idle answered before 150 ms bg timer: {log:?}");
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_seams_non_background_timer_is_pending_work() {
-        let mut rig = Rig::new(&[b"t", IDLE, b"q"]);
-        rig.real_clock = true;
-        let (_, _, log) = rig.run().await;
-        let timer = log.iter().position(|l| l.starts_with("Timer")).unwrap();
-        let q = log.iter().position(|l| l.contains("Char('q')")).unwrap();
-        assert!(timer < q, "{log:?}");
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_seams_cancelled_timer_releases_pending() {
-        let mut rig = Rig::new(&[b"t", b"x", IDLE, b"q"]);
-        rig.real_clock = true;
-        let (_, _, log) = rig.run().await;
-        assert!(!log.iter().any(|l| l.starts_with("Timer")), "{log:?}");
+        assert_eq!(out.matches("KKKK").count(), 1, "{out:?}");
     }
 
     #[tokio::test(start_paused = true)]
@@ -810,17 +604,12 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn f_reload_02_result_events_redraw() {
-        let mut rig = Rig::new(&[IDLE, b"q"]);
+        let mut rig = Rig::new(&[]);
         rig.initial = read_file();
+        rig.read_delay_ms = 30;
+        rig.quit_after_ms = 100;
         let (_, out, _) = rig.run().await;
         assert!(out.contains("Loading..."));
         assert!(out.contains("R"));
-    }
-
-    #[test]
-    fn test_seams_barrier_reply_format() {
-        let c = HttpCounters::default();
-        assert_eq!(barrier_reply(BarrierKind::Idle, 7, &c), b"\x1b]7770;idle;7;0;0\x07".to_vec());
-        assert_eq!(barrier_reply(BarrierKind::Frame, 2, &c), b"\x1b]7770;frame;2;0;0\x07".to_vec());
     }
 }

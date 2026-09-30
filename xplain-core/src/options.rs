@@ -1,6 +1,6 @@
 //! Resolved startup inputs: CLI options, environment snapshot, and the `Init` bundle for `State::new`.
 //!
-//! Spec: F-CLI-03, F-CLI-06, F-CONFIG-01 (path resolution order), F-MODE-01 (mode), Test seams (env).
+//! Spec: F-CLI-03, F-CLI-06, F-CONFIG-01 (path resolution order), F-MODE-01 (mode), Environment.
 //! Owner: core lead. Argv *parsing* lives in `xplain-app::cli`; this file holds only the result types.
 //! Must not: read env vars or files (the runtime fills [`EnvInfo`]).
 
@@ -56,9 +56,7 @@ pub struct Options {
 pub struct EnvInfo {
     /// Absolute cwd used for export header (`repo:`), export file location and `cannot read <cwd>/<p>`.
     pub abs_cwd: String,
-    /// `XPLAIN_SYNC=1` (informational; barrier handling lives in the runtime).
-    pub sync: bool,
-    /// Raw `XPLAIN_MCP_PORT` (`None` = unset or empty). Core validates (Test seams).
+    /// Raw `XPLAIN_MCP_PORT` (`None` = unset or empty). Core validates (Environment).
     pub mcp_port_raw: Option<String>,
     /// `<state dir>` for `mcp.json` (F-MCPSRV-01), already resolved by the runtime.
     pub state_dir: String,

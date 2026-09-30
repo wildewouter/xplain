@@ -28,7 +28,7 @@ pub enum Startup {
     /// Non-UI outcome: help, `config path`, flag error. Text already final (with trailing newlines).
     Exit { code: i32, stdout: String, stderr: String },
     /// Start the UI: warnings go to stderr first (each line + `\n`), then run the loop.
-    Ui { state: Box<State>, effects: Vec<Effect>, warnings: Vec<String>, sync: bool, truecolor: bool },
+    Ui { state: Box<State>, effects: Vec<Effect>, warnings: Vec<String>, truecolor: bool },
 }
 
 /// Pure-ish startup: parse argv (`cli::parse_args`), resolve config path (`xplain_core::config`), read the
@@ -65,13 +65,7 @@ pub fn prepare(
     };
     let init = Init { options, config: loaded.config, env: env.env_info(cwd, config_path), size };
     let (state, effects) = State::new(init, xplain_integrations::all());
-    Startup::Ui {
-        state: Box::new(state),
-        effects,
-        warnings: loaded.warnings,
-        sync: env.sync(),
-        truecolor: env.truecolor(),
-    }
+    Startup::Ui { state: Box::new(state), effects, warnings: loaded.warnings, truecolor: env.truecolor() }
 }
 
 /// Full program behavior for `args` (without program name). Returns the exit code. Builds the tokio runtime,
@@ -88,7 +82,7 @@ pub fn main_with_args(args: &[String]) -> i32 {
             emit(&out, &err, &mut stdout, &mut stderr);
             code
         }
-        Startup::Ui { state, effects, warnings, sync, truecolor } => {
+        Startup::Ui { state, effects, warnings, truecolor } => {
             let text: String = warnings.iter().map(|w| format!("{w}\n")).collect();
             emit("", &text, &mut stdout, &mut stderr);
             let rt = match tokio::runtime::Builder::new_multi_thread().enable_all().build() {
@@ -99,7 +93,7 @@ pub fn main_with_args(args: &[String]) -> i32 {
                 }
             };
             term::install_panic_hook();
-            rt.block_on(runtime::run_loop(*state, effects, RuntimeConfig { sync, truecolor }))
+            rt.block_on(runtime::run_loop(*state, effects, RuntimeConfig { truecolor }))
         }
     }
 }
@@ -177,13 +171,11 @@ mod tests {
             assert_eq!(p, "/c.json");
             ConfigFile::Text("{oops".into())
         };
-        let mut e = env();
-        e.xplain_sync = Some("1".into());
-        match prepare(&a(&["--config=/c.json", "--cwd", "sub"]), &e, "/w", size(), &read) {
-            Startup::Ui { warnings, sync, truecolor, .. } => {
+        match prepare(&a(&["--config=/c.json", "--cwd", "sub"]), &env(), "/w", size(), &read) {
+            Startup::Ui { warnings, truecolor, .. } => {
                 assert_eq!(warnings.len(), 1);
                 assert!(warnings[0].starts_with("xplain: config: /c.json"));
-                assert!(sync && !truecolor);
+                assert!(!truecolor);
             }
             _ => panic!("not ui"),
         }

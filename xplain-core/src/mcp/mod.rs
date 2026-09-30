@@ -260,7 +260,7 @@ impl McpState {
     }
 }
 
-/// Validate `XPLAIN_MCP_PORT` (Test seams): `None`/empty -> 47615; else decimal 0-65535.
+/// Validate `XPLAIN_MCP_PORT` (Environment): `None`/empty -> 47615; else decimal 0-65535.
 /// `Err` = the full message `invalid XPLAIN_MCP_PORT "<value>" (0-65535)`.
 pub fn parse_port(raw: Option<&str>) -> Result<u16, String> {
     token::parse_port(raw)

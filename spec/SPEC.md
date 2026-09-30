@@ -21,10 +21,10 @@ Everything test may touch:
   - `XDG_STATE_HOME`: state dir base, default `$HOME/.local/state` (empty value = unset).
   - `HOME`: fallback for both.
   - `PATH`: finds `git`, `claude`, `codex`, `copilot`.
-  - `XPLAIN_MCP_PORT`, `XPLAIN_SYNC`: test seams (below).
+  - `XPLAIN_MCP_PORT`: MCP listen port (Environment below).
   - color depth: terminal color detection (`COLORTERM=truecolor` gives 24-bit SGR). Tests pin `COLORTERM=truecolor`, `TERM=xterm-256color`.
 - terminal size: columns (default 80 when unknown), rows (default 24).
-- stdin keys. Escape key = lone `ESC` directly followed by barrier (Test seams).
+- stdin keys. Escape key = lone `ESC` (held until the next byte arrives; no escape timeout).
 - screen: header row, rule row, diff viewport, footer row, overlays.
 - stdout escape OSC 52 for clipboard.
 - stderr: flag errors, config warnings.
@@ -34,23 +34,9 @@ Everything test may touch:
 - HTTP: `127.0.0.1:<port>` path `/mcp` (port 47615 or `XPLAIN_MCP_PORT`).
 - external CLIs: `claude`, `codex`, `copilot` run by integrations (argv exact below).
 
-## Test seams
+## Environment
 
 - `XPLAIN_MCP_PORT`: MCP listen port. Unset or empty: 47615. Decimal `0`-`65535` (`0` = any free port). Other value: app runs; MCP start fails with error `invalid XPLAIN_MCP_PORT "<value>" (0-65535)`, shown where start errors show (F-MCPUI-01 error row, F-MCPUI-04 note). Elsewhere `<port>` (URLs, modal power row, port-busy message, integration `<url>`) = effective port; `0` gives actual bound port.
-- `XPLAIN_SYNC=1`: sync barriers.
-  - Input bytes `ESC [ 9 9 9 9 ~` (`1b 5b 39 39 39 39 7e`) = idle barrier; `ESC [ 9 9 9 8 ~` (`1b 5b 39 39 39 38 7e`) = frame barrier. Never keys. May arrive any time, also before first frame.
-  - Per barrier app writes stdout `ESC ] 7770 ; <kind> ; <n> ; <reqs> ; <done> BEL`. kind = `idle` or `frame` (as received); n = count of barriers of both kinds, decimal, 1-based; reqs = MCP HTTP requests received so far (counted on arrival, any path/method/status); done = requests fully handled (response written, or connection gone and handler finished). reqs, done: decimal, whole process (all MCP starts). One reply per barrier, in order. Older form `ESC ] 7770 ; idle ; <n> BEL` (no counts) accepted by tests, without request sync.
-  - Idle barrier reply only after: all input before barrier handled; resulting frame fully written; no async work pending (git loads, file reads/writes, file listing, MCP start/stop, integration commands, reading an MCP request body).
-  - Frame barrier reply only after: all input before barrier handled; resulting frame fully written. Pending async work ignored.
-  - Barrier before ready: answered after first full frame + initial load (diff, no-changes or error screen); frame barrier: after first full frame.
-  - Spinner animation not pending work (may keep drawing after reply).
-  - Lone `ESC` directly before barrier = Escape key (no escape timeout).
-  - Input after barrier handled after its reply. Barriers pending at exit may go unanswered.
-  - State change caused by MCP request applied (or pending work) before its HTTP response written.
-  - In-flight MCP request (e.g. long poll) counted in reqs: already in its waiting state (e.g. poll registered) by that reply.
-  - Tests: after a reply with reqs < requests sent, or done < requests answered or aborted by the test, send another barrier of same kind until both hold.
-- Without `XPLAIN_SYNC`: input bytes and output unchanged (no barrier handling, no replies).
-- Tests wait only on barrier replies, process exit, HTTP responses and connection results. No sleeps, no timeouts, no screen polling.
 
 ## Messages
 
@@ -66,7 +52,7 @@ Error notes / screens the app words itself: `<action> <target>: <reason>`. Runti
 
 - `failed`: text after it UNSPEC (UNSPEC-42); tests assert prefix up to `failed` only.
 - Sites: `cannot run git: <reason>` (F-MODE-04), `cannot open directory <dir>: <reason>` (F-CLI-06), `cannot read <path>: <reason>` (F-BROWSE-01, F-COMMENT-09), `config save failed: <path>: <reason>` (F-CONFIG-05), `export failed: <path>: <reason>` (F-EXPORT-01), `cannot write <path>: <reason>` (F-MCPSRV-01 token file), `cannot listen on 127.0.0.1:<port>: <reason>` (F-MCPUI-03).
-- Not this form (quoted elsewhere): git's own stderr (F-MODE-04), port busy (F-MCPUI-03), `invalid XPLAIN_MCP_PORT ...` (Test seams), integration messages (F-INTEG-*), config load warnings (F-CONFIG-04).
+- Not this form (quoted elsewhere): git's own stderr (F-MODE-04), port busy (F-MCPUI-03), `invalid XPLAIN_MCP_PORT ...` (Environment), integration messages (F-INTEG-*), config load warnings (F-CONFIG-04).
 
 ## Colors
 
@@ -1056,7 +1042,7 @@ HTTP JSON-RPC 2.0 MCP server (streamable HTTP, JSON responses only, no SSE).
 
 ### F-MCPSRV-01 listen and token
 
-- Listens `127.0.0.1:<port>` (Test seams), URL `http://127.0.0.1:<port>/mcp`. Only while started.
+- Listens `127.0.0.1:<port>` (Environment), URL `http://127.0.0.1:<port>/mcp`. Only while started.
 - Token file `<state dir>/mcp.json`, state dir `$XDG_STATE_HOME/xplain` or `$HOME/.local/state/xplain`. Dir created mode 0700; file mode 0600; content `{"token": "<t>"}` JSON 2-space indent + `\n`.
 - Existing file with string `token` length >= 16: reused, file untouched. Other fields (e.g. `port`): UNSPEC (UNSPEC-15). Missing/corrupt/short token: new token = 32 random bytes base64url (43 chars), file rewritten as `{"token": ...}` only.
 - Created on first start, not on launch. Token file write failure (e.g. state dir not writable): start fails, error `cannot write <state dir>/mcp.json: <reason>` (F-MCPUI-01 error row, F-MCPUI-04 note).

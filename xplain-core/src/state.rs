@@ -284,7 +284,7 @@ pub struct State {
     pub options: Options,
     pub settings: Settings,
     pub load: LoadState,
-    /// First load finished (barrier "ready" rule, Test seams).
+    /// First load finished.
     pub ready: bool,
     pub files: Vec<FileDiff>,
     pub browse: Option<Browse>,
@@ -420,7 +420,7 @@ impl State {
         ReqId(self.loader.next_req)
     }
 
-    /// Barrier rule (Test seams): first frame + initial load done.
+    /// First load finished (diff, no-changes or error screen).
     pub fn is_ready(&self) -> bool {
         self.ready
     }
@@ -543,7 +543,6 @@ pub(crate) mod testutil {
             config,
             env: EnvInfo {
                 abs_cwd: "/repo".into(),
-                sync: false,
                 mcp_port_raw: None,
                 state_dir: "/state".into(),
                 config_path: "/cfg/config.json".into(),

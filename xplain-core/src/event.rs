@@ -1,6 +1,6 @@
 //! Everything that can happen to the app. The only input of `update`.
 //!
-//! Spec: Test seams (timers, requests), all groups indirectly. Owner: core lead (types frozen at skeleton;
+//! Spec: all groups indirectly. Owner: core lead (types frozen at skeleton;
 //! add variants only via the core lead, since the runtime must handle/produce them).
 //! Must not: carry runtime error types (use [`IoReason`] / final message strings), or reference terminal
 //! or socket types.

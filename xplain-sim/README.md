@@ -24,7 +24,7 @@ Run: `cargo test -p xplain-sim` (a scenario takes about 0.1 s). Files: `tests/uN
 | `fixture(Fixture::Standard/Empty/NoGit)` | Standard = git repo, HEAD = `fixtures/base`, work tree = `fixtures/work` (default)        |
 | `args([..])`, `theme(name)`              | argv, parsed by `xplain_app::cli` exactly as the binary does; `theme` prepends `--theme`  |
 | `size(cols, rows)`                       | default 120x40                                                                            |
-| `env(k, v)`, `env_unset(k)`              | `HOME XDG_CONFIG_HOME XDG_STATE_HOME XPLAIN_CONFIG XPLAIN_MCP_PORT XPLAIN_SYNC COLORTERM` |
+| `env(k, v)`, `env_unset(k)`              | `HOME XDG_CONFIG_HOME XDG_STATE_HOME XPLAIN_CONFIG XPLAIN_MCP_PORT COLORTERM`      |
 | `config(text)`, `config_json(value)`     | writes `${CONFIG}/xplain/config.json` before start                                        |
 | `file(path, text)`, `file_bytes(..)`     | files written before start (relative to the repo)                                         |
 | `cwd(rel)`                               | app working dir inside the repo (created)                                                 |
@@ -44,7 +44,7 @@ Key notation: literal text = one key per char; tokens `<Esc> <Enter> <Tab> <S-Ta
 `<lt>` for `<`. Unknown tokens and a bare `<` panic.
 
 - `keys("jj<Esc><C-f>")`, `paste(text)`, `resize(cols, rows)`: send input, settle after each key. All return `&mut Sim`.
-- `settle()`: run every ready effect result until nothing is left (the sync barrier).
+- `settle()`: run every ready effect result until nothing is left.
 - `advance_clock(ms)`: manual clock; fires due timers in order, settling after each. `timers()`, `elapsed_ms()`.
   The wall clock (`state.clock`) starts at `START_UNIX_MS` = 2025-01-02T03:04:05Z.
 - `hold_io()` / `release_io()` / `held_io()`: hold and release git and file effects.
@@ -104,7 +104,7 @@ blocked fake CLIs and armed timers.
   Cells are compared as core produces them (`Color::Rgb` / named), not as xterm reports them.
 - Real sockets: TCP bind/refusal, HTTP parsing and framing by hyper, keep-alive, the 30 s body timeout, request
   body limits at the byte level (`Http::oversized` only sets core's `body_too_large`), `holdPort` collisions
-  (`busy_port` fakes the result), request counters of the sync barrier.
+  (`busy_port` fakes the result).
 - Process level: the binary's exit codes and streams outside startup (`main`), stderr during the run, the tokio
   runtime, `EXIT_GRACE`, real integration CLIs and `passthrough` shims, real timeouts of commands.
 - Local git config of the user is ignored on purpose; a test needing it must set it in the repo.

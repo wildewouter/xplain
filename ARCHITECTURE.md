@@ -1,6 +1,6 @@
 # xplain Rust rewrite: architecture
 
-The Cargo workspace is at the repo root. The contract is [`spec/SPEC.md`](spec/SPEC.md) (feature IDs `F-<GROUP>-NN`, Test seams,
+The Cargo workspace is at the repo root. The contract is [`spec/SPEC.md`](spec/SPEC.md) (feature IDs `F-<GROUP>-NN`, Environment,
 Messages, UNSPEC). The gate is `cargo test`, including the spec coverage gate (section 5). Anything in
 UNSPEC is free; everything else must match.
 
@@ -81,7 +81,7 @@ xplain-app  --> xplain-core
 - Dependency versions are pinned once in `Cargo.toml` `[workspace.dependencies]`; crates write
   `foo.workspace = true`. Add a dependency to a crate only when used and allowed above.
 
-## 3. Runtime loop and the sync barrier
+## 3. Runtime loop
 
 `xplain-app::runtime::run_loop`:
 
@@ -89,30 +89,17 @@ xplain-app  --> xplain-core
    `config::load_config` (print warnings to stderr before UI), build `Init`, `State::new` -> initial effects
    (`LoadDiff`). Enter alternate screen, draw first frame (`Loading...`), send `Event::Started` (core starts MCP if
    `autostart`, F-MCPUI-04).
-2. Loop: read stdin bytes -> `InputDecoder` -> items (`Key`, `Paste`, `Resize`, `Barrier`). For each key/paste/resize
+2. Loop: read stdin bytes -> `InputDecoder` -> items (`Key`, `Paste`, `Resize`). For each key/paste/resize
    and for every result/timer/HTTP event from channels: set `state.clock`, `update`, hand effects to the `Executor` in
-   order. After the queue drains: `view` -> `Presenter::draw` (flushed). Then answer barriers.
+   order. After the queue drains: `view` -> `Presenter::draw` (flushed).
 3. Exit: `Effect::Exit{code}` runs after all earlier effects (including `HttpReply`s and `McpStop`) finished; leave
    alternate screen; exit code. Ctrl+C is handled by core (`Exit{0}`) in every state.
 
-Barrier mapping (SPEC Test seams), with `XPLAIN_SYNC=1` only:
-
-| spec rule                                   | runtime mechanism                                                                                                                                                                                                               |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| barrier bytes are never keys                | `InputDecoder` emits `Barrier(Idle/Frame)`, never reaches `update`; lone `ESC` directly before a barrier -> `Key(Esc)` first, no escape timeout                                                                                 |
-| input before barrier handled                | barrier queued in input order; replied only after all earlier items went through `update`                                                                                                                                       |
-| frame fully written                         | reply after `Presenter::draw` returned (flushed) for the state produced by earlier input                                                                                                                                        |
-| idle: no pending async work                 | `PendingWork == 0` (every non-background effect increments on dispatch, decrements after its result event was _enqueued_) and event queue empty and no un-run effect; then re-`update` results first, draw, and only then reply |
-| frame: pending work ignored                 | reply right after the frame                                                                                                                                                                                                     |
-| before ready                                | idle waits for `State::is_ready()` (first frame + initial load); frame waits for first frame                                                                                                                                    |
-| spinner not pending                         | `SetTimer{background:true}`                                                                                                                                                                                                     |
-| `<n>` `<reqs>` `<done>`                     | barrier counter; `HttpCounters.received` incremented on request arrival (before body read), `done` when response written or connection gone and handler finished                                                                |
-| state change before HTTP response written   | natural: `update` runs (state changed) before the `HttpReply` effect is executed                                                                                                                                                |
-| in-flight long poll already registered      | poll is registered inside `update` (core state) before the reply; `received` may exceed `done` legally                                                                                                                          |
-| reading a request body is pending work      | `PendingWork` held between accept and `Event::McpHttp`                                                                                                                                                                          |
-| input after barrier handled after its reply | replies written synchronously when conditions hold, before the next input item is processed                                                                                                                                     |
-
-Without `XPLAIN_SYNC` none of this exists: bytes are ordinary input, no replies.
+Pending work: every non-background effect (git loads, file IO, MCP start/stop, integration commands, HTTP request body
+reads, highlights) holds one `PendingWork` unit from dispatch until its result event was enqueued. Timers with
+`background: true` (spinner, long-poll waits) do not count. `Exit` waits (bounded by `EXIT_GRACE`) for zero so
+`HttpReply`s are written and `McpStop` is done. A lone `ESC` stays buffered in `InputDecoder` until the next byte
+arrives (no escape timeout).
 
 ## 4. Spec groups -> crates/modules
 
@@ -131,7 +118,7 @@ Without `XPLAIN_SYNC` none of this exists: bytes are ordinary input, no replies.
 | MCPUI (F-MCPUI-01..04)                                                  | core (modal state + view)                                                              | start/stop = `McpStart`/`McpStop`                             |
 | MCPSRV (F-MCPSRV-01..11)                                                | core `mcp.rs` (protocol) + app `http.rs` (sockets, token file)                         | auth/host/origin checks pure in core                          |
 | INTEG (F-INTEG-01..06)                                                  | integrations (data) + core (flow) + app `exec` (spawn)                                 |                                                               |
-| Test seams                                                              | app `runtime.rs`, `input.rs`, `http.rs`                                                | section 3                                                     |
+| Environment                                                             | app `env.rs`, core `options.rs`                                                        | section 3                                                     |
 | Messages                                                                | core `errors.rs`; app maps OS errors to `IoReason`                                     |                                                               |
 | Colors, syntax highlighting (UNSPEC-31)                                 | core `theme.rs`, highlight module                                                      | syntect, pure                                                 |
 
@@ -144,7 +131,7 @@ front so workers never edit them.
 
 - Unit tests per module in-file (`#[cfg(test)]`). Core tests drive `update` with hand-made `Event`s and assert on
   effects and `view` screens (`Screen::row_text`). No terminal, no tokio needed.
-- Runtime tests: `InputDecoder` byte-for-byte; barrier logic with a fake `Executor` and fake `Clock`.
+- Runtime tests: `InputDecoder` byte-for-byte; the loop with a fake `Model`, `Executor` and `Clock`.
 - Integrations: assert exact argv and texts from SPEC F-INTEG-*.
 - Scenario tests: `xplain-sim` runs the real core in-process (manual clock, real git/fs in temp dirs, fake agent
   CLIs, in-process MCP HTTP). Tests live in `xplain-sim/tests/uNN_<area>.rs`; fixture repos in
@@ -158,9 +145,9 @@ front so workers never edit them.
 
 ## 6. Build order
 
-1. Spike (app lead + core lead): `InputDecoder`, `run_loop` with barrier replies, `Presenter`, `State::new`,
+1. Spike (app lead + core lead): `InputDecoder`, `run_loop`, `Presenter`, `State::new`,
    `LoadDiff` effect, `view` producing header/rule/footer + `Loading...` and a plain unified diff. Goal: F-CLI-01..06,
-   F-CLI-05, barrier plumbing and first frame pass in scenario tests; this proves the runtime/barrier design.
+   F-CLI-05 and the first frame pass in scenario tests; this proves the runtime design.
 2. Core in parallel per spec group: diff parser + git argv, config, reducer navigation/cursor, views (unified/split/
    browse, header/footer, themes), modals (picker, search, config, quit).
 3. Comments, visual, find/goto, export, help panel.

@@ -2,7 +2,7 @@
 //!
 //! Spec: F-CONFIG-01 (inputs to path resolution; empty = unset), Contract surface env list,
 //! F-MCPSRV-01 (state dir: `$XDG_STATE_HOME/xplain`, else `$HOME/.local/state/xplain`; empty = unset),
-//! Test seams (`XPLAIN_MCP_PORT` raw, `XPLAIN_SYNC=1`), Colors (`COLORTERM=truecolor`).
+//! Environment (`XPLAIN_MCP_PORT` raw), Colors (`COLORTERM=truecolor`).
 //! Owner: component B (startup).
 //! Must not: parse the port (core does), read config files, or print. `RawEnv::from_process` is the only
 //! place that reads `std::env`; everything else takes a `RawEnv` so it is unit-testable.
@@ -17,7 +17,6 @@ pub struct RawEnv {
     pub xdg_state_home: Option<String>,
     pub xplain_config: Option<String>,
     pub xplain_mcp_port: Option<String>,
-    pub xplain_sync: Option<String>,
     pub colorterm: Option<String>,
 }
 
@@ -38,7 +37,6 @@ impl RawEnv {
             xdg_state_home: var("XDG_STATE_HOME"),
             xplain_config: var("XPLAIN_CONFIG"),
             xplain_mcp_port: var("XPLAIN_MCP_PORT"),
-            xplain_sync: var("XPLAIN_SYNC"),
             colorterm: var("COLORTERM"),
         }
     }
@@ -63,11 +61,6 @@ impl RawEnv {
         }
     }
 
-    /// `XPLAIN_SYNC` set to `1`.
-    pub fn sync(&self) -> bool {
-        self.xplain_sync.as_deref() == Some("1")
-    }
-
     /// 24-bit colors wanted (`COLORTERM` truecolor or 24bit).
     pub fn truecolor(&self) -> bool {
         matches!(self.colorterm.as_deref(), Some("truecolor" | "24bit"))
@@ -77,7 +70,6 @@ impl RawEnv {
     pub fn env_info(&self, abs_cwd: String, config_path: String) -> EnvInfo {
         EnvInfo {
             abs_cwd,
-            sync: self.sync(),
             mcp_port_raw: set(&self.xplain_mcp_port).map(str::to_string),
             state_dir: self.state_dir().unwrap_or_default(),
             config_path,
@@ -107,13 +99,11 @@ mod tests {
     #[test]
     fn flags() {
         let mut e = env();
-        assert!(!e.sync() && !e.truecolor());
-        e.xplain_sync = Some("1".into());
+        assert!(!e.truecolor());
         e.colorterm = Some("truecolor".into());
-        assert!(e.sync() && e.truecolor());
-        e.xplain_sync = Some("0".into());
+        assert!(e.truecolor());
         e.colorterm = Some("24bit".into());
-        assert!(!e.sync() && e.truecolor());
+        assert!(e.truecolor());
         e.colorterm = Some("yes".into());
         assert!(!e.truecolor());
     }
@@ -135,12 +125,10 @@ mod tests {
     fn env_info_fields() {
         let mut e = env();
         e.xplain_mcp_port = Some(String::new());
-        e.xplain_sync = Some("1".into());
         let i = e.env_info("/w".into(), "/cfg".into());
         assert_eq!(i.abs_cwd, "/w");
         assert_eq!(i.config_path, "/cfg");
         assert_eq!(i.mcp_port_raw, None);
-        assert!(i.sync);
         e.xplain_mcp_port = Some("abc".into());
         assert_eq!(e.env_info(String::new(), String::new()).mcp_port_raw.as_deref(), Some("abc"));
     }

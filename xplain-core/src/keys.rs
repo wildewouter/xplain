@@ -1,7 +1,6 @@
 //! Terminal-independent key model. Produced by the runtime input decoder, consumed by core keymaps.
 //!
-//! Spec: F-NAV-07 (ctrl combos), F-CURSOR-05 (digits), Test seams (Escape = lone ESC before barrier;
-//! barrier bytes are never keys and never reach core). Owner: core lead (types frozen at skeleton).
+//! Spec: F-NAV-07 (ctrl combos), F-CURSOR-05 (digits), Owner: core lead (types frozen at skeleton).
 //! Must not: reference crossterm.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
