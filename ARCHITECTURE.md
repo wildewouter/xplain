@@ -1,7 +1,7 @@
 # xplain Rust rewrite: architecture
 
-The app lives in `rust/`. The contract is [`spec/SPEC.md`](spec/SPEC.md) (feature IDs `F-<GROUP>-NN`, Test seams,
-Messages, UNSPEC). The gate is `cargo test` in `rust/`, including the spec coverage gate (section 5). Anything in
+The Cargo workspace is at the repo root. The contract is [`spec/SPEC.md`](spec/SPEC.md) (feature IDs `F-<GROUP>-NN`, Test seams,
+Messages, UNSPEC). The gate is `cargo test`, including the spec coverage gate (section 5). Anything in
 UNSPEC is free; everything else must match.
 
 ## 1. Model: Elm style
@@ -77,8 +77,8 @@ xplain-app  --> xplain-core
   It never shows OS error text: `IoReason::from_io_error` then core/`fail_msg` words.
 - `xplain-sim` (dev only, `publish = false`, nothing depends on it): in-process scenario test harness. Depends on core,
   integrations and, for pure startup helpers only (argv, env, config read), app. Runs core with a manual clock, real git
-  and fs in temp dirs and a fake command runner. See `rust/xplain-sim/README.md`.
-- Dependency versions are pinned once in `rust/Cargo.toml` `[workspace.dependencies]`; crates write
+  and fs in temp dirs and a fake command runner. See `xplain-sim/README.md`.
+- Dependency versions are pinned once in `Cargo.toml` `[workspace.dependencies]`; crates write
   `foo.workspace = true`. Add a dependency to a crate only when used and allowed above.
 
 ## 3. Runtime loop and the sync barrier
@@ -146,12 +146,12 @@ front so workers never edit them.
   effects and `view` screens (`Screen::row_text`). No terminal, no tokio needed.
 - Runtime tests: `InputDecoder` byte-for-byte; barrier logic with a fake `Executor` and fake `Clock`.
 - Integrations: assert exact argv and texts from SPEC F-INTEG-*.
-- Scenario tests: `rust/xplain-sim` runs the real core in-process (manual clock, real git/fs in temp dirs, fake agent
-  CLIs, in-process MCP HTTP). Tests live in `rust/xplain-sim/tests/uNN_<area>.rs`; fixture repos in
-  `rust/xplain-sim/fixtures/{base,work}`. See its README.
-- Spec coverage gate: `rust/xplain-sim/tests/spec_coverage.rs` reads the Coverage index of `spec/SPEC.md`; every
+- Scenario tests: `xplain-sim` runs the real core in-process (manual clock, real git/fs in temp dirs, fake agent
+  CLIs, in-process MCP HTTP). Tests live in `xplain-sim/tests/uNN_<area>.rs`; fixture repos in
+  `xplain-sim/fixtures/{base,work}`. See its README.
+- Spec coverage gate: `xplain-sim/tests/spec_coverage.rs` reads the Coverage index of `spec/SPEC.md`; every
   in-scope `F-<GROUP>-NN` needs a test fn named `f_<group>_<nn>_...` or a `// covers: F-X-NN` marker, else an entry in
-  `rust/xplain-sim/tests/app_pending.txt`.
+  `xplain-sim/tests/app_pending.txt`.
 - CI: `.github/workflows/rust.yml` runs `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
   on Linux and macOS.
 - Regression rule: fix a bug by adding a test first when it can be reproduced in core or in a `Sim` scenario.
@@ -169,7 +169,7 @@ front so workers never edit them.
 
 ## 7. Conventions
 
-- Rust edition 2024, MSRV 1.85, `rustfmt` (`rust/rustfmt.toml`), `cargo clippy --all-targets` clean (workspace lints:
+- Rust edition 2024, MSRV 1.85, `rustfmt` (`rustfmt.toml`), `cargo clippy --all-targets` clean (workspace lints:
   `todo` allowed only during skeleton; `unwrap_used`, `expect_used`, `panic`, `print_*` warn; `unsafe` forbidden).
 - No `unwrap`/`expect`/`panic!`/indexing-that-can-panic in runtime paths (`xplain-app`, reducer, view). Tests may.
   Bad external input never crashes: it becomes a note, an error screen or an HTTP error.
@@ -177,7 +177,7 @@ front so workers never edit them.
   message strings). Runtime: `Result<_, IoReason>` at the effect boundary; no `anyhow`, no error text of std/libraries
   shown to users (Messages section).
 - Naming: modules and files `snake_case`; types `CamelCase`; spec IDs in doc comments as `F-XXX-NN` so
-  `grep -rn F-CURSOR-04 rust/` finds implementation and tests. Test names start with the spec id in snake case
+  `grep -rn F-CURSOR-04 .` finds implementation and tests. Test names start with the spec id in snake case
   (`f_cursor_04_word_motions_cross_rows`).
 - Strings that the spec gives verbatim live in one place per crate (`const`), with the spec ID in a comment.
 - Columns/widths: `unicode-width` cells for layout; column unit for cursor/selection is chars (UNSPEC-28; one decision, document it).

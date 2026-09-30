@@ -7,7 +7,7 @@ answer into the UI, add its own notes and signal file changes.
 ## Install
 
 ```sh
-cargo install --path rust/xplain-app
+cargo install --path xplain-app
 ```
 
 Needs a Rust toolchain (stable) and `git` on PATH.
@@ -29,7 +29,49 @@ Extra git args replace `HEAD` in `all` mode and are appended in the other modes.
 
 - [`spec/SPEC.md`](spec/SPEC.md): behavior contract
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): design, crates, testing
-- [`rust/README.md`](rust/README.md): build and test
+
+## Development
+
+Crates:
+
+- `xplain-core`: pure state machine (`update`, `view`), diff parser, config, MCP protocol logic.
+- `xplain-integrations`: agent CLI descriptions (claude, codex, copilot, opencode). Pure.
+- `xplain-app`: runtime and binary `xplain` (terminal, effects, HTTP server, argv).
+- `xplain-sim`: dev-only in-process scenario test harness; see its README.
+
+```sh
+cargo run --bin xplain                 # run in the current git repo (use --cwd <dir> for another)
+cargo run --bin xplain -- --help
+cargo build --release                  # target/release/xplain
+
+cargo test                             # unit tests + scenario tests + spec coverage gate
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
+```
+
+`git` must be on PATH (tests build real repos in temp dirs).
+
+### Tests
+
+- Unit tests live next to the code (`#[cfg(test)]`) in each crate.
+- Scenario tests: `xplain-sim/tests/uNN_<area>.rs`. They drive the real core through `Sim`:
+
+  ```rust
+  use xplain_sim::Sim;
+
+  #[test]
+  fn f_nav_09_example() {
+      let mut s = Sim::builder().build();        // standard fixture repo, 120x40
+      s.keys("<Tab>j");                          // keys, settled after each
+      s.assert_row_contains(0, "src/big.ts");
+  }
+  ```
+
+  Name the test `f_<group>_<nn>_<what>` so the spec ID `F-<GROUP>-<NN>` counts as covered. Builder options, key
+  notation and assertions: [`xplain-sim/README.md`](xplain-sim/README.md). Fixture repos:
+  `xplain-sim/fixtures/base` (HEAD) and `xplain-sim/fixtures/work` (working tree).
+- Spec coverage gate: `xplain-sim/tests/spec_coverage.rs` fails when an in-scope ID of `spec/SPEC.md` has no test
+  (fn `f_<group>_<nn>_...` or a `// covers: F-X-NN` comment). Known gaps go in `xplain-sim/tests/app_pending.txt`.
 
 ## License
 

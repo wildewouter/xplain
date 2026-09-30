@@ -17,7 +17,7 @@ fn root() -> PathBuf {
 }
 
 fn in_scope_ids() -> BTreeSet<String> {
-    let spec = fs::read_to_string(root().join("../spec/SPEC.md")).expect("read spec/SPEC.md");
+    let spec = fs::read_to_string(root().join("spec/SPEC.md")).expect("read spec/SPEC.md");
     let table = spec.split("## Coverage index").nth(1).expect("Coverage index section");
     let mut ids = BTreeSet::new();
     for line in table.lines() {
