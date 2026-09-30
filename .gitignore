@@ -17,3 +17,6 @@ target/
 
 # agent worktrees
 .claude/worktrees/
+
+# release artifacts
+dist/

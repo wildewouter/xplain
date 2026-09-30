@@ -25,6 +25,25 @@ xplain config path print the resolved config path
 
 Extra git args replace `HEAD` in `all` mode and are appended in the other modes. Press `?` in the app for all keys.
 
+## Release builds
+
+```sh
+cargo xtask dist [--version <v>]   # tarballs + SHA256SUMS in dist/
+cargo xtask install                # cargo install --path xplain-app --locked
+```
+
+`dist` builds `aarch64-apple-darwin`, `x86_64-apple-darwin`, `universal-apple-darwin` (lipo of both) and static
+`x86_64`/`aarch64-unknown-linux-musl` binaries into `dist/xplain-<version>-<target>.tar.gz`, then checks each
+binary's architecture and runs `xplain --help`. Version defaults to the one in `xplain-app/Cargo.toml`.
+
+What gets fetched:
+
+- Missing rustup targets are added with `rustup target add`.
+- Linux targets link with zig via the `cargo-zigbuild` library. `dist` uses `zig` from PATH when it is version
+  0.15.2, otherwise it downloads that release from ziglang.org once into `target/tools/zig-0.15.2/` (sha256
+  verified, reused afterwards). The pinned download is macOS aarch64 only.
+- macOS targets use the Xcode command line tools (`xcode-select --install`).
+
 ## Docs
 
 - [`spec/SPEC.md`](spec/SPEC.md): behavior contract
